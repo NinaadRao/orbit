@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  Security posture in one tag: only files from this folder may run or load; no inline script or style; no eval;
+  DOM strings must go through Trusted Types (this app never uses innerHTML); the only network destinations are
+  the AI providers you can choose in the coach settings, and localhost for local models.
+  To use another AI endpoint (OpenRouter, a home server), add its origin to connect-src below. See README.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0D1412">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orbit">
+<title>Orbit</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <main id="screen"></main>
+  <nav id="tabs" class="hidden" aria-label="Main"></nav>
+</div>
+<div id="sheets"></div>
+<div id="toast"></div>
+<div id="lock" class="hidden" role="dialog" aria-modal="true" aria-label="Orbit is locked"></div>
+<noscript><p>Orbit needs JavaScript to run. It has no server and sends nothing anywhere.</p></noscript>
+<script src="js/engine.js"></script>
+<script src="js/util.js"></script>
+<script src="js/crypto.js"></script>
+<script src="js/store.js"></script>
+<script src="js/llm.js"></script>
+<script src="js/foods.js"></script>
+<script src="js/foodai.js"></script>
+<script src="js/coach.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/screens-onboard.js"></script>
+<script src="js/screens-today.js"></script>
+<script src="js/screens-fuel.js"></script>
+<script src="js/screens-progress.js"></script>
+<script src="js/screens-coach.js"></script>
+<script src="js/screens-settings.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

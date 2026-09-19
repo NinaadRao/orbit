@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks commits that contain photos, backups, keys or your private terms.
+exec node "$(git rev-parse --show-toplevel)/scripts/check-private.mjs" --staged

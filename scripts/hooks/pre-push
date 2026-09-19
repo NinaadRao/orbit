@@ -1,0 +1,3 @@
+#!/bin/sh
+# Same check over every tracked file before anything leaves this computer.
+exec node "$(git rev-parse --show-toplevel)/scripts/check-private.mjs"

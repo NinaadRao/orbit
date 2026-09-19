@@ -1,0 +1,27 @@
+# Personal data never belongs in this repository.
+*.orbitbackup
+*.orbitprofile
+profile*.json
+exports/
+backups/
+private/
+photos/
+media/
+*.heic
+*.HEIC
+*.heif
+*.jpg
+*.jpeg
+*.JPG
+*.mov
+*.mp4
+*.webm
+
+# Secrets and local files
+.env
+.env.*
+*.pem
+.orbit-private-terms
+.DS_Store
+node_modules/
+*.log

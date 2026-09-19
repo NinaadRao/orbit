@@ -1,0 +1,207 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const E = require('../js/engine.js');
+
+// A fictional lifter. Expected tables below were computed independently of the engine.
+const answers = (over) => Object.assign({
+  sex: 'male', age: 30, heightCm: 180, weightKg: 80, units: { body: 'kg', length: 'in', lift: 'lb' },
+  measurements: { waist: 86, chest: 100, shoulders: 112, hips: 100, bicepL: 35, bicepR: 35 },
+  goal: 'recomp', days: [1, 2, 3, 4, 5], startDate: '2026-01-05',
+  training: { split: 'auto', equipment: ['Dumbbells', 'Machines'], dbStep: 2.5, machineStep: 5, focus: ['chest'], injuries: ['Nothing'], repStyle: 'mixed', sets: 3, deload: 'planned' },
+  lifts: [
+    { id: 'flat_db_press', on: true, weight: 60, reps: 8 }, { id: 'incline_db_press', on: true, weight: 55, reps: 8 },
+    { id: 'shoulder_press', on: true, weight: 35, reps: 10 }, { id: 'lat_pulldown', on: true, weight: 120, reps: 10 },
+    { id: 'db_row', on: true, weight: 60, reps: 10 }, { id: 'curl', on: true, weight: 25, reps: 10 },
+    { id: 'leg_press', on: true, weight: 270, reps: 8 }, { id: 'leg_curl', on: true, weight: 150, reps: 12 },
+    { id: 'leg_ext', on: true, weight: 140, reps: 12 }, { id: 'bulgarian', on: true, weight: 40, reps: 10 },
+    { id: 'pullups', on: true, reps: 4 },
+  ],
+}, over || {});
+
+test('macro maths: 80 kg, 30 y, 180 cm, 5 days', () => {
+  const who = { sex: 'male', kg: 80, cm: 180, age: 30, days: 5 };
+  const t = E.targetsFor('recomp', who);
+  assert.equal(t.kcal, 2950);
+  assert.equal(t.protein, 190);
+  assert.equal(t.fat, 105);
+  assert.equal(t.carbs, 310);
+  const b = E.targetsFor('build', who);
+  assert.equal(b.kcal, 3150);
+  assert.equal(b.carbs, 360);
+  assert.equal(E.targetsFor('cut', who).kcal, 2650);
+});
+
+test('block weights reproduce the independently computed tables', () => {
+  const plan = E.buildPlan(answers());
+  const lb = (id) => plan.lifts[id].blockUnits;
+  assert.deepEqual(lb('flat_db_press'), [60, 65, 72.5, 77.5, 85]);
+  assert.deepEqual(lb('incline_db_press'), [55, 60, 65, 72.5, 77.5]);
+  assert.deepEqual(lb('shoulder_press'), [35, 37.5, 40, 42.5, 45]);
+  assert.deepEqual(lb('lat_pulldown'), [120, 130, 135, 145, 150]);
+  assert.deepEqual(lb('db_row'), [60, 65, 72.5, 77.5, 85]);
+  assert.deepEqual(lb('curl'), [25, 27.5, 30, 32.5, 35]);
+  assert.deepEqual(lb('leg_press'), [270, 285, 305, 320, 340]);
+  assert.deepEqual(lb('leg_curl'), [150, 160, 165, 175, 180]);
+  assert.deepEqual(lb('leg_ext'), [140, 145, 155, 160, 170]);
+  assert.deepEqual(lb('bulgarian'), [40, 45, 47.5, 52.5, 55]);
+});
+
+test('rep waves, deloads and pull-ups follow the table', () => {
+  const plan = E.buildPlan(answers());
+  const chest = plan.lifts.flat_db_press;
+  const reps = (l, ws) => ws.map((w) => E.liftTarget(l, w, { deloadWeeks: plan.deloadWeeks }).reps);
+  assert.deepEqual(reps(chest, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), [8, 9, 10, 6, 7, 8, 8, 9, 10, 6]);
+  assert.deepEqual(reps(plan.lifts.shoulder_press, [1, 2, 3, 4]), [10, 11, 12, 8]);
+  assert.deepEqual(reps(plan.lifts.leg_curl, [1, 2, 3, 4]), [12, 13, 14, 10]);
+  // deload weeks: 2 sets at the previous block's weight
+  const d7 = E.liftTarget(chest, 7, { deloadWeeks: plan.deloadWeeks });
+  assert.equal(d7.sets, 2);
+  assert.ok(Math.abs(d7.kg - 60 * E.KG_PER_LB) < 1e-4);
+  const d14 = E.liftTarget(chest, 14, { deloadWeeks: plan.deloadWeeks });
+  assert.ok(Math.abs(d14.kg - 65 * E.KG_PER_LB) < 1e-4);
+  const d21 = E.liftTarget(chest, 21, { deloadWeeks: plan.deloadWeeks });
+  assert.ok(Math.abs(d21.kg - 72.5 * E.KG_PER_LB) < 1e-4);
+  // weeks 1..26 weight per block
+  const w = (wk) => Math.round(E.liftTarget(chest, wk, { deloadWeeks: plan.deloadWeeks }).kg / E.KG_PER_LB * 10) / 10;
+  assert.deepEqual([1, 3, 4, 9, 10, 15, 16, 20, 22, 26].map(w), [60, 60, 65, 65, 72.5, 72.5, 77.5, 77.5, 85, 85]);
+  const pu = plan.lifts.pullups;
+  assert.deepEqual([1, 4, 10, 16, 22].map((wk) => E.liftTarget(pu, wk).reps), [4, 5, 6, 7, 8]);
+});
+
+test('weights strictly increase even for tiny gains', () => {
+  const bw = E.blockWeights(10, 0.05, 2.5);
+  for (let i = 1; i < bw.length; i++) assert.ok(bw[i] > bw[i - 1]);
+});
+
+test('start me lighter lowers week-one weights', () => {
+  const a = answers({ startLighter: true });
+  const p = E.buildPlan(a);
+  assert.ok(p.lifts.flat_db_press.blockUnits[0] < 60);
+});
+
+test('goal suggestion uses waist-to-height ratio', () => {
+  assert.equal(E.recommendGoal(90, 170).goal, 'cut');
+  assert.equal(E.recommendGoal(80, 175).goal, 'recomp');
+  assert.equal(E.recommendGoal(74, 182).goal, 'build');
+});
+
+test('measurement targets use the inch offsets', () => {
+  const t = E.measurementTargets('recomp', { waist: 80, shoulders: 100 });
+  assert.ok(Math.abs(t.waist.target - (80 - 2.54)) < 1e-4);
+  assert.ok(Math.abs(t.shoulders.target - (100 + 1.25 * 2.54)) < 1e-4);
+});
+
+test('five-day template places every tracked lift exactly once', () => {
+  const plan = E.buildPlan(answers());
+  const placed = {};
+  plan.workouts.forEach((w) => w.ex.forEach((e) => { if (e.lift) placed[e.lift] = (placed[e.lift] || 0) + 1; }));
+  for (const id of Object.keys(plan.lifts)) assert.equal(placed[id], 1, id);
+  assert.equal(plan.workouts.length, 5);
+  assert.equal(plan.workouts[0].name, 'Push');
+});
+
+test('other day counts and unticked lifts still make a valid plan', () => {
+  for (const days of [[1, 3, 5], [1, 2, 4, 5], [1, 2, 3, 4, 5, 6], [2, 4]]) {
+    const a = answers({ days });
+    a.lifts = a.lifts.slice(0, 5);
+    const p = E.buildPlan(a);
+    assert.equal(p.workouts.length, days.length);
+    const placed = new Set();
+    p.workouts.forEach((w) => w.ex.forEach((e) => e.lift && placed.add(e.lift)));
+    for (const id of Object.keys(p.lifts)) assert.ok(placed.has(id), id);
+  }
+});
+
+test('validators enforce bounds', () => {
+  const plan = E.buildPlan(answers());
+  assert.equal(E.validateMacroChange(plan, 80, { kcal: 3300 }).ok, false);
+  assert.equal(E.validateMacroChange(plan, 80, { kcal: 3200 }).ok, true);
+  assert.equal(E.validateMacroChange(plan, 80, { protein: 300 }).ok, false);
+  assert.equal(E.validateLiftChange(plan, { lift: 'flat_db_press', percent: 15, fromWeek: 3 }).ok, false);
+  const v = E.validateLiftChange(plan, { lift: 'flat_db_press', percent: -5, fromWeek: 3 });
+  assert.equal(v.ok, true);
+  assert.equal(v.value.factor, 0.95);
+});
+
+test('projection applies revisions and honours voids', () => {
+  const a = answers();
+  const plan = E.buildPlan(a);
+  const ev = [
+    { seq: 1, ts: 't', type: 'profile_created', data: { profile: { weightKg: 80 }, plan } },
+    { seq: 2, ts: 't', type: 'plan_revised', data: { reason: 'test', changes: { kcal: 3100, protein: 190, carbs: 350, fat: 105 } }, src: 'coach' },
+    { seq: 3, ts: 't', type: 'weight_logged', data: { date: '2026-01-06', kg: 80.1 } },
+    { seq: 4, ts: 't', type: 'event_voided', data: { target: 2 } },
+  ];
+  const s = E.project(ev);
+  assert.equal(s.plan.kcal, 2950);
+  assert.equal(s.weights.length, 1);
+  const s2 = E.project(ev.slice(0, 3));
+  assert.equal(s2.plan.kcal, 3100);
+  assert.equal(s2.plan.history.length, 1);
+});
+
+test('lift adjustments scale weights and round to the step', () => {
+  const plan = E.buildPlan(answers());
+  const l = plan.lifts.flat_db_press;
+  l.adjust.push({ fromWeek: 4, factor: 0.95 });
+  const kg = E.liftTarget(l, 4, { deloadWeeks: plan.deloadWeeks }).kg / E.KG_PER_LB;
+  assert.equal(Math.round(kg * 10) / 10, 62.5);
+});
+
+test('lift status: hit, partial, behind, todo', () => {
+  const plan = E.buildPlan(answers());
+  const state = E.project([{ seq: 1, ts: 't', type: 'profile_created', data: { profile: { weightKg: 80 }, plan } }]);
+  const kg = 60 * E.KG_PER_LB;
+  const mk = (n, reps, date) => ({ seq: 10 + n, date, lift: 'flat_db_press', kg, reps });
+  assert.equal(E.liftStatus(state, 'flat_db_press', 1, '2026-01-06').status, 'Todo');
+  state.sets.push(mk(1, 8, '2026-01-06'));
+  assert.equal(E.liftStatus(state, 'flat_db_press', 1, '2026-01-06').status, 'Partial');
+  assert.equal(E.liftStatus(state, 'flat_db_press', 1, '2026-01-20').status, 'Behind');
+  state.sets.push(mk(2, 8, '2026-01-06'), mk(3, 9, '2026-01-06'));
+  assert.equal(E.liftStatus(state, 'flat_db_press', 1, '2026-01-06').status, 'Hit');
+});
+
+test('import validation rejects unsafe payloads', () => {
+  assert.equal(E.validateEvents([{ type: 'weight_logged', ts: 'x', data: { date: '2026-01-01', kg: 80 } }]), null);
+  assert.ok(E.validateEvents([{ type: 'nope', ts: 'x', data: {} }]));
+  const bad = JSON.parse('{"type":"weight_logged","ts":"x","data":{"__proto__":{"x":1}}}');
+  assert.ok(E.validateEvents([bad]));
+});
+
+test('weekOf boundaries', () => {
+  assert.equal(E.weekOf('2026-01-05', '2026-01-05'), 1);
+  assert.equal(E.weekOf('2026-01-05', '2026-01-11'), 1);
+  assert.equal(E.weekOf('2026-01-05', '2026-01-12'), 2);
+});
+
+test('food entries: clamped, recalculated from ingredients, warned when macros disagree', () => {
+  // A model that claims 900 kcal but whose ingredients add up to 400 gets corrected.
+  const r = E.normalizeFood({ name: 'Bowl', kcal: 900, protein: 10, carbs: 10, fat: 10, items: [
+    { name: 'Rice', qty: '1 cup', kcal: 200, protein: 4, carbs: 44, fat: 0 }, { name: 'Dal', qty: '1 katori', kcal: 200, protein: 12, carbs: 26, fat: 4 }] });
+  assert.equal(r.ok, true);
+  assert.equal(r.value.kcal, 400);
+  assert.equal(r.value.protein, 16);
+  assert.ok(r.warnings.length >= 1);
+  // Macros that cannot produce the calories are flagged, not silently accepted.
+  const w = E.normalizeFood({ name: 'Mystery', kcal: 800, protein: 5, carbs: 5, fat: 5 });
+  assert.equal(w.ok, true);
+  assert.ok(w.warnings.some((x) => /add up/.test(x)));
+  // Calories are worked out from macros when left empty.
+  assert.equal(E.normalizeFood({ name: 'Whey', protein: 25, carbs: 3, fat: 2 }).value.kcal, 130);
+  // Hostile or broken input is refused.
+  assert.equal(E.normalizeFood({ name: '', kcal: 100 }).ok, false);
+  assert.equal(E.normalizeFood({ name: 'x', kcal: 99999 }).ok, false);
+  assert.equal(E.normalizeFood(null).ok, false);
+  assert.equal(E.normalizeFood(JSON.parse('{"name":"x","kcal":100,"__proto__":{"a":1}}')).ok, false);
+  const long = E.normalizeFood({ name: 'A'.repeat(500) + '\u0000\n', kcal: 100, protein: -5 });
+  assert.equal(long.value.name.length, 80);
+  assert.equal(long.value.protein, 0);
+});
+
+test('loose JSON parsing and day totals', () => {
+  assert.deepEqual(E.parseJsonLoose('Sure! ```json\n{"a":1}\n``` hope that helps'), { a: 1 });
+  assert.throws(() => E.parseJsonLoose('no data here'));
+  const state = { foods: [{ date: 'd1', kcal: 300, protein: 20, carbs: 30, fat: 8 }, { date: 'd1', kcal: 100, protein: 5, carbs: 10, fat: 2 }, { date: 'd2', kcal: 999 }] };
+  assert.deepEqual(E.dayTotals(state, 'd1'), { kcal: 400, protein: 25, carbs: 40, fat: 10, n: 2 });
+});
