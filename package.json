@@ -4,12 +4,15 @@
   "description": "A private, local-first tracker for lifts, food, weight, measurements and progress photos.",
   "private": true,
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/engine.test.js",
     "e2e": "node tests/e2e.mjs",
     "check-private": "node scripts/check-private.mjs",
-    "hooks": "sh scripts/install-hooks.sh"
+    "hooks": "sh scripts/install-hooks.sh",
+    "site": "sh scripts/make-site.sh"
   }
 }

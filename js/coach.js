@@ -111,7 +111,13 @@
         const v = E.validateMacroChange(plan, weightKg, { kcal: a.kcal, protein: a.protein });
         if (!v.ok) return fail(v.errors.join(' '));
         const c = v.value;
-        out.push(makeProposal('macro', 'Change daily targets', [['Calories', U.withCommas(plan.kcal) + ' to ' + U.withCommas(c.kcal)], ['Protein', plan.protein + ' g to ' + c.protein + ' g'], ['Carbs', plan.carbs + ' g to ' + c.carbs + ' g']], a.reason,
+        const macroRows = [];
+        if (c.kcal !== plan.kcal) macroRows.push(['Calories', U.withCommas(plan.kcal) + ' to ' + U.withCommas(c.kcal)]);
+        if (c.protein !== plan.protein) macroRows.push(['Protein', plan.protein + ' g to ' + c.protein + ' g']);
+        if (c.carbs !== plan.carbs) macroRows.push(['Carbs', plan.carbs + ' g to ' + c.carbs + ' g']);
+        if (c.fat !== plan.fat) macroRows.push(['Fat', plan.fat + ' g to ' + c.fat + ' g']);
+        if (!macroRows.length) return fail('That matches the current targets, so there is nothing to change.');
+        out.push(makeProposal('macro', 'Change daily targets', macroRows, a.reason,
           () => Store.append('plan_revised', { reason: str(a.reason, 300), changes: c }, 'coach')));
         return { ok: true, text: 'Queued. The user has to tap Apply; do not assume it happened.' };
       }

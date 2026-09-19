@@ -166,7 +166,7 @@
     const saveAnd = (patch) => Store.saveSettings(patch).then(() => root.App.render());
     return UI.page(UI.header('Privacy and backup', 'Your data, your device, your file.', { back: '#/today' }), UI.scroller(
       UI.card(h('div', { class: 'ct' }, 'Backup'),
-        h('div', { class: days == null || days > 7 ? 'warnbox' : 'muted' }, set.lastBackupAt ? 'Last backup ' + days + ' day' + (days === 1 ? '' : 's') + ' ago.' : 'No backup yet. Browsers can clear site data, especially Safari after a week of not opening the app. A backup file is your safety net.'),
+        h('div', { class: days == null || days > 7 ? 'warnbox' : 'muted' }, set.lastBackupAt ? (days === 0 ? 'Last backup: today.' : 'Last backup ' + days + ' day' + (days === 1 ? '' : 's') + ' ago.') : 'No backup yet. Browsers can clear site data, especially Safari after a week of not opening the app. A backup file is your safety net.'),
         UI.btn('Back up now', { icon: 'download', onClick: backupSheet }),
         UI.seg({ label: 'Where I keep backups (a reminder for you)', options: [{ value: 'icloud', label: 'iCloud Drive' }, { value: 'gdrive', label: 'Google Drive' }, { value: 'device', label: 'This device' }], value: set.backupDest === 'files' ? 'icloud' : set.backupDest, onChange: (v) => { Store.saveSettings({ backupDest: v }); } }),
         h('div', { class: 'muted small' }, 'After you tap Save or share, your phone shows its share sheet. Choose Save to Files, then iCloud Drive, or pick the Google Drive app. On a computer the file goes to the folder you choose, which can be one your cloud drive syncs. Orbit itself never connects to any cloud.'),
