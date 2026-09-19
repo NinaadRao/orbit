@@ -35,24 +35,42 @@ You can also just open `index.html` from the folder. That works for trying it ou
 
 ### On your iPhone
 
-An iPhone can only install and cache the app from an **https** address, so the app files need to live on a web host. That is safe: the folder holds code only and your data is never in it. The whole thing takes about ten minutes and costs nothing on the free tiers.
+An iPhone can only install and cache the app from an **https** address, so the app files need to be served over https. There are two ways. The first keeps everything private to your own devices, and it is the one to use if you do not want an address anyone else can open.
 
-1. **Make the upload folder.** On your computer, in this folder, run `npm run site` (or `sh scripts/make-site.sh`). It creates `dist/` with only what a host needs, leaving out tests, docs and `.git`.
-2. **Put `dist/` online.** Any static host works. Two easy ones (menu names change now and then):
+#### Option A: private, only your own devices (Tailscale, free)
+
+Tailscale links your Mac and iPhone into a private network. With `tailscale serve`, the app gets an https address that only devices signed in to your Tailscale account can reach. Nothing is put on the public internet and nothing is uploaded anywhere.
+
+1. Install Tailscale on your Mac and on your iPhone and sign in to the same account on both (the free personal plan is enough).
+2. In the Tailscale admin console, under DNS, turn on **MagicDNS** and **HTTPS Certificates**. You do this once.
+3. On your Mac, start Orbit's server: `node scripts/serve.mjs`. Leave it running.
+4. In a second Terminal window run `tailscale serve --bg 8080`. It prints an address like `https://your-mac.your-tailnet.ts.net`. Use `serve`, never `funnel`: Funnel makes the address public. (If the `tailscale` command is not found, the Mac App Store version keeps it inside the app; see Tailscale's docs.)
+5. On your iPhone, with Tailscale switched on, open that address in Safari.
+6. Tap **Share**, then **Add to Home Screen**, then **Add**.
+7. Open Orbit from the Home Screen icon, not from Safari, and do your setup there.
+
+After the first load the app is cached on your phone and works without your Mac. You only need the Mac running and Tailscale connected to install or to pick up an update. If Safari cannot open the address, turn Tailscale off and on, and check Tailscale's docs: some people have reported TLS trouble on iPhone with `ts.net` addresses.
+
+#### Option B: a public host (free, but the address is public)
+
+Any static host works, for example Cloudflare Pages or Netlify Drop. The folder holds code only, so no data of yours is exposed, but anyone who knows the address can load the (empty) app. If you would rather not advertise it, use Option A or pick an unguessable project name.
+
+1. Run `npm run site` (or `sh scripts/make-site.sh`). It creates `dist/` with only what a host needs, leaving out tests, docs and `.git`.
+2. Put `dist/` online (menu names change now and then):
    - *Cloudflare Pages*: dashboard, Workers & Pages, Create, Pages, **Upload assets**. Name the project, drag in the `dist` folder, Deploy. You get an address like `https://your-name.pages.dev`.
    - *Netlify Drop*: open `app.netlify.com/drop` and drag the `dist` folder onto the page.
+3. Open the address in Safari on your iPhone, tap **Share**, then **Add to Home Screen**, then **Add**.
+4. Open Orbit from the Home Screen icon and do your setup there.
 
-   Anyone who knows the address can load the app, but it starts empty for them: it holds no data of yours. If you would rather not advertise it, pick an unguessable project name.
-3. **Open the address in Safari** on your iPhone.
-4. Tap the **Share** button, then **Add to Home Screen**, then **Add**.
-5. **Open Orbit from the Home Screen icon**, not from Safari, and do your setup there. The Home Screen app keeps its own copy of the data, separate from Safari.
-6. **Set up.** Answer the questions (about four minutes), or tap "I already have a backup or profile file" on the welcome screen to load one.
-7. **Make your first backup straight away.** On Today, tap the shield icon, then **Back up now**, then **Save or share**, then **Save to Files**, then **iCloud Drive**. See [Backing up and restoring](#backing-up-and-restoring).
-8. Optional: **Coach**, then the key icon, to add your AI key. Skip it and everything else still works.
+#### Then, with either option
 
-**Updating later.** Run `npm run site` again and upload the new `dist/` to the same project. Your data stays where it is, because it is stored under the same address. Close Orbit fully and open it twice to pick up the new version.
+- **Set up.** Answer the questions (about four minutes), or tap "I already have a backup or profile file" on the welcome screen to load one.
+- **Make your first backup straight away.** On Today, tap the shield icon, then **Back up now**, then **Save or share**, then **Save to Files**, then **iCloud Drive**. See [Backing up and restoring](#backing-up-and-restoring).
+- **Optional:** Coach, then the key icon, to add your AI key. Skip it and everything else still works.
 
-**Just want a look on the same Wi-Fi?** Run `node scripts/serve.mjs --lan` and open `http://<your-computer-ip>:8080` on the phone. Over plain http the app works, but encrypted backups and offline mode are switched off by the browser, so treat it as a preview only.
+**Updating later.** With Option A, update the files in this folder (for example `git pull`); the server serves them as they are. With Option B, run `npm run site` again and upload the new `dist/` to the same project. Either way your data stays where it is, because it is stored under the same address. Close Orbit fully and open it twice to pick up the new version.
+
+**Just want a quick look on the same Wi-Fi?** Run `node scripts/serve.mjs --lan` and open `http://<your-computer-ip>:8080` on the phone. Over plain http the app works, but encrypted backups and offline mode are switched off by the browser, so treat it as a preview only.
 
 If something looks wrong:
 
