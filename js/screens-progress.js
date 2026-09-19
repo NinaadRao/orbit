@@ -96,8 +96,10 @@
     });
     if (liftRows.length) cards.push(UI.card(h('div', { class: 'ct' }, 'Lifts: best set so far'), ...liftRows));
 
-    const taken = st.photos.length;
-    cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Progress photos'), h('div', { class: 'muted small' }, taken + ' of ' + E.PHOTO_WEEKS.length * E.ANGLES.length + ' taken · next check-in week ' + (E.PHOTO_WEEKS.find((w) => w >= cur) || 26))), UI.btn('Open', { href: '#/photos', block: false, kind: 'quiet' }))));
+    const ci = E.checkinStatus(st, set.checkinDay, U.today());
+    const weeksDone = E.PHOTO_WEEKS.filter((w) => E.anglesTaken(st, w) >= E.ANGLES.length).length;
+    const ciLine = ci.status === 'done' ? 'This week is done. Next: ' + U.longDate(E.checkinDate(plan.startDate, Math.min(E.WEEKS, ci.week + 1), set.checkinDay)) : ci.status === 'upcoming' ? 'Next check-in: ' + U.longDate(ci.date) : 'This week: ' + ci.taken + ' of ' + ci.of + ' angles';
+    cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Progress photos'), h('div', { class: 'muted small' }, weeksDone + ' weekly check-in' + (weeksDone === 1 ? '' : 's') + ' complete · ' + ciLine)), UI.btn('Open', { href: '#/photos', block: false, kind: 'quiet' }))));
 
     const hist = plan.history.slice(-5).reverse();
     if (hist.length) cards.push(UI.card(h('div', { class: 'ct' }, 'Plan changes'), ...hist.map((x) => h('div', { class: 'kv' }, h('span', null, U.shortDate(x.ts.slice(0, 10)) + ' · ' + x.src), h('b', null, String(x.reason || 'Changed').slice(0, 80))))));
@@ -144,9 +146,9 @@
     revokeUrls();
     const st = Store.getState(), plan = st.plan, set = Store.getSettings(), t = U.today();
     const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
-    if (selWeek == null) selWeek = E.PHOTO_WEEKS.filter((w) => w <= cur).slice(-1)[0] || 1;
+    if (selWeek == null || selWeek > cur) selWeek = cur;
     const chosen = selWeek;
-    const wkSeg = UI.pills({ label: 'Check-in week', items: E.PHOTO_WEEKS.map((w) => 'Wk ' + w), values: new Set(['Wk ' + chosen]), multi: false, onChange: (v) => { selWeek = Number(Array.from(v)[0].slice(3)); root.App.render(); } });
+    const wkSeg = UI.pills({ label: 'Check-in week', items: E.PHOTO_WEEKS.filter((w) => w <= cur).map((w) => 'Wk ' + w), values: new Set(['Wk ' + chosen]), multi: false, onChange: (v) => { selWeek = Number(Array.from(v)[0].slice(3)); root.App.render(); } });
     const input = h('input', { type: 'file', accept: 'image/*', class: 'hidden', 'aria-label': 'Choose a photo' });
     let pendingAngle = null;
     input.addEventListener('change', async () => {
@@ -184,7 +186,7 @@
 
     // Your trend: the first and latest check-in for the angle with the most photos, then the two screens that go further
     const tAngle = Screens._.trendAngle(st);
-    const tHave = E.checkIns(st, tAngle).filter((c) => c.photo);
+    const tHave = E.checkIns(st, tAngle, cur).filter((c) => c.photo);
     let pair = null;
     if (tHave.length >= 2) {
       const first = tHave[0], last = tHave[tHave.length - 1];
@@ -201,7 +203,7 @@
 
     return UI.page(UI.header('Photos', 'Stored on this device only.', { back: '#/progress' }), UI.scroller(
       wkSeg,
-      UI.card(h('div', { class: 'ct' }, 'Week ' + chosen + (E.PHOTO_WEEKS.includes(cur) && cur === chosen ? ' · this week' : '')), slots, h('div', { class: 'muted small' }, 'Same spot, same light, same time of day, relaxed then flexed. Photos are compressed and stripped of location data when saved.'), input),
+      UI.card(h('div', { class: 'target-top' }, h('div', { class: 'ct' }, 'Week ' + chosen + (cur === chosen ? ' · this week' : '')), h('span', { class: 'muted small' }, 'Check-in ' + U.longDate(E.checkinDate(plan.startDate, chosen, set.checkinDay)))), slots, h('div', { class: 'muted small' }, 'Same spot, same light, same time of day, relaxed then flexed. Photos are compressed and stripped of location data when saved.'), input),
       trendCard,
       UI.toggleRow('Blur thumbnails', 'Hide photos on screen until you open one', !!set.blurPhotos, (v) => { Store.saveSettings({ blurPhotos: v }).then(() => root.App.render()); })));
   };

@@ -19,7 +19,7 @@
 
   const DEFAULT_SETTINGS = {
     liftUnit: 'lb', bodyUnit: 'kg', lenUnit: 'in', blurPhotos: true, lockEnabled: false, lockMinutes: 2,
-    reminder: 'weekly', backupDest: 'files', encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
+    reminder: 'weekly', checkinDay: 5, encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
     coach: { provider: 'anthropic', model: '', baseUrl: '', keyMode: 'session' },
     restTimer: true, logRpe: true, logWarmups: false, logNotes: true,
     onboardedAt: null,

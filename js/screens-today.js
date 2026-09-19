@@ -130,6 +130,7 @@
     const rawWeek = E.weekOf(plan.startDate, t);
     const week = E.clamp(rawWeek, 1, E.WEEKS);
     const deload = plan.deloadWeeks.includes(week);
+    const ci = rawWeek <= E.WEEKS ? E.checkinStatus(st, set.checkinDay, t) : null;
     const pct = Math.min(100, Math.max(0, ((E.daysBetween(plan.startDate, t) + 1) / (E.WEEKS * 7)) * 100));
     const C = 2 * Math.PI * 34;
     const ring = h('div', { class: 'ring', role: 'img', 'aria-label': 'Plan progress ' + Math.round(pct) + ' percent' },
@@ -141,7 +142,7 @@
     cards.push(UI.card(h('div', { class: 'todayhead' }, ring, h('div', { class: 'grow' },
       h('div', { class: 'display big2' }, 'Week ' + week + ' of ' + E.WEEKS),
       h('div', { class: 'muted' }, cap(plan.goal) + ' · ' + U.withCommas(plan.kcal) + ' kcal · ' + plan.protein + ' g protein'),
-      h('div', { class: 'row' }, deload ? U.chip('Deload week: 2 easier sets', 'good') : null, E.PHOTO_WEEKS.includes(week) ? U.chip('Photo week', 'acc') : null)))));
+      h('div', { class: 'row' }, deload ? U.chip('Deload week: 2 easier sets', 'good') : null, ci ? U.chip(ci.status === 'done' ? 'Check-in done' : ci.status === 'due' ? 'Check-in today' : 'Check-in ' + U.DOW[set.checkinDay], ci.status === 'done' ? 'good' : 'acc') : null)))));
 
     if (rawWeek > E.WEEKS) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'You finished all 26 weeks'), h('div', { class: 'muted' }, 'Take your final photos and measurements, then compare against week 1 in Progress. Your logs stay here as long as you keep the app.'), UI.btn('See progress', { href: '#/progress' })));
 
@@ -164,7 +165,15 @@
       const since = set.lastBackupAt ? E.daysBetween(set.lastBackupAt.slice(0, 10), t) : E.daysBetween(plan.startDate, t);
       if (since >= (set.reminder === 'monthly' ? 30 : 7)) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'Back up your data'), h('div', { class: 'muted' }, set.lastBackupAt ? 'Your last backup was ' + since + ' days ago.' : 'You have not made a backup yet.'), UI.btn('Back up now', { href: '#/settings' })));
     }
-    if (E.PHOTO_WEEKS.includes(week) && !st.photos.some((p) => p.week === week)) cards.push(UI.cardX('acc', h('div', { class: 'ct' }, 'Photo check-in this week'), h('div', { class: 'muted' }, 'Five angles, same light, same spot. It takes two minutes and future you will care.'), UI.btn('Take photos', { href: '#/photos' })));
+    if (ci && ci.missed.length) {
+      const w = ci.missed[ci.missed.length - 1];
+      cards.push(UI.cardX('coral', h('div', { class: 'ct' }, 'Week ' + w + ' check-in is missing'), h('div', { class: 'muted' }, ci.missed.length > 1 ? ci.missed.length + ' weekly check-ins are not finished. Start with the latest.' : 'The weekly photo check-in is not finished. Add the photos you can now.'), UI.btn('Add week ' + w + ' photos', { href: '#/photos', onClick: () => Screens._.gotoWeek(w) })));
+    }
+    if (ci && (ci.status === 'due' || ci.status === 'overdue')) {
+      cards.push(UI.cardX(ci.status === 'overdue' ? 'coral' : 'acc', h('div', { class: 'ct' }, ci.status === 'overdue' ? 'Weekly check-in is overdue' : 'Weekly check-in today'),
+        h('div', { class: 'muted' }, (ci.taken ? ci.taken + ' of ' + ci.of + ' angles saved. ' : '') + 'Five angles, same light, same spot. It takes two minutes and it is not optional. Change the day in Profile.'),
+        UI.btn(ci.taken ? 'Finish the photos' : 'Take photos', { href: '#/photos', onClick: () => Screens._.gotoWeek(ci.week) })));
+    }
 
     // Workout
     const wo = plan.workouts.find((w) => w.weekday === E.weekdayOf(t));
@@ -215,7 +224,7 @@
     const tb = timerBar();
     if (tb) cards.push(tb);
     const left = Screens.volatile ? h('div', { class: 'warnbox' }, 'Storage is blocked in this browser mode. Nothing here will be kept.') : null;
-    return UI.page(UI.header('Today', U.longDate(t), { right: h('a', { class: 'iconbtn', href: '#/settings', 'aria-label': 'Privacy, backup and settings' }, U.icon('shield', 20)) }), UI.scroller(left, ...cards));
+    return UI.page(UI.header('Today', U.longDate(t), { right: h('div', { class: 'hdr-actions' }, h('a', { class: 'iconbtn', href: '#/profile', 'aria-label': 'Profile' }, U.icon('user', 20)), h('a', { class: 'iconbtn', href: '#/settings', 'aria-label': 'Privacy, backup and settings' }, U.icon('shield', 20))) }), UI.scroller(left, ...cards));
   };
 
   // ---------- Lifts ----------

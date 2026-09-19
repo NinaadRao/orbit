@@ -480,6 +480,40 @@ async function main() {
     eq(Array.from(hosts), [new URL(base).host]);
   });
 
+  // ----- weekly check-in, profile -----
+  await step('weekly check-in: Today asks on the chosen weekday, Profile shows the basics and changes the day', async () => {
+    await page.evaluate(async () => { await Store.saveSettings({ checkinDay: new Date().getDay() }); });
+    await route(page, '#/today'); await page.evaluate(() => App.render());
+    const due = await page.getByText(/Weekly check-in (today|is overdue)/).count();
+    const partial = await page.evaluate(() => Engine.checkinStatus(Store.getState(), Store.getSettings().checkinDay, U.today()).status);
+    ok(partial === 'done' || due === 1, 'a card asks for the check-in unless all five angles are saved (' + partial + ')');
+    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.getByText('Basics').waitFor();
+    ok(await page.getByText('Your plan').count() === 1 && await page.getByText('Calories').count() === 1, 'profile lists the plan');
+    ok(await page.getByText(/Only on this device/).count() === 1);
+    const other = await page.evaluate(() => U.DOW[(new Date().getDay() + 3) % 7]);
+    await page.getByRole('button', { name: other, exact: true }).click();
+    await page.getByText('Check-in day set to ' + other).waitFor();
+    eq(await page.evaluate(() => Store.getSettings().checkinDay), await page.evaluate(() => (new Date().getDay() + 3) % 7));
+    await route(page, '#/today'); await page.evaluate(() => App.render());
+    eq(await page.getByText(/Weekly check-in (today|is overdue)/).count(), 0);
+    ok(await page.getByText('Check-in ' + other).count() >= 1, 'the header chip names the day');
+    await page.evaluate(async () => { await Store.saveSettings({ checkinDay: 5 }); });
+  });
+
+  await step('a new backup always has the same file name so it replaces the old one', async () => {
+    await route(page, '#/settings');
+    ok(await page.getByText(/Choose a backup folder|This browser cannot delete old backups/).count() >= 1, 'the folder option or the honest note is shown');
+    await page.getByRole('button', { name: 'Back up now' }).click();
+    await page.getByLabel('Passphrase', { exact: true }).fill('correct horse battery');
+    await page.getByLabel('Repeat passphrase').fill('correct horse battery');
+    await page.getByRole('button', { name: 'Prepare file' }).click();
+    await page.getByText('Backup ready').waitFor();
+    ok(await page.getByText(/orbit-backup\.orbitbackup/).count() >= 1, 'fixed file name');
+    ok(await page.getByText(/orbit-\d{4}-\d{2}-\d{2}\.orbitbackup/).count() === 0, 'no dated name');
+    await page.getByRole('button', { name: 'Close' }).click();
+  });
+
   // ----- backup and restore -----
   await step('encrypted backup round-trips; wrong passphrase fails; the API key is not inside', async () => {
     const res = await page.evaluate(async () => {
@@ -660,10 +694,13 @@ async function main() {
     await tpage.waitForFunction(() => /Week 9\b/.test(document.querySelector('.stage-cap').textContent), null, { timeout: 5000 });
     await tpage.getByRole('button', { name: 'Play through the check-ins' }).waitFor(); // back to a play button: it stopped by itself
     const hrefs = await tpage.locator('a.tthumb.none').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
-    eq(hrefs.length, 4); ok(hrefs.every((x) => x === '#/photos'));
+    const slots = await tpage.locator('.tthumb').count(), have = await tpage.locator('button.tthumb').count();
+    ok(slots >= 8, 'every week so far is a slot, not just a few fixed weeks: ' + slots);
+    eq(hrefs.length, slots - have); ok(hrefs.every((x) => x === '#/photos'));
+    ok(/Add week 2 /.test(await tpage.locator('a.tthumb.none').first().getAttribute('aria-label')), 'the first gap is week 2');
     await tpage.locator('a.tthumb.none').first().click();
     await tpage.waitForSelector('.photogrid');
-    ok(/Wk 13/.test(await tpage.locator('.pill.on').innerText()), 'opens the check-in week you tapped');
+    ok(/Wk 2/.test(await tpage.locator('.pill.on').innerText()), 'opens the check-in week you tapped');
   });
 
   await step('trend: an angle with no photos says so, and the waist chart shows the check-ins', async () => {

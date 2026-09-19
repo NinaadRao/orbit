@@ -85,7 +85,8 @@
     const st = Store.getState(), set = Store.getSettings();
     if (!T.angle) T.angle = trendAngle(st);
     const angle = T.angle;
-    const cis = E.checkIns(st, angle), have = cis.filter((c) => c.photo), n = cis.length;
+    const curWeek = E.clamp(E.weekOf(st.plan.startDate, U.today()), 1, E.WEEKS);
+    const cis = E.checkIns(st, angle, curWeek), have = cis.filter((c) => c.photo), n = cis.length;
     const pills = anglePills((a) => { T.angle = a; T.week = null; T.reveal = false; root.App.render(); });
     const back = { back: '#/photos' };
 
@@ -112,8 +113,10 @@
 
     // scrubber
     const line = h('div', { class: 'scrub-line' }, h('div', { class: 'scrub-fill' }));
-    const dotEls = cis.map((c) => h('span', { class: 'sdot' + (c.photo ? ' has' : '') }, h('i', { class: 'd' }), h('b', { class: 'w' }, String(c.week))));
+    const showLabel = (w) => n <= 10 || w === 1 || w === n || w % 5 === 0;
+    const dotEls = cis.map((c) => h('span', { class: 'sdot' + (c.photo ? ' has' : '') + (showLabel(c.week) ? '' : ' nolab') }, h('i', { class: 'd' }), h('b', { class: 'w' }, String(c.week))));
     const scrub = h('div', { class: 'scrub', role: 'slider', tabindex: '0', 'aria-label': 'Check-in', 'aria-valuemin': '0', 'aria-valuemax': String(n - 1) }, line, ...dotEls);
+    scrub.style.setProperty('--n', String(n)); if (n > 14) scrub.classList.add('dense');
     const idxOf = (w) => cis.findIndex((c) => c.week === w);
     const nearestHave = (i) => { let best = null; for (const c of have) { const j = idxOf(c.week); if (best == null || Math.abs(j - i) < Math.abs(idxOf(best.week) - i)) best = c; } return best; };
     dragX(scrub, (e) => {
@@ -184,7 +187,7 @@
       cap.textContent = loaded && !url ? 'This photo is not on this device' : 'Week ' + cur.week + ' · ' + U.shortDate(cur.date);
       // scrubber
       scrub.setAttribute('aria-valuenow', String(ci)); scrub.setAttribute('aria-valuetext', 'Week ' + cur.week + ', ' + U.shortDate(cur.date));
-      line.firstChild.style.width = (ci / (n - 1)) * 100 + '%';
+      line.firstChild.style.width = (n > 1 ? (ci / (n - 1)) * 100 : 0) + '%';
       cis.forEach((c, i) => { dotEls[i].classList.toggle('cur', i === ci); dotEls[i].classList.toggle('past', i < ci); });
       thumbEls.forEach((t, i) => { if (!cis[i].photo) return; t.classList.toggle('cur', i === ci); const u = urlByWeek[cis[i].week]; if (u && t.im.getAttribute('src') !== u) t.im.src = u; });
       // numbers
@@ -202,7 +205,7 @@
       const pts = have.filter((c) => KEYS.waist.of(c) != null).map((c) => ({ x: c.week, y: U.cmToUnit(KEYS.waist.of(c), set.lenUnit) }));
       const here = pts.filter((p) => p.x === cur.week);
       U.clear(chartBox);
-      chartBox.appendChild(pts.length ? U.lineChart({ label: 'Waist at each check-in', xs: [1, E.PHOTO_WEEKS[E.PHOTO_WEEKS.length - 1]], series: [{ pts, color: U.PAL.cool }, { pts, color: U.PAL.cool, dots: true, line: false }, { pts: here, color: U.PAL.acc, dots: true, line: false, r: 5.5 }], xLabel: (x) => wk(x), fmtY: (y) => U.num(y, 1) })
+      chartBox.appendChild(pts.length ? U.lineChart({ label: 'Waist at each check-in', xs: [1, Math.max(2, n)], series: [{ pts, color: U.PAL.cool }, { pts, color: U.PAL.cool, dots: true, line: false }, { pts: here, color: U.PAL.acc, dots: true, line: false, r: 5.5 }], xLabel: (x) => wk(x), fmtY: (y) => U.num(y, 1) })
         : h('div', { class: 'muted' }, 'Log your waist near a check-in and it appears here.'));
       syncPlay();
     }
@@ -210,7 +213,7 @@
     update();
     loadUrls(have, urlByWeek, myGen).then((ok) => { if (ok) { loaded = true; update(); } });
 
-    return UI.page(UI.header('Photo trend', angle + ' · ' + have.length + ' of ' + n + ' check-ins so far', back), UI.scroller(pills, stage, statRow, note, player, strip, chartCard), foot);
+    return UI.page(UI.header('Photo trend', angle + ' · ' + have.length + ' of ' + n + ' weekly check-ins', back), UI.scroller(pills, stage, statRow, note, player, strip, chartCard), foot);
   };
 
   // ---------- Compare two dates ----------

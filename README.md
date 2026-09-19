@@ -3,11 +3,11 @@
 A private, local-first tracker for lifts, food, body weight, measurements and progress photos, built around a 26-week plan (build, recomp or cut). No account, no server, no analytics. Your data lives in your browser and leaves only when you make a backup file.
 
 - **Plan**: answer a few questions, get calories, macros, a weekly split, week-by-week lift targets (with deloads) and six-month measurement goals.
-- **Log**: sets (with effort and rest timer), weigh-ins, measurements, food, and five-angle photos at check-in weeks.
-- **Photo trend**: scrub or play through your check-ins with the weight and measurements of each day under the photo, compare any two dates (side by side, slider or overlay), and save a time-lapse video or a comparison image. Photos stay blurred until you tap.
+- **Log**: sets (with effort and rest timer), weigh-ins, measurements, food, and five-angle photos in a weekly check-in on the day you pick (Friday by default).
+- **Photo trend**: scrub or play through your weekly check-ins with the weight and measurements of each day under the photo, compare any two dates (side by side, slider or overlay), and save a time-lapse video or a comparison image. Photos stay blurred until you tap.
 - **Fuel**: find a listed food, describe a meal to your own AI, type raw ingredients, or enter macros by hand. AI results always show an editable confirmation card and nothing is saved until you tap "Looks right".
 - **Coach**: a chat that runs on *your* model with *your* key. It can suggest changes; you tap Apply; every change has Undo.
-- **Backup**: one encrypted file you can drop into iCloud Drive, Google Drive or anywhere else.
+- **Backup**: one encrypted file saved on your own device. Orbit never uploads it; where you keep the file afterwards is up to you.
 
 Everything is plain HTML, CSS and JavaScript. There is nothing to build and no runtime dependency.
 
@@ -25,6 +25,7 @@ Everything is plain HTML, CSS and JavaScript. There is nothing to build and no r
 <p align="center">
   <img src="docs/img/photo-trend.png" width="200" alt="Photo trend: scrub through check-ins with the numbers of each day under the photo">
   <img src="docs/img/photo-compare.png" width="200" alt="Compare: any two check-ins with a slider, and a button to download the image">
+  <img src="docs/img/profile.png" width="200" alt="Profile: your basics, your plan, and the weekly check-in day">
 </p>
 
 <p align="center"><sub>Screenshots use a made-up lifter, stand-in silhouettes and a stand-in AI reply, not real data.</sub></p>
@@ -71,7 +72,7 @@ Any static host works, for example Cloudflare Pages or Netlify Drop. The folder 
 #### Then, with either option
 
 - **Set up.** Answer the questions (about four minutes), or tap "I already have a backup or profile file" on the welcome screen to load one.
-- **Make your first backup straight away.** On Today, tap the shield icon, then **Back up now**, then **Save or share**, then **Save to Files**, then **iCloud Drive**. See [Backing up and restoring](#backing-up-and-restoring).
+- **Make your first backup straight away.** On Today, tap the shield icon, then **Back up now**, then **Save or share**, then **Save to Files**. See [Backing up and restoring](#backing-up-and-restoring).
 - **Optional:** Coach, then the key icon, to add your AI key. Skip it and everything else still works.
 
 **Updating later.** With Option A, update the files in this folder (for example `git pull`); the server serves them as they are. With Option B, run `npm run site` again and upload the new `dist/` to the same project. Either way your data stays where it is, because it is stored under the same address. Close Orbit fully and open it twice to pick up the new version.
@@ -91,7 +92,7 @@ Two things worth knowing:
 
 ## Your photo trend
 
-Take the same five angles at the check-in weeks (1, 5, 9, 13, 17, 21 and 26). Then:
+Take the same five angles at your weekly check-in. The day is yours to set in **Profile** (Friday to begin with); Today asks for it that day, stays on it until all five are saved, and flags any week you missed. Then:
 
 1. Progress, then **Open** on Progress photos, then **See trend** in the Your photo trend card. Pick an angle and drag along the check-in dots, or press play. The weight and measurements from around each photo's date sit under it, and green means the change is toward your goal.
 2. **Compare two dates** lets you pick any two check-ins and view them side by side, with a slider, or as an overlay that helps you line up your pose. The table underneath shows the change.
@@ -101,18 +102,18 @@ Two things to know about downloads. The saved file shows your photos **unblurred
 
 ## Backing up and restoring
 
-A backup is one file named like `orbit-2026-09-19.orbitbackup`. It holds your plan, every log and your settings, plus your progress photos if you tick **Include progress photos** (that makes the file much larger). It never holds your AI key.
+A backup is one file, always named `orbit-backup.orbitbackup`, so a new one replaces the old one. It holds your plan, every log and your settings, plus your progress photos if you tick **Include progress photos** (that makes the file much larger). It never holds your AI key.
 
 **Make one**
 
 1. Today, then the shield icon (Privacy and backup).
 2. Under Backup, tap **Back up now**.
 3. Leave **Encrypt with a passphrase** on and type a passphrase (8 or more characters) twice. A forgotten passphrase cannot be recovered, by design. Decide whether to include progress photos.
-4. Tap **Prepare file**, then **Save or share**. On iPhone choose **Save to Files**, then **iCloud Drive** (or pick the Google Drive app). On a computer, choose a folder your cloud drive syncs.
+4. Tap **Prepare file**, then **Save or share**. On iPhone choose **Save to Files**, then **On My iPhone**. On a computer, Chrome or Edge can use a folder you pick once (see below); other browsers save to Downloads. Orbit only ever writes this file on your device. It does not connect to iCloud, Google Drive or any other service.
 
 **Restore one** (new phone, cleared browser data, moved to a new address, or starting over)
 
-1. Get the file where the device can reach it. If it is in iCloud Drive or Google Drive, it is already visible in the Files app on iPhone.
+1. Get the file where the device can reach it. On iPhone that means the Files app; on a computer, the folder it was saved to.
 2. Open Orbit at the address you want to use. Install it to the Home Screen first if you use it that way, then open it from the icon.
 3. On a fresh install the welcome screen shows **I already have a backup or profile file**. Tap it. If Orbit already has data, go to Today, the shield icon, then **Restore from a file**.
 4. Pick the `.orbitbackup` file. If it is encrypted, enter the passphrase you chose when you made it.

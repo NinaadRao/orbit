@@ -230,8 +230,9 @@ test('photo trend: one entry per check-in week with the numbers of that photo da
   const c = E.checkIns(st, 'Front');
   assert.deepEqual(c.map((x) => x.week), E.PHOTO_WEEKS);
   assert.deepEqual(c.filter((x) => x.photo).map((x) => x.week), [1, 5]);
-  assert.equal(c[0].snap.weightKg, 82); assert.equal(c[1].snap.meas.waist, 84.4); assert.equal(c[1].snap.meas.chest, null);
-  assert.equal(c[2].snap, null);
+  const wk5 = c.find((x) => x.week === 5);
+  assert.equal(c[0].snap.weightKg, 82); assert.equal(wk5.snap.meas.waist, 84.4); assert.equal(wk5.snap.meas.chest, null);
+  assert.equal(c.find((x) => x.week === 2).snap, null);
   assert.equal(E.checkIns(st, 'Side').filter((x) => x.photo).length, 1);
 });
 
@@ -241,4 +242,38 @@ test('photo trend: green means toward the goal, and a plan that does not care sh
   assert.equal(E.goalDir(plan, 'weight'), 0); assert.equal(E.goalDir({ goal: 'cut' }, 'weight'), -1); assert.equal(E.goalDir({ goal: 'build' }, 'weight'), 1);
   assert.equal(E.changeTone(-1.5, -1), 'good'); assert.equal(E.changeTone(-1.5, 1), 'coral'); assert.equal(E.changeTone(0.01, 1), '');
   assert.equal(E.changeTone(2, 0), ''); assert.equal(E.changeTone(null, 1), '');
+});
+
+test('weekly check-in: falls on the chosen weekday of each plan week', () => {
+  // The plan starts on Saturday 2026-09-19; Friday is 5.
+  assert.equal(E.checkinDate('2026-09-19', 1, 5), '2026-09-25');
+  assert.equal(E.checkinDate('2026-09-19', 2, 5), '2026-10-02');
+  assert.equal(E.checkinDate('2026-09-19', 1, 6), '2026-09-19'); // same weekday as the start: that day
+  assert.equal(E.checkinDate('2026-09-19', 1, 0), '2026-09-20');
+  for (let w = 1; w <= E.WEEKS; w++) { const d = E.checkinDate('2026-09-19', w, 3); assert.equal(E.weekdayOf(d), 3); assert.equal(E.weekOf('2026-09-19', d), w); }
+  assert.equal(E.PHOTO_WEEKS.length, E.WEEKS);
+});
+
+test('weekly check-in: status is upcoming, due, overdue or done, and earlier gaps are listed', () => {
+  const plan = { startDate: '2026-09-19' };
+  const shots = (week, n) => E.ANGLES.slice(0, n).map((angle) => ({ week, angle, date: '2026-09-25', id: week + angle }));
+  let st = { plan, photos: [] };
+  assert.equal(E.checkinStatus(st, 5, '2026-09-19').status, 'upcoming');
+  assert.equal(E.checkinStatus(st, 5, '2026-09-25').status, 'due');
+  // With a Wednesday check-in, Thursday and Friday of the same plan week are overdue.
+  assert.equal(E.checkinStatus(st, 3, '2026-09-23').status, 'due');
+  assert.equal(E.checkinStatus(st, 3, '2026-09-24').status, 'overdue');
+  // With a Friday check-in the plan week ends that day, so the next day it is a missed week instead.
+  assert.equal(E.checkinStatus(st, 5, '2026-09-26').status, 'upcoming'); assert.deepEqual(E.checkinStatus(st, 5, '2026-09-26').missed, [1]);
+  st = { plan, photos: shots(1, 3) };
+  const partial = E.checkinStatus(st, 5, '2026-09-25'); assert.equal(partial.taken, 3); assert.equal(partial.status, 'due');
+  st = { plan, photos: shots(1, 5) };
+  assert.equal(E.checkinStatus(st, 5, '2026-09-25').status, 'done');
+  // Week 3 with nothing done for weeks 1 and 2 (both Fridays have passed)
+  st = { plan, photos: [] };
+  const s3 = E.checkinStatus(st, 5, '2026-10-06'); assert.equal(s3.week, 3); assert.deepEqual(s3.missed, [1, 2]);
+  st = { plan, photos: shots(1, 5), weights: [], meas: [] };
+  assert.deepEqual(E.checkinStatus(st, 5, '2026-10-06').missed, [2]);
+  // Trend lists only the weeks so far when asked
+  assert.deepEqual(E.checkIns(st, 'Front', 3).map((c) => c.week), [1, 2, 3]);
 });

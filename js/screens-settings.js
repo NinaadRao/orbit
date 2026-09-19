@@ -7,8 +7,32 @@
   const numOrNull = (v) => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
 
   // ---------- getting a file out of the app ----------
+  // One backup file with one fixed name, so a new backup replaces the old one wherever the browser lets it:
+  // in a chosen folder (Chrome or Edge on a computer) the old file is replaced and any older Orbit backup files are deleted;
+  // in the iPhone or iPad Files sheet, saving under the same name offers Replace. A browser cannot delete files any other way.
+  const BACKUP_NAME = 'orbit-backup.orbitbackup';
+  const OURS = /^orbit-.*\.orbitbackup$/;
+  const canPickFolder = () => typeof root.showDirectoryPicker === 'function' && root.isSecureContext;
+  async function writeToFolder(dir, name, blob) {
+    let perm = await dir.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') perm = await dir.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') return null;
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable(); await w.write(blob); await w.close(); // the new file is complete before anything old is removed
+    let removed = 0;
+    for await (const [n, entry] of dir.entries()) {
+      if (entry.kind === 'file' && n !== name && OURS.test(n)) { try { await dir.removeEntry(n); removed++; } catch (e) { /* leave it */ } }
+    }
+    return { removed };
+  }
   async function deliver(name, text) {
     const blob = new Blob([text], { type: 'application/octet-stream' });
+    if (canPickFolder()) {
+      let dir = null; try { dir = await Store.getMeta('backupDir'); } catch (e) { /* none */ }
+      if (dir && dir.kind === 'directory') {
+        try { const r = await writeToFolder(dir, name, blob); if (r) { deliver.removed = r.removed; return 'folder'; } } catch (e) { /* fall through to the normal save */ }
+      }
+    }
     const file = new File([blob], name, { type: 'application/octet-stream' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: name }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
@@ -36,7 +60,7 @@
     const passBox = h('div', { class: 'stack' }, pass, pass2);
     passBox.classList.toggle('hidden', !encrypt);
     const body = h('div', { class: 'stack' },
-      UI.toggleRow('Encrypt with a passphrase', Crypt.hasCrypto() ? 'AES-256. Strongly recommended if it goes to a cloud drive.' : 'Needs a secure (https or localhost) page.', encrypt, (v) => { encrypt = v && Crypt.hasCrypto(); passBox.classList.toggle('hidden', !encrypt); }),
+      UI.toggleRow('Encrypt with a passphrase', Crypt.hasCrypto() ? 'AES-256. Strongly recommended, since the file holds all your data.' : 'Needs a secure (https or localhost) page.', encrypt, (v) => { encrypt = v && Crypt.hasCrypto(); passBox.classList.toggle('hidden', !encrypt); }),
       passBox,
       UI.toggleRow('Include progress photos', 'Makes the file much larger', media, (v) => { media = v; }),
       h('div', { class: 'muted small' }, 'Your API key is never included.'));
@@ -48,11 +72,11 @@
           U.toast('Preparing...');
           const text = await Store.buildBackup({ media, passphrase: pw });
           await Store.saveSettings({ encryptBackups: encrypt, includeMediaInBackup: media });
-          const name = 'orbit-' + U.today() + '.orbitbackup';
+          const name = BACKUP_NAME;
           const mb = (text.length / 1048576);
           U.sheet('Backup ready', h('div', { class: 'stack' }, h('div', { class: 'muted' }, name + ' · ' + (mb < 0.1 ? '<0.1' : U.num(mb, 1)) + ' MB' + (encrypt ? ' · encrypted' : ' · NOT encrypted')),
-            h('div', { class: 'muted small' }, 'Next, pick where it goes: Files (iCloud Drive), the Google Drive app, or this device. ' + (encrypt ? '' : 'This file holds all your data in readable form. Keep it somewhere private.'))),
-          [{ label: 'Close' }, { label: 'Save or share', kind: 'primary', keep: true, run: async (closeIt) => { const r = await deliver(name, text); if (r !== 'cancelled') { await Store.saveSettings({ lastBackupAt: new Date().toISOString() }); U.toast(r === 'downloaded' ? 'Downloaded. Move it somewhere safe.' : 'Backed up.'); closeIt(); root.App.render(); } } }]);
+            h('div', { class: 'muted small' }, 'Next, save it on this device. It always uses the same file name, so choose Replace if your phone asks. ' + (encrypt ? '' : 'This file holds all your data in readable form. Keep it somewhere private.'))),
+          [{ label: 'Close' }, { label: 'Save or share', kind: 'primary', keep: true, run: async (closeIt) => { const r = await deliver(name, text); if (r !== 'cancelled') { await Store.saveSettings({ lastBackupAt: new Date().toISOString() }); U.toast(r === 'folder' ? (deliver.removed ? 'Backed up. The old backup was replaced.' : 'Backed up to your backup folder.') : r === 'downloaded' ? 'Downloaded. Move it somewhere safe.' : 'Backed up.'); closeIt(); root.App.render(); } } }]);
         } catch (e) { U.toast(String(e.message || e), 'warn'); }
       })();
     } }]);
@@ -157,6 +181,29 @@
 
   function fmtBytes(b) { if (b == null) return 'unknown'; return b < 1048576 ? Math.round(b / 1024) + ' KB' : U.num(b / 1048576, 1) + ' MB'; }
 
+  // Chrome and Edge on a computer can remember a folder. Every backup then replaces the old file in it.
+  function folderRow() {
+    if (!canPickFolder()) return h('div', { class: 'muted small' }, 'This browser cannot delete old backups for you. Your backup always uses the same file name, so the Files sheet on iPhone offers Replace. In Chrome or Edge on a computer you can pick a folder and Orbit replaces the old file for you.');
+    const box = h('div', { class: 'stack' });
+    const draw = async () => {
+      let dir = null; try { dir = await Store.getMeta('backupDir'); } catch (e) { /* none */ }
+      U.clear(box);
+      if (dir && dir.kind === 'directory') {
+        U.put(box, h('div', { class: 'kv' }, h('span', null, 'Backup folder'), h('b', null, dir.name)),
+          h('div', { class: 'muted small' }, 'Each backup replaces the old ' + BACKUP_NAME + ' here and removes any older Orbit backup files in this folder. Other files are never touched.'),
+          h('div', { class: 'row' }, UI.btn('Change folder', { kind: 'quiet', block: false, onClick: pick }), UI.btn('Stop using it', { kind: 'quiet', block: false, onClick: async () => { await Store.delMeta('backupDir'); draw(); } })));
+      } else {
+        U.put(box, UI.btn('Choose a backup folder', { kind: 'quiet', icon: 'file', onClick: pick }), h('div', { class: 'muted small' }, 'Optional. Orbit then replaces the old backup in that folder each time, so only one stays.'));
+      }
+    };
+    const pick = async () => {
+      try { const d = await root.showDirectoryPicker({ mode: 'readwrite', id: 'orbit-backups' }); await Store.setMeta('backupDir', d); U.toast('Backups will go to ' + d.name + '.'); draw(); }
+      catch (e) { if (!e || e.name !== 'AbortError') U.toast('Could not use that folder.', 'warn'); }
+    };
+    draw();
+    return box;
+  }
+
   Screens.settings = function () {
     const set = Store.getSettings(), st = Store.getState();
     const days = set.lastBackupAt ? E.daysBetween(set.lastBackupAt.slice(0, 10), U.today()) : null;
@@ -168,8 +215,8 @@
       UI.card(h('div', { class: 'ct' }, 'Backup'),
         h('div', { class: days == null || days > 7 ? 'warnbox' : 'muted' }, set.lastBackupAt ? (days === 0 ? 'Last backup: today.' : 'Last backup ' + days + ' day' + (days === 1 ? '' : 's') + ' ago.') : 'No backup yet. Browsers can clear site data, especially Safari after a week of not opening the app. A backup file is your safety net.'),
         UI.btn('Back up now', { icon: 'download', onClick: backupSheet }),
-        UI.seg({ label: 'Where I keep backups (a reminder for you)', options: [{ value: 'icloud', label: 'iCloud Drive' }, { value: 'gdrive', label: 'Google Drive' }, { value: 'device', label: 'This device' }], value: set.backupDest === 'files' ? 'icloud' : set.backupDest, onChange: (v) => { Store.saveSettings({ backupDest: v }); } }),
-        h('div', { class: 'muted small' }, 'After you tap Save or share, your phone shows its share sheet. Choose Save to Files, then iCloud Drive, or pick the Google Drive app. On a computer the file goes to the folder you choose, which can be one your cloud drive syncs. Orbit itself never connects to any cloud.'),
+        h('div', { class: 'muted small' }, 'Back up now saves one file on this device and nothing else: Orbit never uploads it anywhere. On iPhone the Save sheet appears, so choose Save to Files, then On My iPhone. On a computer it goes to the folder you choose above, or to Downloads.'),
+        folderRow(),
         UI.btn('Restore from a file', { kind: 'quiet', icon: 'file', onClick: () => fileIn.click() }), fileIn),
       UI.card(h('div', { class: 'ct' }, 'App lock'),
         UI.toggleRow('Passcode', set.lockEnabled ? 'On. Locks after ' + set.lockMinutes + ' min away.' : 'Off', !!set.lockEnabled, (v) => { if (v) pinSheet(); else pinOffSheet(); setTimeout(() => root.App.render(), 0); }),

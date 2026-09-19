@@ -8,7 +8,8 @@
   const KG_PER_LB = 0.45359237;
   const CM_PER_IN = 2.54;
   const WEEKS = 26;
-  const PHOTO_WEEKS = [1, 5, 9, 13, 17, 21, 26];
+  // Every week is a photo check-in week. The weekday it falls on is a setting (Friday by default).
+  const PHOTO_WEEKS = Array.from({ length: WEEKS }, (_, i) => i + 1);
   const DELOAD_WEEKS = [7, 14, 21];
   const ANGLES = ['Front', 'Side', 'Back', 'Front flexed', 'Back flexed'];
   // Reps per week for the "heavy" group. Medium is +2, high-rep is +4.
@@ -433,9 +434,28 @@
     for (const [site] of MEAS_SITES) out.meas[site] = measAround(state.meas, site, date);
     return out;
   }
-  // One entry per check-in week for an angle, with the photo (if any) and the numbers around its date.
-  function checkIns(state, angle) {
-    return PHOTO_WEEKS.map((week) => {
+  // The date of a week's check-in: the first day in that plan week that falls on the chosen weekday.
+  function checkinDate(startDate, week, weekday) {
+    const s = addDays(startDate, (week - 1) * 7);
+    return addDays(s, (weekday - weekdayOf(s) + 7) % 7);
+  }
+  function anglesTaken(state, week) {
+    return new Set(state.photos.filter((p) => p.week === week).map((p) => p.angle)).size;
+  }
+  // Where this week's check-in stands. 'done' needs every angle; earlier weeks left unfinished are listed in `missed`.
+  function checkinStatus(state, weekday, today) {
+    const start = state.plan.startDate;
+    const week = clamp(weekOf(start, today), 1, WEEKS);
+    const date = checkinDate(start, week, weekday);
+    const taken = anglesTaken(state, week);
+    const status = taken >= ANGLES.length ? 'done' : today > date ? 'overdue' : today === date ? 'due' : 'upcoming';
+    const missed = [];
+    for (let w = 1; w < week; w++) if (anglesTaken(state, w) < ANGLES.length && checkinDate(start, w, weekday) < today) missed.push(w);
+    return { week, date, taken, of: ANGLES.length, status, missed };
+  }
+  // One entry per check-in week for an angle (up to `upTo` when given), with the photo (if any) and the numbers around its date.
+  function checkIns(state, angle, upTo) {
+    return PHOTO_WEEKS.filter((w) => upTo == null || w <= upTo).map((week) => {
       const photo = state.photos.find((p) => p.week === week && p.angle === angle) || null;
       return { week, photo, date: photo ? photo.date : null, snap: photo ? snapshotAt(state, photo.date) : null };
     });
@@ -613,7 +633,7 @@
 
   const Engine = {
     MEALS, macroKcal, normalizeFood, parseJsonLoose, dayTotals,
-    KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
+    KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
     clean, roundTo, clamp, lbToKg, kgToLb, inToCm, cmToIn, isoDate, parseISO, addDays, daysBetween, weekOf, weekRange, weekdayOf,
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,

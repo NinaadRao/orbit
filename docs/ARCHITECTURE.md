@@ -37,6 +37,10 @@ A short tour of how Orbit is put together and why. It is written so you can expl
 
 **Offline through a service worker.** Cache the app shell, serve stale-while-revalidate. It never caches or reads user data: that lives in IndexedDB.
 
+**Weekly check-in is derived too.** Every plan week is a photo week, and the weekday it lands on is one setting (`checkinDay`, Friday by default). `Engine.checkinDate` finds that day inside each plan week and `Engine.checkinStatus` says whether this week is upcoming, due, overdue or done (all five angles saved) and lists earlier weeks left unfinished. Nothing new is stored: the status is computed from the photo events, so it also survives a restore. The web cannot force anything, so "mandatory" means Today keeps a card up until the week is done and flags the ones you missed.
+
+**One backup file, replaced each time.** A backup always uses the same name (`orbit-backup.orbitbackup`). A browser cannot delete files it did not just create, so replacing the old copy depends on where you save: in Chrome or Edge on a computer you can pick a folder once (the folder handle is kept in the local meta store), and each backup then overwrites that file and removes older `orbit-*.orbitbackup` files there, after the new one is fully written and touching nothing else in the folder. The iPhone and iPad Files sheet offers Replace for a same-named file, and Safari on a Mac downloads a numbered copy.
+
 ## Failure modes considered
 
 | Failure | Behaviour |

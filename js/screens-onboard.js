@@ -238,7 +238,7 @@
     try { plan = E.buildPlan(a); } catch (e) { return UI.page(UI.header('Plan', 'Something is missing', { back: '#/onboard/4' }), UI.scroller(UI.empty('Go back and check your answers: ' + e.message))); }
     const lu = a.units.lift, lenU = a.units.length;
     const segs = h('div', { class: 'timeline' });
-    for (let w = 1; w <= 26; w++) segs.appendChild(h('span', { class: E.PHOTO_WEEKS.includes(w) ? 'photo' : w <= 12 ? 'a' : 'b' }));
+    for (let w = 1; w <= 26; w++) segs.appendChild(h('span', { class: w <= 12 ? 'a' : 'b' }));
     const total = plan.protein * 4 + plan.carbs * 4 + plan.fat * 9;
     const macroBar = h('div', { class: 'macrobar' }, ...[[plan.protein * 4, 'coral'], [plan.carbs * 4, 'acc'], [plan.fat * 9, 'cool']].map(([kc, c]) => { const s = h('span', { class: c }); s.style.width = (kc / total * 100) + '%'; return s; }));
     const targets = ['waist', 'shoulders', 'chest', 'bicepL'].filter((k) => plan.measTargets[k]).map((k) => h('div', { class: 'kv' }, h('span', null, k === 'bicepL' ? 'Biceps' : k[0].toUpperCase() + k.slice(1)), h('b', null, U.fmtLen(plan.measTargets[k].start, lenU) + ' to ' + U.fmtLen(plan.measTargets[k].target, lenU) + ' ' + lenU)));
@@ -249,7 +249,7 @@
       UI.scroller(
         UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'muted small' }, 'Daily target · ' + plan.goal[0].toUpperCase() + plan.goal.slice(1)), h('div', { class: 'display big' }, U.withCommas(plan.kcal), h('span', { class: 'muted unitbig' }, ' kcal'))), U.chip('Maintenance about ' + U.withCommas(plan.maintenance), 'line')), macroBar,
           h('div', { class: 'macro-legend' }, h('span', null, h('b', null, plan.protein + ' g'), ' protein'), h('span', null, h('b', null, plan.carbs + ' g'), ' carbs'), h('span', null, h('b', null, plan.fat + ' g'), ' fat'))),
-        UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Green weeks are photo check-ins: ' + E.PHOTO_WEEKS.join(', ') + '.')),
+        UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Progress photos are a weekly check-in on the day you choose in Profile. It starts on Friday.')),
         targets.length ? UI.card(h('div', { class: 'ct' }, 'Six-month targets'), ...targets) : null,
         UI.card(h('div', { class: 'ct' }, 'Your week'), ...sched),
         w1.length ? UI.card(h('div', { class: 'ct' }, 'Week 1 lifts'), ...w1) : UI.card(h('div', { class: 'muted' }, 'No lifts tracked yet. You can still log workouts; add lifts later from Lifts.')),
