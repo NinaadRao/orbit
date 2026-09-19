@@ -202,7 +202,7 @@
       const pts = have.filter((c) => KEYS.waist.of(c) != null).map((c) => ({ x: c.week, y: U.cmToUnit(KEYS.waist.of(c), set.lenUnit) }));
       const here = pts.filter((p) => p.x === cur.week);
       U.clear(chartBox);
-      chartBox.appendChild(pts.length ? U.lineChart({ label: 'Waist at each check-in', xs: [1, E.PHOTO_WEEKS[E.PHOTO_WEEKS.length - 1]], series: [{ pts, color: '#3CCDB0' }, { pts, color: '#3CCDB0', dots: true, line: false }, { pts: here, color: '#F5B700', dots: true, line: false, r: 5.5 }], xLabel: (x) => wk(x), fmtY: (y) => U.num(y, 1) })
+      chartBox.appendChild(pts.length ? U.lineChart({ label: 'Waist at each check-in', xs: [1, E.PHOTO_WEEKS[E.PHOTO_WEEKS.length - 1]], series: [{ pts, color: U.PAL.cool }, { pts, color: U.PAL.cool, dots: true, line: false }, { pts: here, color: U.PAL.acc, dots: true, line: false, r: 5.5 }], xLabel: (x) => wk(x), fmtY: (y) => U.num(y, 1) })
         : h('div', { class: 'muted' }, 'Log your waist near a check-in and it appears here.'));
       syncPlay();
     }

@@ -146,7 +146,7 @@
     const goalCard = (id, t, sub) => {
       const on = D.goal === id;
       return h('button', { type: 'button', class: 'goalcard' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick: () => { D.goal = id; root.App.render(); } },
-        h('div', { class: 'gc-top' }, h('span', { class: 'display' }, t), rec.goal === id ? U.chip('Suggested for you', 'teal') : null), h('div', { class: 'muted' }, sub));
+        h('div', { class: 'gc-top' }, h('span', { class: 'display' }, t), rec.goal === id ? U.chip('Suggested for you', 'good') : null), h('div', { class: 'muted' }, sub));
     };
     const order = [1, 2, 3, 4, 5, 6, 0], names = { 0: 'S', 1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F', 6: 'S' }, full = { 0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday' };
     const days = h('div', { class: 'days' });
@@ -240,7 +240,7 @@
     const segs = h('div', { class: 'timeline' });
     for (let w = 1; w <= 26; w++) segs.appendChild(h('span', { class: E.PHOTO_WEEKS.includes(w) ? 'photo' : w <= 12 ? 'a' : 'b' }));
     const total = plan.protein * 4 + plan.carbs * 4 + plan.fat * 9;
-    const macroBar = h('div', { class: 'macrobar' }, ...[[plan.protein * 4, 'coral'], [plan.carbs * 4, 'mari'], [plan.fat * 9, 'teal']].map(([kc, c]) => { const s = h('span', { class: c }); s.style.width = (kc / total * 100) + '%'; return s; }));
+    const macroBar = h('div', { class: 'macrobar' }, ...[[plan.protein * 4, 'coral'], [plan.carbs * 4, 'acc'], [plan.fat * 9, 'cool']].map(([kc, c]) => { const s = h('span', { class: c }); s.style.width = (kc / total * 100) + '%'; return s; }));
     const targets = ['waist', 'shoulders', 'chest', 'bicepL'].filter((k) => plan.measTargets[k]).map((k) => h('div', { class: 'kv' }, h('span', null, k === 'bicepL' ? 'Biceps' : k[0].toUpperCase() + k.slice(1)), h('b', null, U.fmtLen(plan.measTargets[k].start, lenU) + ' to ' + U.fmtLen(plan.measTargets[k].target, lenU) + ' ' + lenU)));
     const w1 = E.weeklyTargets(plan, 1).slice(0, 4).map((t) => h('div', { class: 'kv' }, h('span', null, t.name), h('b', null, t.kg == null ? t.sets + ' x ' + t.reps + ' reps' : U.fmtLift(t.kg, lu) + ' x ' + t.sets + 'x' + t.reps)));
     const sched = plan.workouts.map((w) => h('div', { class: 'kv' }, h('span', null, U.DOW[w.weekday]), h('b', null, w.name)));
@@ -249,7 +249,7 @@
       UI.scroller(
         UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'muted small' }, 'Daily target · ' + plan.goal[0].toUpperCase() + plan.goal.slice(1)), h('div', { class: 'display big' }, U.withCommas(plan.kcal), h('span', { class: 'muted unitbig' }, ' kcal'))), U.chip('Maintenance about ' + U.withCommas(plan.maintenance), 'line')), macroBar,
           h('div', { class: 'macro-legend' }, h('span', null, h('b', null, plan.protein + ' g'), ' protein'), h('span', null, h('b', null, plan.carbs + ' g'), ' carbs'), h('span', null, h('b', null, plan.fat + ' g'), ' fat'))),
-        UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Marigold weeks are photo check-ins: ' + E.PHOTO_WEEKS.join(', ') + '.')),
+        UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Green weeks are photo check-ins: ' + E.PHOTO_WEEKS.join(', ') + '.')),
         targets.length ? UI.card(h('div', { class: 'ct' }, 'Six-month targets'), ...targets) : null,
         UI.card(h('div', { class: 'ct' }, 'Your week'), ...sched),
         w1.length ? UI.card(h('div', { class: 'ct' }, 'Week 1 lifts'), ...w1) : UI.card(h('div', { class: 'muted' }, 'No lifts tracked yet. You can still log workouts; add lifts later from Lifts.')),

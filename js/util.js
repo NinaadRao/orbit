@@ -6,6 +6,8 @@
   'use strict';
   const E = root.Engine;
   const SVGNS = 'http://www.w3.org/2000/svg';
+  // The one place the app's colors live for SVG and canvas (CSS has the same values in :root of css/app.css).
+  const PAL = { ink: '#E9F2EC', ink2: '#93A99C', chalk: '#090D0B', paper: '#111813', line: '#22302A', track: '#22302A', acc: '#3DDC84', accBg: '#0F2A1B', cool: '#5CB8FF', coral: '#FF7A5C' };
 
   function append(el, kids) {
     for (const k of kids) {
@@ -161,10 +163,10 @@
     const px = 24 + rx * Math.cos(t), py = 24 + ry * Math.sin(t);
     return s('svg', { width: size || 40, height: size || 40, viewBox: '0 0 48 48', 'aria-hidden': 'true' },
       s('g', { transform: 'rotate(-28 24 24)' },
-        s('ellipse', { cx: 24, cy: 24, rx, ry, fill: 'none', stroke: '#EAF0EC', 'stroke-opacity': '0.28', 'stroke-width': 3.4 }),
-        s('ellipse', { cx: 24, cy: 24, rx, ry, fill: 'none', stroke: '#F5B700', 'stroke-width': 3.4, 'stroke-linecap': 'round', pathLength: 100, 'stroke-dasharray': '68 32' }),
-        s('circle', { cx: px.toFixed(2), cy: py.toFixed(2), r: 4.7, fill: '#F5B700', stroke: '#151F1C', 'stroke-width': 2 })),
-      s('circle', { cx: 24, cy: 24, r: 4.6, fill: '#EAF0EC' }));
+        s('ellipse', { cx: 24, cy: 24, rx, ry, fill: 'none', stroke: PAL.ink, 'stroke-opacity': '0.28', 'stroke-width': 3.4 }),
+        s('ellipse', { cx: 24, cy: 24, rx, ry, fill: 'none', stroke: PAL.acc, 'stroke-width': 3.4, 'stroke-linecap': 'round', pathLength: 100, 'stroke-dasharray': '68 32' }),
+        s('circle', { cx: px.toFixed(2), cy: py.toFixed(2), r: 4.7, fill: PAL.acc, stroke: PAL.paper, 'stroke-width': 2 })),
+      s('circle', { cx: 24, cy: 24, r: 4.6, fill: PAL.ink }));
   }
 
   // Line chart with a target line (dashed), a series (solid) and dots.
@@ -173,7 +175,7 @@
     const svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': opts.label || 'chart', class: 'chart' });
     const xs = opts.xs, all = [];
     for (const ser of opts.series) for (const p of ser.pts) if (p.y != null) all.push(p.y);
-    if (!all.length) { svg.appendChild(s('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: '#9DB0A8', 'font-size': 12 }, 'No data yet')); return svg; }
+    if (!all.length) { svg.appendChild(s('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: PAL.ink2, 'font-size': 12 }, 'No data yet')); return svg; }
     let lo = Math.min(...all), hi = Math.max(...all);
     if (opts.band) { lo = Math.min(lo, opts.band[0]); hi = Math.max(hi, opts.band[1]); }
     const padv = (hi - lo) * 0.15 || 1;
@@ -181,13 +183,13 @@
     const x0 = Math.min(...xs), x1 = Math.max(...xs);
     const px = (x) => L + ((x - x0) / (x1 - x0 || 1)) * (W - L - R);
     const py = (y) => T + (1 - (y - lo) / (hi - lo)) * (H - T - B);
-    svg.appendChild(s('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: '#263832' }));
-    svg.appendChild(s('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: '#263832' }));
-    if (opts.band) svg.appendChild(s('rect', { x: L, y: py(opts.band[1]), width: W - L - R, height: Math.max(2, py(opts.band[0]) - py(opts.band[1])), fill: '#12312B' }));
-    svg.appendChild(s('text', { x: 2, y: T + 8, fill: '#9DB0A8', 'font-size': 10 }, opts.fmtY ? opts.fmtY(hi) : num(hi)));
-    svg.appendChild(s('text', { x: 2, y: H - B, fill: '#9DB0A8', 'font-size': 10 }, opts.fmtY ? opts.fmtY(lo) : num(lo)));
-    svg.appendChild(s('text', { x: L, y: H - 6, fill: '#9DB0A8', 'font-size': 10 }, opts.xLabel ? opts.xLabel(x0) : String(x0)));
-    svg.appendChild(s('text', { x: W - R, y: H - 6, fill: '#9DB0A8', 'font-size': 10, 'text-anchor': 'end' }, opts.xLabel ? opts.xLabel(x1) : String(x1)));
+    svg.appendChild(s('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: PAL.line }));
+    svg.appendChild(s('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: PAL.line }));
+    if (opts.band) svg.appendChild(s('rect', { x: L, y: py(opts.band[1]), width: W - L - R, height: Math.max(2, py(opts.band[0]) - py(opts.band[1])), fill: PAL.accBg }));
+    svg.appendChild(s('text', { x: 2, y: T + 8, fill: PAL.ink2, 'font-size': 10 }, opts.fmtY ? opts.fmtY(hi) : num(hi)));
+    svg.appendChild(s('text', { x: 2, y: H - B, fill: PAL.ink2, 'font-size': 10 }, opts.fmtY ? opts.fmtY(lo) : num(lo)));
+    svg.appendChild(s('text', { x: L, y: H - 6, fill: PAL.ink2, 'font-size': 10 }, opts.xLabel ? opts.xLabel(x0) : String(x0)));
+    svg.appendChild(s('text', { x: W - R, y: H - 6, fill: PAL.ink2, 'font-size': 10, 'text-anchor': 'end' }, opts.xLabel ? opts.xLabel(x1) : String(x1)));
     for (const ser of opts.series) {
       const pts = ser.pts.filter((p) => p.y != null);
       if (!pts.length) continue;
@@ -197,5 +199,5 @@
     return svg;
   }
 
-  root.U = { h, s, put, clear, num, withCommas, kgToUnit, unitToKg, fmtWeight, fmtLift, cmToUnit, unitToCm, fmtLen, today, longDate, shortDate, b64, unb64, toast, sheet, confirmSheet, chip, bar, icon, logoSvg, lineChart, DOW, MON };
+  root.U = { h, s, put, clear, num, withCommas, kgToUnit, unitToKg, fmtWeight, fmtLift, cmToUnit, unitToCm, fmtLen, today, longDate, shortDate, b64, unb64, toast, sheet, confirmSheet, chip, bar, icon, logoSvg, lineChart, PAL, DOW, MON };
 })(self);

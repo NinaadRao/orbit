@@ -53,11 +53,11 @@
     const dayX = (d) => E.daysBetween(plan.startDate, d);
     const first = st.weights.length ? st.weights[0] : null, lastAvg = avg.length ? avg[avg.length - 1] : null;
     const xs = st.weights.map((w) => dayX(w.date));
-    const wchart = st.weights.length > 1 ? U.lineChart({ label: 'Body weight', xs, series: [{ pts: st.weights.map((w) => ({ x: dayX(w.date), y: U.kgToUnit(w.kg, set.bodyUnit) })), color: '#9DB0A8', dots: true, line: false, r: 2.5 }, { pts: avg.map((w) => ({ x: dayX(w.date), y: U.kgToUnit(w.kg, set.bodyUnit) })), color: '#F5B700' }], xLabel: (x) => U.shortDate(E.addDays(plan.startDate, x)), fmtY: (y) => U.num(y, 1) }) : null;
+    const wchart = st.weights.length > 1 ? U.lineChart({ label: 'Body weight', xs, series: [{ pts: st.weights.map((w) => ({ x: dayX(w.date), y: U.kgToUnit(w.kg, set.bodyUnit) })), color: U.PAL.ink2, dots: true, line: false, r: 2.5 }, { pts: avg.map((w) => ({ x: dayX(w.date), y: U.kgToUnit(w.kg, set.bodyUnit) })), color: U.PAL.acc }], xLabel: (x) => U.shortDate(E.addDays(plan.startDate, x)), fmtY: (y) => U.num(y, 1) }) : null;
     cards.push(UI.card(
       h('div', { class: 'target-top' }, h('div', { class: 'ct' }, 'Body weight'), h('button', { class: 'chip line', type: 'button', onclick: logWeightSheet }, '+ Log')),
       lastAvg ? h('div', null, h('span', { class: 'display big' }, U.fmtWeight(lastAvg.kg, set.bodyUnit)), h('span', { class: 'muted unitbig' }, ' ' + set.bodyUnit + ' (7-day avg)'), first ? h('div', { class: 'muted small' }, signed(U.kgToUnit(lastAvg.kg - first.kg, set.bodyUnit), 1) + ' ' + set.bodyUnit + ' since you started') : null) : h('div', { class: 'muted' }, 'No weigh-ins yet.'),
-      wchart, wchart ? h('div', { class: 'muted small' }, 'Grey dots: each weigh-in. Gold: 7-day average.') : null));
+      wchart, wchart ? h('div', { class: 'muted small' }, 'Grey dots: each weigh-in. Green line: 7-day average.') : null));
 
     // Measurements
     const rows = [];
@@ -68,7 +68,7 @@
       const now = latest ? latest.cm : start;
       const d = U.cmToUnit(now - start, set.lenUnit);
       const goodDir = tg ? (tg.target - start) : 0;
-      const good = Math.abs(d) < 0.05 ? '' : (goodDir >= 0 ? d > 0 : d < 0) ? 'teal' : 'coral';
+      const good = Math.abs(d) < 0.05 ? '' : (goodDir >= 0 ? d > 0 : d < 0) ? 'good' : 'coral';
       rows.push(h('div', { class: 'kv' }, h('span', null, label), h('b', null, U.fmtLen(start, set.lenUnit) + ' to ', U.fmtLen(now, set.lenUnit), tg ? h('span', { class: 'muted' }, '  (goal ' + U.fmtLen(tg.target, set.lenUnit) + ')') : null, ' ', good ? U.chip(signed(d) + ' ' + set.lenUnit, good) : null)));
     }
     cards.push(UI.card(h('div', { class: 'target-top' }, h('div', { class: 'ct' }, 'Measurements'), h('button', { class: 'chip line', type: 'button', onclick: logMeasSheet }, '+ Log')),
@@ -81,7 +81,7 @@
     if (logged.length) {
       const avgK = logged.reduce((a, x) => a + x.tot.kcal, 0) / logged.length, avgP = logged.reduce((a, x) => a + x.tot.protein, 0) / logged.length;
       cards.push(UI.card(h('div', { class: 'ct' }, 'Food, last 14 days'), h('div', { class: 'muted small' }, 'Today is left out until it is finished.'),
-        U.lineChart({ label: 'Calories per day against target', xs: days.map((x) => x.x), series: [{ pts: days.map((x) => ({ x: x.x, y: plan.kcal })), color: '#F5B700', dash: '5 4', width: 2 }, { pts: logged.map((x) => ({ x: x.x, y: x.tot.kcal })), color: '#3CCDB0', dots: true, line: false }], xLabel: (x) => U.shortDate(E.addDays(t, x - 14)), fmtY: (y) => U.num(y, 0) }),
+        U.lineChart({ label: 'Calories per day against target', xs: days.map((x) => x.x), series: [{ pts: days.map((x) => ({ x: x.x, y: plan.kcal })), color: U.PAL.acc, dash: '5 4', width: 2 }, { pts: logged.map((x) => ({ x: x.x, y: x.tot.kcal })), color: U.PAL.cool, dots: true, line: false }], xLabel: (x) => U.shortDate(E.addDays(t, x - 14)), fmtY: (y) => U.num(y, 0) }),
         h('div', { class: 'statgrid' }, h('div', { class: 'stat' }, h('b', null, U.withCommas(avgK)), h('span', null, 'avg kcal')), h('div', { class: 'stat' }, h('b', null, Math.round(avgP) + ' g'), h('span', null, 'avg protein')), h('div', { class: 'stat' }, h('b', null, logged.length + '/14'), h('span', null, 'days logged')))));
     }
 

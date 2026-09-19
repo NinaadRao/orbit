@@ -6,10 +6,11 @@
 (function (root) {
   'use strict';
   const { h } = root.U;
-  const C = { ink: '#EAF0EC', ink2: '#9DB0A8', chalk: '#0D1412', paper: '#151F1C', line: '#263832', mari: '#F5B700', teal: '#3CCDB0', coral: '#FF7A5C' };
+  const P = root.U.PAL;
+  const C = { ink: P.ink, ink2: P.ink2, chalk: P.chalk, paper: P.paper, line: P.line, acc: P.acc, good: P.acc, coral: P.coral };
   const FONT = '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif';
   const DISPLAY = '"Big Shoulders Display", "Arial Narrow", sans-serif';
-  const TONE = { teal: C.teal, coral: C.coral };
+  const TONE = { good: C.good, coral: C.coral };
   const VIDEO_BPS = 4000000;
 
   async function fontsReady() {
@@ -47,7 +48,7 @@
     ctx.save();
     ctx.font = '700 ' + px + 'px ' + FONT;
     const pad = px * 0.65, w = ctx.measureText(text).width + pad * 2, hh = px * 1.9, x0 = align === 'right' ? x - w : x;
-    ctx.fillStyle = 'rgba(13,20,18,0.8)'; rr(ctx, x0, y, w, hh, hh / 2); ctx.fill();
+    ctx.fillStyle = 'rgba(9,13,11,0.8)'; rr(ctx, x0, y, w, hh, hh / 2); ctx.fill();
     ctx.fillStyle = C.ink; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillText(text, x0 + pad, y + hh / 2 + px * 0.04);
     ctx.restore();
     return { w, h: hh };
@@ -73,7 +74,7 @@
         cover(ctx, B, 0, 0, cw, ch);
         ctx.save(); ctx.beginPath(); ctx.rect(0, 0, pos * cw, ch); ctx.clip(); cover(ctx, A, 0, 0, cw, ch); ctx.restore();
         const x = pos * cw, lw = Math.max(2, 6 * k), r = 30 * k;
-        ctx.fillStyle = C.mari; ctx.fillRect(x - lw / 2, 0, lw, ch);
+        ctx.fillStyle = C.acc; ctx.fillRect(x - lw / 2, 0, lw, ch);
         ctx.beginPath(); ctx.arc(x, ch / 2, r, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = C.chalk; ctx.lineWidth = Math.max(2, 5 * k); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(x - 6 * k, ch / 2 - 10 * k); ctx.lineTo(x - 16 * k, ch / 2); ctx.lineTo(x - 6 * k, ch / 2 + 10 * k); ctx.moveTo(x + 6 * k, ch / 2 - 10 * k); ctx.lineTo(x + 16 * k, ch / 2); ctx.lineTo(x + 6 * k, ch / 2 + 10 * k); ctx.stroke();
@@ -135,7 +136,7 @@
     } else {
       if (st.numbers && cur.numbers) {
         const gh = c.h * 0.2, grad = ctx.createLinearGradient(0, c.y + c.h - gh, 0, c.y + c.h);
-        grad.addColorStop(0, 'rgba(13,20,18,0)'); grad.addColorStop(1, 'rgba(13,20,18,0.85)');
+        grad.addColorStop(0, 'rgba(9,13,11,0)'); grad.addColorStop(1, 'rgba(9,13,11,0.85)');
         ctx.fillStyle = grad; ctx.fillRect(c.x, c.y + c.h - gh, c.w, gh);
         ctx.font = '700 44px ' + FONT; ctx.fillStyle = C.ink; ctx.textAlign = 'left'; ctx.fillText(cur.numbers, c.x + 36, c.y + c.h - 52);
       }

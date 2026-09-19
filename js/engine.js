@@ -448,7 +448,7 @@
   }
   function changeTone(delta, dir, eps) {
     if (delta == null || !dir || Math.abs(delta) < (eps == null ? 0.05 : eps)) return '';
-    return (delta > 0) === (dir > 0) ? 'teal' : 'coral';
+    return (delta > 0) === (dir > 0) ? 'good' : 'coral';
   }
   function setsForWeek(state, week) {
     const [a, b] = weekRange(state.plan.startDate, week);

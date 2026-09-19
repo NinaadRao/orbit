@@ -638,8 +638,8 @@ async function main() {
     ok(/Weight/.test(cards[0]) && /80\.2/.test(cards[0]) && /-1\.8 kg/.test(cards[0]), 'weight card: ' + cards[0]);
     ok(/Waist/.test(cards[1]) && /84\.2/.test(cards[1]) && /-1\.8 cm/.test(cards[1]), 'waist card: ' + cards[1]);
     ok(/Chest/.test(cards[2]) && /101\.2/.test(cards[2]) && /\+1\.2 cm/.test(cards[2]), 'chest card: ' + cards[2]);
-    ok(await tpage.locator('.tstat .td.teal').count() === 2, 'waist down and chest up are toward the recomp goal');
-    ok(await tpage.locator('.tstat').first().locator('.td.teal, .td.coral').count() === 0, 'weight is neutral on a recomp');
+    ok(await tpage.locator('.tstat .td.good').count() === 2, 'waist down and chest up are toward the recomp goal');
+    ok(await tpage.locator('.tstat').first().locator('.td.good, .td.coral').count() === 0, 'weight is neutral on a recomp');
     ok(await tpage.locator('.stage-img').evaluate((el) => el.complete && el.naturalWidth > 0), 'photo loaded from local storage');
   });
 

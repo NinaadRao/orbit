@@ -20,10 +20,10 @@
       U.put(box, h('div', { class: 'pt' }, p.title), ...p.rows.map((r) => h('div', { class: 'kv' }, h('span', null, r[0]), h('b', null, r[1]))), p.reason ? h('div', { class: 'muted small' }, p.reason) : null);
       if (p.status === 'pending') {
         U.put(box, h('div', { class: 'btns' },
-          h('button', { type: 'button', class: 'btn teal', onclick: async () => { try { const ev = await p.run(); p.seq = ev && ev.seq; p.status = 'applied'; U.toast('Applied.'); } catch (e) { U.toast(String(e.message || e), 'warn'); } draw(); } }, 'Apply'),
+          h('button', { type: 'button', class: 'btn good', onclick: async () => { try { const ev = await p.run(); p.seq = ev && ev.seq; p.status = 'applied'; U.toast('Applied.'); } catch (e) { U.toast(String(e.message || e), 'warn'); } draw(); } }, 'Apply'),
           h('button', { type: 'button', class: 'btn quiet', onclick: () => { p.status = 'dismissed'; draw(); } }, 'Not now')));
       } else if (p.status === 'applied') {
-        U.put(box, h('div', { class: 'row' }, U.chip('Applied', 'teal'), p.seq ? h('button', { type: 'button', class: 'btn quiet small', onclick: async () => { await Store.voidEvent(p.seq); p.status = 'undone'; draw(); } }, 'Undo') : null));
+        U.put(box, h('div', { class: 'row' }, U.chip('Applied', 'good'), p.seq ? h('button', { type: 'button', class: 'btn quiet small', onclick: async () => { await Store.voidEvent(p.seq); p.status = 'undone'; draw(); } }, 'Undo') : null));
       } else U.put(box, U.chip(p.status === 'undone' ? 'Undone' : 'Dismissed', 'line'));
     };
     draw();
@@ -152,7 +152,7 @@
     // key area
     const keyBox = h('div', { class: 'stack' });
     const modeSeg = UI.seg({ label: 'Where should the key live?', options: [{ value: 'session', label: 'Just this session' }, { value: 'vault', label: 'Encrypted here' }, { value: 'file', label: 'From a key file' }], value: c.keyMode, onChange: (v) => { setCoach({ keyMode: v }).then(() => root.App.render()); } });
-    const status = root.App.hasKey() ? U.chip('Key loaded (' + root.App.keyState.source + ')', 'teal') : U.chip('No key loaded', 'line');
+    const status = root.App.hasKey() ? U.chip('Key loaded (' + root.App.keyState.source + ')', 'good') : U.chip('No key loaded', 'line');
     if (c.keyMode === 'session') {
       const k = UI.field({ label: 'API key', type: 'password', placeholder: 'Paste your key', hint: 'Kept in memory only. Closing the app forgets it.' });
       U.put(keyBox, k, UI.btn('Use this key', { onClick: () => { const v = k.input.value.trim(); if (!keyOk(v)) return U.toast('That does not look like an API key.', 'warn'); root.App.setKey(v, 'typed'); k.input.value = ''; U.toast('Key loaded for this session.'); root.App.render(); } }));

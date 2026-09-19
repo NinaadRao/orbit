@@ -39,7 +39,7 @@
     const summary = UI.card(
       h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'display big' }, U.withCommas(tot.kcal), h('span', { class: 'muted unitbig' }, ' / ' + U.withCommas(plan.kcal) + ' kcal')), h('div', { class: 'muted small' }, remaining >= 0 ? U.withCommas(remaining) + ' left' : U.withCommas(-remaining) + ' over')), U.chip(E.dayTotals(st, date).n + ' logged', 'line')),
       U.bar(plan.kcal ? (tot.kcal / plan.kcal) * 100 : 0, tot.kcal > plan.kcal * 1.1 ? 'coral' : '', true),
-      macroBar('Protein', tot.protein, plan.protein, 'coral'), macroBar('Carbs', tot.carbs, plan.carbs, ''), macroBar('Fat', tot.fat, plan.fat, 'teal'));
+      macroBar('Protein', tot.protein, plan.protein, 'coral'), macroBar('Carbs', tot.carbs, plan.carbs, ''), macroBar('Fat', tot.fat, plan.fat, 'cool'));
 
     const day = st.foods.filter((f) => f.date === date);
     const sections = [];
@@ -51,7 +51,7 @@
         h('div', { class: 'mealhead' }, h('div', { class: 'ct' }, meal), h('span', { class: 'muted small' }, U.withCommas(sub) + ' kcal')),
         ...items.map((f) => h('button', { type: 'button', class: 'listrow foodrow', 'aria-label': 'Edit ' + f.name, onclick: () => editSheet(f) },
           h('div', { class: 'fn' }, h('b', null, f.name), h('span', { class: 'muted small' }, macroLine(f) + (f.serving ? ' · ' + f.serving : ''))),
-          f.ai ? U.chip(f.ai.edited ? 'AI, edited' : 'AI est.', 'mari') : null,
+          f.ai ? U.chip(f.ai.edited ? 'AI, edited' : 'AI est.', 'acc') : null,
           h('div', { class: 'kc' }, String(f.kcal))))));
     }
     const hint = !root.App.aiReady() ? h('div', { class: 'muted small' }, 'Tip: add your own AI key in Coach settings and you can just describe a meal or list raw ingredients. You will always see the numbers before anything is saved.') : null;
@@ -211,7 +211,7 @@
       const items = v.items.length ? h('div', null, h('div', { class: 'lab' }, 'How it was worked out'), ...v.items.map((it) => h('div', { class: 'itemrow' }, h('span', null, it.name), h('b', null, it.kcal + ' kcal'), h('small', null, (it.qty ? it.qty + ' · ' : '') + macroLine(it))))) : null;
       U.put(body, 
         h('div', { class: 'est' },
-          h('div', { class: 'est-top' }, h('div', { class: 'ct' }, 'Check these numbers'), U.chip(v.confidence + ' confidence', v.confidence === 'high' ? 'teal' : v.confidence === 'low' ? 'coral' : 'mari')),
+          h('div', { class: 'est-top' }, h('div', { class: 'ct' }, 'Check these numbers'), U.chip(v.confidence + ' confidence', v.confidence === 'high' ? 'good' : v.confidence === 'low' ? 'coral' : 'cool')),
           h('div', { class: 'muted small' }, 'This is an AI estimate from what you typed' + (est.sN > 1 ? ' (one of ' + est.sN + ' servings)' : '') + '. Fix anything that looks off, then confirm.'),
           name, UI.row(kc), UI.row(p, c, fa), live,
           items,

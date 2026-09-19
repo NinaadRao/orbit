@@ -133,20 +133,20 @@
     const pct = Math.min(100, Math.max(0, ((E.daysBetween(plan.startDate, t) + 1) / (E.WEEKS * 7)) * 100));
     const C = 2 * Math.PI * 34;
     const ring = h('div', { class: 'ring', role: 'img', 'aria-label': 'Plan progress ' + Math.round(pct) + ' percent' },
-      s('svg', { viewBox: '0 0 84 84' }, s('circle', { cx: 42, cy: 42, r: 34, fill: 'none', stroke: '#26352F', 'stroke-width': 8 }),
-        s('circle', { cx: 42, cy: 42, r: 34, fill: 'none', stroke: '#F5B700', 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-dasharray': (C * pct / 100).toFixed(1) + ' ' + C.toFixed(1), transform: 'rotate(-90 42 42)' })),
+      s('svg', { viewBox: '0 0 84 84' }, s('circle', { cx: 42, cy: 42, r: 34, fill: 'none', stroke: U.PAL.track, 'stroke-width': 8 }),
+        s('circle', { cx: 42, cy: 42, r: 34, fill: 'none', stroke: U.PAL.acc, 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-dasharray': (C * pct / 100).toFixed(1) + ' ' + C.toFixed(1), transform: 'rotate(-90 42 42)' })),
       h('div', { class: 'mid' }, String(Math.round(pct)) + '%', h('small', null, 'of plan')));
     const cards = [];
 
     cards.push(UI.card(h('div', { class: 'todayhead' }, ring, h('div', { class: 'grow' },
       h('div', { class: 'display big2' }, 'Week ' + week + ' of ' + E.WEEKS),
       h('div', { class: 'muted' }, cap(plan.goal) + ' · ' + U.withCommas(plan.kcal) + ' kcal · ' + plan.protein + ' g protein'),
-      h('div', { class: 'row' }, deload ? U.chip('Deload week: 2 easier sets', 'teal') : null, E.PHOTO_WEEKS.includes(week) ? U.chip('Photo week', 'mari') : null)))));
+      h('div', { class: 'row' }, deload ? U.chip('Deload week: 2 easier sets', 'good') : null, E.PHOTO_WEEKS.includes(week) ? U.chip('Photo week', 'acc') : null)))));
 
-    if (rawWeek > E.WEEKS) cards.push(UI.cardX('teal', h('div', { class: 'ct' }, 'You finished all 26 weeks'), h('div', { class: 'muted' }, 'Take your final photos and measurements, then compare against week 1 in Progress. Your logs stay here as long as you keep the app.'), UI.btn('See progress', { href: '#/progress' })));
+    if (rawWeek > E.WEEKS) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'You finished all 26 weeks'), h('div', { class: 'muted' }, 'Take your final photos and measurements, then compare against week 1 in Progress. Your logs stay here as long as you keep the app.'), UI.btn('See progress', { href: '#/progress' })));
 
     const cp = E.checkpoint(st, t);
-    if (cp) cards.push(UI.cardX('mari', h('div', { class: 'ct' }, 'Checkpoint · week ' + cp.week), h('div', null, cp.text), UI.row(UI.btn('Review goal', { kind: 'primary', onClick: () => switchGoalSheet(cp.goal, cp.text, 'checkpoint') }))));
+    if (cp) cards.push(UI.cardX('acc', h('div', { class: 'ct' }, 'Checkpoint · week ' + cp.week), h('div', null, cp.text), UI.row(UI.btn('Review goal', { kind: 'primary', onClick: () => switchGoalSheet(cp.goal, cp.text, 'checkpoint') }))));
 
     // Monthly review: rules only, every number has a sentence behind it.
     const monthNo = Math.floor(week / 4);
@@ -162,9 +162,9 @@
     // Gentle backup nudge: browsers can clear site data, and the file is the only safety net.
     if (set.reminder !== 'off') {
       const since = set.lastBackupAt ? E.daysBetween(set.lastBackupAt.slice(0, 10), t) : E.daysBetween(plan.startDate, t);
-      if (since >= (set.reminder === 'monthly' ? 30 : 7)) cards.push(UI.cardX('teal', h('div', { class: 'ct' }, 'Back up your data'), h('div', { class: 'muted' }, set.lastBackupAt ? 'Your last backup was ' + since + ' days ago.' : 'You have not made a backup yet.'), UI.btn('Back up now', { href: '#/settings' })));
+      if (since >= (set.reminder === 'monthly' ? 30 : 7)) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'Back up your data'), h('div', { class: 'muted' }, set.lastBackupAt ? 'Your last backup was ' + since + ' days ago.' : 'You have not made a backup yet.'), UI.btn('Back up now', { href: '#/settings' })));
     }
-    if (E.PHOTO_WEEKS.includes(week) && !st.photos.some((p) => p.week === week)) cards.push(UI.cardX('mari', h('div', { class: 'ct' }, 'Photo check-in this week'), h('div', { class: 'muted' }, 'Five angles, same light, same spot. It takes two minutes and future you will care.'), UI.btn('Take photos', { href: '#/photos' })));
+    if (E.PHOTO_WEEKS.includes(week) && !st.photos.some((p) => p.week === week)) cards.push(UI.cardX('acc', h('div', { class: 'ct' }, 'Photo check-in this week'), h('div', { class: 'muted' }, 'Five angles, same light, same spot. It takes two minutes and future you will care.'), UI.btn('Take photos', { href: '#/photos' })));
 
     // Workout
     const wo = plan.workouts.find((w) => w.weekday === E.weekdayOf(t));
@@ -283,7 +283,7 @@
       tgs.push({ x: w, y: ls.target.kg == null ? ls.target.reps : U.kgToUnit(ls.target.kg, set.liftUnit) });
       top.push({ x: w, y: ls.logged ? (lift.bw ? ls.topReps : ls.topKg == null ? null : U.kgToUnit(ls.topKg, set.liftUnit)) : null });
     }
-    const chart = U.lineChart({ label: lift.name + ' target and logged top set by week', xs: tgs.map((p) => p.x), series: [{ pts: tgs, color: '#F5B700', dash: '5 4', width: 2 }, { pts: top, color: '#3CCDB0', dots: true, line: false }], xLabel: (x) => 'Wk ' + x, fmtY: (y) => U.num(y, 0) });
+    const chart = U.lineChart({ label: lift.name + ' target and logged top set by week', xs: tgs.map((p) => p.x), series: [{ pts: tgs, color: U.PAL.acc, dash: '5 4', width: 2 }, { pts: top, color: U.PAL.cool, dots: true, line: false }], xLabel: (x) => 'Wk ' + x, fmtY: (y) => U.num(y, 0) });
     const rows = [];
     for (let w = 1; w <= E.WEEKS; w++) {
       const ls = E.liftStatus(state, id, w, t), tg = ls.target;

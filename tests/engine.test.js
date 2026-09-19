@@ -239,6 +239,6 @@ test('photo trend: green means toward the goal, and a plan that does not care sh
   const plan = { goal: 'recomp', measTargets: { waist: { start: 86, target: 83.5 }, chest: { start: 100, target: 103 }, hips: { start: 95, target: 95 } } };
   assert.equal(E.goalDir(plan, 'waist'), -1); assert.equal(E.goalDir(plan, 'chest'), 1); assert.equal(E.goalDir(plan, 'hips'), 0); assert.equal(E.goalDir(plan, 'bicepL'), 0);
   assert.equal(E.goalDir(plan, 'weight'), 0); assert.equal(E.goalDir({ goal: 'cut' }, 'weight'), -1); assert.equal(E.goalDir({ goal: 'build' }, 'weight'), 1);
-  assert.equal(E.changeTone(-1.5, -1), 'teal'); assert.equal(E.changeTone(-1.5, 1), 'coral'); assert.equal(E.changeTone(0.01, 1), '');
+  assert.equal(E.changeTone(-1.5, -1), 'good'); assert.equal(E.changeTone(-1.5, 1), 'coral'); assert.equal(E.changeTone(0.01, 1), '');
   assert.equal(E.changeTone(2, 0), ''); assert.equal(E.changeTone(null, 1), '');
 });
