@@ -100,33 +100,48 @@
     };
 
     // ----- Find -----
+    const DIET_ITEMS = [['all', 'All'], ['veg', 'Veg'], ['egg', 'Veg + egg'], ['nonveg', 'Non-veg']];
+    const dietChip = (f) => (f.recent ? null : U.chip(Foods.DIET_LABEL[f.diet], Foods.DIET_TONE[f.diet]));
+    const srcNote = (f) => (f.recent ? 'from your log' : f.approx ? 'approximate' : Foods.SOURCE_LABEL[f.src]);
     function drawFind() {
-      const foods = Store.getState().foods;
+      const st = Store.getState(), foods = st.foods, set = Store.getSettings();
+      let diet = Foods.DIETS.includes(set.foodDiet) ? set.foodDiet : Foods.dietFor(st.profile && st.profile.diet);
+      let shown = 12, failed = false;
       const results = h('div', { class: 'results' });
-      const q = UI.field({ label: 'Search foods you eat or common ones', value: pre.text || '', placeholder: 'paneer, dal, whey...', maxlength: 60 });
+      const more = h('div', { class: 'stack' });
+      const status = h('div', { class: 'muted small' });
+      const q = UI.field({ label: 'Search foods', value: pre.text || '', placeholder: 'paneer, moong dal, chicken breast...', maxlength: 60 });
+      const dietPills = UI.pills({ label: 'Show', items: DIET_ITEMS.map((x) => x[1]), values: new Set([DIET_ITEMS.find((x) => x[0] === diet)[1]]), multi: false, onChange: (v) => {
+        const label = Array.from(v)[0]; diet = DIET_ITEMS.find((x) => x[1] === label)[0]; shown = 12; Store.saveSettings({ foodDiet: diet }); showResults();
+      } });
       const showResults = () => {
-        U.clear(results);
+        U.clear(results); U.clear(more);
+        status.textContent = failed ? 'The full food list could not load, so only the short list is searched.' : !Foods.ready() ? 'Loading the full food list...' : '';
         const text = q.input.value.trim();
-        let list;
-        if (!text) list = Foods.recents(foods, 6).concat(Foods.CATALOG.slice(0, 8));
-        else list = Foods.searchRecents(foods, text, 4).concat(Foods.search(text, 8));
+        let list, total = 0;
+        if (!text) list = Foods.recents(foods, 6).concat(Foods.CATALOG.filter((f) => Foods.dietOk(diet, f.diet)).slice(0, 8));
+        else { const r = Foods.search(text, { diet, limit: shown }); total = r.total; list = Foods.searchRecents(foods, text, 4).concat(r); }
         const seen = new Set();
-        list = list.filter((f) => { const k = f.name.toLowerCase() + f.serving; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 10);
+        list = list.filter((f) => { const k = f.name.toLowerCase() + f.serving; if (seen.has(k)) return false; seen.add(k); return true; });
         for (const f of list) results.appendChild(h('button', { type: 'button', class: 'result', onclick: () => { pick = f; draw(); } },
-          h('div', null, h('b', null, f.name), h('small', null, f.serving + ' · ' + macroLine(f) + (f.recent ? ' · from your log' : ''))), h('b', null, String(Math.round(f.kcal)))));
-        if (text && !list.length) results.appendChild(h('div', { class: 'empty' }, 'Not in the list. Tell Orbit what is in it, or type the numbers.'));
+          h('div', { class: 'rl' }, h('b', null, f.name), h('small', null, f.serving + ' · ' + macroLine(f) + ' · ' + srcNote(f))), h('div', { class: 'rr' }, dietChip(f), h('b', null, String(Math.round(f.kcal))))));
+        if (text && !list.length && Foods.ready()) results.appendChild(h('div', { class: 'empty' }, diet === 'all' ? 'Not in the list. Tell Orbit what is in it, or type the numbers.' : 'Nothing matches with this filter. Try All, or describe it below.'));
         results.classList.toggle('hidden', !list.length && !text);
+        if (text && total > shown) more.appendChild(UI.btn('Show more (' + (total - shown) + ' more)', { kind: 'quiet', onClick: () => { shown += 20; showResults(); } }));
         notListed.classList.toggle('hidden', !text);
       };
       const notListed = h('div', { class: 'stack' },
         h('div', { class: 'muted small' }, 'Not listed? Type the raw ingredients (like "200 g paneer, 1 tbsp oil, 2 rotis") and get an estimate, or enter the macros yourself.'),
         h('div', { class: 'row' }, UI.btn('Type ingredients', { kind: 'quiet', onClick: () => { aiText = q.input.value.trim(); tab = 'ingr'; draw(); } }), UI.btn('Enter macros', { kind: 'quiet', onClick: () => { mFields.name = q.input.value.trim().slice(0, 80); tab = 'manual'; draw(); } })));
-      q.input.addEventListener('input', showResults);
-      U.put(body, q, results, notListed);
+      const credit = h('div', { class: 'muted small' }, 'Per 100 g unless a serving is shown. Food data: USDA FoodData Central and the Indian Food Composition Tables 2017. The Veg, Egg and Non-veg tags come from each food\'s group and name, so read the label if it matters. "Approximate" entries are typical home-style values.');
+      q.input.addEventListener('input', () => { shown = 12; showResults(); });
+      U.put(body, q, dietPills, status, results, more, notListed, credit);
       showResults();
+      if (!Foods.ready()) Foods.load().then(() => { if (document.body.contains(body)) showResults(); }).catch(() => { failed = true; if (document.body.contains(body)) showResults(); });
     }
     function drawPick() {
       const f = pick;
+      if (f.per100) return drawPickGrams(f);
       const sv = UI.field({ label: 'Servings of ' + f.serving, type: 'number', value: '1', flex: 1 });
       const live = h('div', { class: 'kv' });
       const upd = () => { const n = Math.max(0, numOrNull(sv.input.value) || 0); U.clear(live); U.put(live, h('span', null, U.num(n * f.kcal, 0) + ' kcal'), h('b', null, macroLine({ protein: n * f.protein, carbs: n * f.carbs, fat: n * f.fat }))); };
@@ -138,6 +153,28 @@
           const r = E.normalizeFood({ name: f.name, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
           if (!r.ok) return U.toast(r.errors[0], 'warn');
           await saveFood(date, meal, r.value, { serving: n === 1 ? f.serving : U.num(n, 2) + ' x ' + f.serving, source: f.recent ? 'recent' : 'catalog' });
+          finish();
+        } })));
+    }
+    // A database food: the amount is in grams, since the numbers are per 100 g.
+    function drawPickGrams(f) {
+      let grams = '100';
+      const live = h('div', { class: 'kv' });
+      const upd = () => { const n = Math.max(0, numOrNull(grams) || 0); const m = Foods.scale(f, n); U.clear(live); U.put(live, h('span', null, m.kcal + ' kcal'), h('b', null, macroLine(m))); };
+      const gf = UI.field({ label: 'Amount', unit: 'g', type: 'number', value: '100', onInput: (v) => { grams = v; upd(); } });
+      const quick = h('div', { class: 'pills' }, ...[50, 100, 150, 200, 250].map((g) => h('button', { type: 'button', class: 'pill', onclick: () => { grams = String(g); gf.input.value = grams; upd(); } }, g + ' g')));
+      upd();
+      const notes = [];
+      if (f.diet === 3) notes.push('The ingredients of this food are not clear, so check the label if you avoid meat or egg.');
+      if (f.src === 1) notes.push('Indian Food Composition Tables values are for the food as listed, usually raw.');
+      U.put(body, h('div', { class: 'ct' }, f.name), h('div', { class: 'row' }, dietChip(f), U.chip(srcNote(f), 'line')), h('div', { class: 'muted small' }, 'Numbers are per 100 g. Weigh cooked food against a cooked entry and raw against a raw one.'), ...notes.map((n) => h('div', { class: 'muted small' }, n)), gf, quick, live,
+        h('div', { class: 'row' }, UI.btn('Back', { kind: 'quiet', onClick: () => { pick = null; draw(); } }), UI.btn('Log it', { onClick: async () => {
+          const n = numOrNull(grams);
+          if (!(n > 0 && n <= 3000)) return U.toast('Enter an amount between 1 and 3,000 g.', 'warn');
+          const m = Foods.scale(f, n);
+          const r = E.normalizeFood({ name: f.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
+          if (!r.ok) return U.toast(r.errors[0], 'warn');
+          await saveFood(date, meal, r.value, { serving: Math.round(n * 10) / 10 + ' g', source: f.src === 1 ? 'ifct' : 'usda' });
           finish();
         } })));
     }

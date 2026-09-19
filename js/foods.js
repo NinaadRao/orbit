@@ -1,7 +1,12 @@
 /*
- * A small built-in list of common foods (per the serving shown) and the search over it.
- * The numbers are typical values for plain, home-style versions and are approximate.
- * Anything that is not listed can be typed as raw ingredients, or entered by hand.
+ * Food search: a full offline database plus a short list of typical home-style Indian dishes.
+ *
+ * The database is data/foods.json (about 7,800 foods per 100 g: USDA SR Legacy and the Indian Food Composition Tables 2017;
+ * see data/SOURCES.md). It loads the first time Fuel is opened and is kept for offline use by the service worker.
+ * The short list below is different: typical values for plain, home-style dishes that neither dataset measures cooked
+ * (a katori of dal, a phulka, an idli). Those numbers are approximate and labelled so.
+ *
+ * diet: 0 vegetarian, 1 egg, 2 meat, poultry, fish or gelatin, 3 unclear ingredients (restaurant, canned soup, ready meal).
  */
 (function (root) {
   'use strict';
@@ -44,22 +49,103 @@
     ['Olive oil', '1 tbsp', 119, 0, 0, 13.5, 'oil'],
   ];
 
-  const CATALOG = RAW.map((r, i) => ({ id: 'c' + i, name: r[0], serving: r[1], kcal: r[2], protein: r[3], carbs: r[4], fat: r[5], alias: r[6] || '' }));
+  const words = (s) => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const CATALOG = RAW.map((r, i) => ({ id: 'c' + i, name: r[0], serving: r[1], kcal: r[2], protein: r[3], carbs: r[4], fat: r[5], alias: r[6] || '', diet: r[0] === 'Egg' ? 1 : 0, approx: true, hayWords: words(r[0] + ' ' + (r[6] || '')) }));
 
   function tokens(q) { return String(q || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
 
-  // Every word typed has to appear in the name or alias. Names that start with the query rank first.
-  function search(q, limit) {
-    const t = tokens(q);
+  // ---------- the database ----------
+  const DB = { list: null, promise: null };
+  const SOURCE_LABEL = ['USDA', 'India (IFCT)'];
+  const isNum = (x, hi) => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= hi;
+
+  // Reads data/foods.json. Anything malformed is skipped, so a damaged file can never put odd values into the log.
+  function parseDb(json) {
+    if (!json || json.v !== 1 || !Array.isArray(json.foods)) throw new Error('The food list is not in the expected format.');
+    const out = [];
+    for (let i = 0; i < json.foods.length; i++) {
+      const a = json.foods[i];
+      if (!Array.isArray(a) || typeof a[0] !== 'string' || !a[0] || a[0].length > 160) continue;
+      const diet = a[1], src = a[7];
+      if (![0, 1, 2, 3].includes(diet) || ![0, 1].includes(src)) continue;
+      if (!isNum(a[2], 900) || !isNum(a[3], 100) || !isNum(a[4], 100) || !isNum(a[5], 100) || !isNum(a[6], 100)) continue;
+      const alias = typeof a[8] === 'string' ? a[8].slice(0, 120) : '';
+      out.push({ id: 'd' + i, name: a[0], serving: '100 g', kcal: a[2], protein: a[3], carbs: a[4], fat: a[5], fibre: a[6], diet, src, alias, per100: true, hayWords: words(a[0] + ' ' + alias) });
+    }
+    if (out.length < 100) throw new Error('The food list is empty.');
+    return out;
+  }
+  function useDb(list) { DB.list = list; DB.promise = Promise.resolve(list); return list; }
+  function load(fetcher) {
+    if (DB.list) return Promise.resolve(DB.list);
+    if (DB.promise) return DB.promise;
+    const f = fetcher || (typeof fetch === 'function' ? fetch.bind(root) : null);
+    if (!f) return Promise.reject(new Error('This browser cannot load the food list.'));
+    DB.promise = f('data/foods.json', { credentials: 'omit' })
+      .then((r) => { if (!r.ok) throw new Error('The food list could not be loaded.'); return r.json(); })
+      .then((j) => { DB.list = parseDb(j); return DB.list; })
+      .catch((e) => { DB.promise = null; throw e; });
+    return DB.promise;
+  }
+  const ready = () => !!DB.list;
+  const count = () => (DB.list ? DB.list.length : 0) + CATALOG.length;
+
+  // 'all', 'veg' (vegetarian only), 'egg' (vegetarian and egg), 'nonveg' (meat, poultry and fish only)
+  const DIETS = ['all', 'veg', 'egg', 'nonveg'];
+  function dietOk(filter, diet) {
+    if (filter === 'veg') return diet === 0;
+    if (filter === 'egg') return diet === 0 || diet === 1;
+    if (filter === 'nonveg') return diet === 2;
+    return true;
+  }
+  const DIET_LABEL = ['Veg', 'Egg', 'Non-veg', 'Check label'];
+  const DIET_TONE = ['good', 'acc', 'coral', 'line'];
+  // The filter to start with, from the diet chosen in setup.
+  function dietFor(profileDiet) {
+    const d = String(profileDiet || '').toLowerCase();
+    if (/egg/.test(d)) return 'egg';
+    if (/vegan|vegetarian|veg\b/.test(d)) return 'veg';
+    return 'all';
+  }
+
+  // Lower is better. Every word typed must appear somewhere in the name or its aliases.
+  // Whole words in the first part of the name ("Nuts, almonds") beat words buried at the end of a long brand name.
+  function score(f, t) {
+    const segs = f.name.split(',').map(words);
+    let total = 0;
+    for (const w of t) {
+      if (!f.hayWords.some((x) => x.startsWith(w))) return null;
+      let best = 9;
+      for (let i = 0; i < segs.length && best > 0; i++) {
+        const base = i === 0 ? 0 : i === 1 ? 0.5 : 1.5 + i * 0.3;
+        for (const x of segs[i]) { if (x === w) best = Math.min(best, base); else if (x.startsWith(w)) best = Math.min(best, base + 0.7); }
+      }
+      if (best === 9) best = f.alias && words(f.alias).some((x) => x === w) ? 2 : f.alias && words(f.alias).some((x) => x.startsWith(w)) ? 2.5 : 4;
+      total += best;
+    }
+    return total + f.name.length / 60 + (f.src === 1 ? -0.4 : 0) + (f.approx ? -0.6 : 0) + (f.diet === 3 ? 1.5 : 0);
+  }
+  function search(q, opts) {
+    const o = opts || {}, t = tokens(q), diet = o.diet || 'all';
     if (!t.length) return [];
     const out = [];
-    for (const f of CATALOG) {
-      const hay = (f.name + ' ' + f.alias).toLowerCase();
-      if (!t.every((w) => hay.includes(w))) continue;
-      out.push({ f, score: (f.name.toLowerCase().startsWith(t[0]) ? 0 : 1) + (hay.includes(' ' + t[0]) ? 0 : 0.5) });
+    for (const pool of [CATALOG, DB.list || []]) {
+      for (const f of pool) {
+        if (!dietOk(diet, f.diet)) continue;
+        const s = score(f, t);
+        if (s != null) out.push({ f, s });
+      }
     }
-    out.sort((a, b) => a.score - b.score || a.f.name.localeCompare(b.f.name));
-    return out.slice(0, limit || 8).map((x) => x.f);
+    out.sort((a, b) => a.s - b.s || a.f.name.length - b.f.name.length || a.f.name.localeCompare(b.f.name));
+    const total = out.length;
+    const list = out.slice(0, o.limit || 8).map((x) => x.f);
+    list.total = total;
+    return list;
+  }
+  // Macros for an amount of a per-100 g food.
+  function scale(f, grams) {
+    const k = grams / 100, r1 = (x) => Math.round(x * 10) / 10;
+    return { kcal: Math.round(f.kcal * k), protein: r1(f.protein * k), carbs: r1(f.carbs * k), fat: r1(f.fat * k) };
   }
 
   // Foods the person has logged before, most recent first, deduplicated by name (so their own dishes are one tap away).
@@ -70,7 +156,7 @@
       const k = String(f.name || '').toLowerCase();
       if (!k || seen.has(k)) continue;
       seen.add(k);
-      out.push({ id: 'r' + f.seq, name: f.name, serving: f.serving || 'as logged', kcal: f.kcal, protein: f.protein || 0, carbs: f.carbs || 0, fat: f.fat || 0, recent: true, meal: f.meal });
+      out.push({ id: 'r' + f.seq, name: f.name, serving: f.serving || 'as logged', kcal: f.kcal, protein: f.protein || 0, carbs: f.carbs || 0, fat: f.fat || 0, recent: true, meal: f.meal, diet: 0 });
     }
     return out;
   }
@@ -79,7 +165,7 @@
     return recents(foods, 200).filter((f) => t.every((w) => f.name.toLowerCase().includes(w))).slice(0, limit || 5);
   }
 
-  const api = { CATALOG, search, recents, searchRecents };
+  const api = { CATALOG, search, recents, searchRecents, load, ready, count, parseDb, useDb, scale, dietOk, dietFor, DIETS, DIET_LABEL, DIET_TONE, SOURCE_LABEL };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Foods = api;
 })(typeof self !== 'undefined' ? self : this);

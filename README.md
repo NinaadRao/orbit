@@ -5,7 +5,8 @@ A private, local-first tracker for lifts, food, body weight, measurements and pr
 - **Plan**: answer a few questions, get calories, macros, a weekly split, week-by-week lift targets (with deloads) and six-month measurement goals.
 - **Log**: sets (with effort and rest timer), weigh-ins, measurements, food, and five-angle photos in a weekly check-in on the day you pick (Friday by default).
 - **Photo trend**: scrub or play through your weekly check-ins with the weight and measurements of each day under the photo, compare any two dates (side by side, slider or overlay), and save a time-lapse video or a comparison image. Photos stay blurred until you tap.
-- **Fuel**: find a listed food, describe a meal to your own AI, type raw ingredients, or enter macros by hand. AI results always show an editable confirmation card and nothing is saved until you tap "Looks right".
+- **Fuel**: search a database of about 7,800 foods (vegetarian, egg and non-vegetarian, with a filter), describe a meal to your own AI, type raw ingredients, or enter macros by hand. AI results always show an editable confirmation card and nothing is saved until you tap "Looks right".
+- **Library and reel**: keep gym photos and clips without copying them (Orbit stores a small preview, your originals stay where you took them), ask your coach about form on a set, and stitch clips and check-in photos into one shareable MP4.
 - **Coach**: a chat that runs on *your* model with *your* key. It can suggest changes; you tap Apply; every change has Undo.
 - **Backup**: one encrypted file saved on your own device. Orbit never uploads it; where you keep the file afterwards is up to you.
 
@@ -26,6 +27,12 @@ Everything is plain HTML, CSS and JavaScript. There is nothing to build and no r
   <img src="docs/img/photo-trend.png" width="200" alt="Photo trend: scrub through check-ins with the numbers of each day under the photo">
   <img src="docs/img/photo-compare.png" width="200" alt="Compare: any two check-ins with a slider, and a button to download the image">
   <img src="docs/img/profile.png" width="200" alt="Profile: your basics, your plan, and the weekly check-in day">
+</p>
+
+<p align="center">
+  <img src="docs/img/fuel-find.png" width="200" alt="Fuel: search the food database with a Veg, Veg + egg or Non-veg filter">
+  <img src="docs/img/library.png" width="200" alt="Library: workout photos and videos kept where you took them, with small previews">
+  <img src="docs/img/reel.png" width="200" alt="Make a reel: choose clips and photos, shape and timing">
 </p>
 
 <p align="center"><sub>Screenshots use a made-up lifter, stand-in silhouettes and a stand-in AI reply, not real data.</sub></p>
@@ -100,6 +107,32 @@ Take the same five angles at your weekly check-in. The day is yours to set in **
 
 Two things to know about downloads. The saved file shows your photos **unblurred** and is **not encrypted**, so it is as private as wherever you put it. Orbit says so in each sheet. And a video is recorded in real time, so keep Orbit open on screen until it finishes. Videos are always MP4 (H.264), so they play on any phone or laptop and post to Instagram. A browser that cannot record MP4 hides the video option and you can still save the comparison image.
 
+## The food database
+
+Fuel's **Find** tab searches about 7,800 foods, each with calories, protein, carbs, fat and fibre per 100 g, and asks for the amount in grams. A filter under the search box shows **All**, **Veg**, **Veg + egg** or **Non-veg**; it starts from the diet you gave in Profile and remembers your choice. Type a word or the start of one ("paneer", "chick", "dal"). Many foods also answer to their Indian names.
+
+Where it comes from, and what to watch for:
+
+- About 7,200 rows are from the US **USDA SR Legacy** database (public domain), and about 540 from India's **IFCT 2017** tables (National Institute of Nutrition, Hyderabad). They are bundled as one static file, `data/foods.json`, that the app fetches from its own address. Nothing is looked up online. See `data/SOURCES.md` for the exact packages, licences and how the file is built (`scripts/build-foods.mjs`).
+- The vegetarian and non-vegetarian tags are worked out from the food's name and category by rules, and checked by tests, but they are a **filter, not a guarantee**. Cheese is tagged vegetarian even though some is made with animal rennet, and anything unclear (restaurant items, canned soups, branded products) is tagged "check the label" and appears only under All.
+- Neither source measures home-cooked Indian dishes, so a plate of rajma chawal is not in it. The short starter list of common dishes is labelled approximate, and the **Describe** and **Ingredients** tabs are for everything else.
+- USDA carbohydrates include fibre; IFCT lists available carbohydrate. Orbit shows each as the source gives it.
+
+## Library, form check and reel
+
+Progress, then **Open** on Workout photos and videos. **Add photos or videos** takes any number of them, tagged Workout, Form check, Personal best or Other, with an optional exercise and note.
+
+**Nothing is copied.** Orbit stores only a preview picture (about 15 KB), the date, your tag and note, and the file's name and size. The original stays in Photos or Files, so your phone does not hold everything twice. What that means where:
+
+- **iPhone (Safari or the Home Screen app):** a web app cannot keep a link into your photo library, so to watch an original again, or to use it in a form check or reel, you pick it again. Orbit uses it in memory and lets go. This is the price of not copying it.
+- **Chrome or Edge on a computer:** Orbit can keep a real link to each file, so it opens without asking again. If you move or rename the file, the link stops working and you pick it again.
+
+A backup includes the entries and their previews, never the originals. Removing an item from Orbit does not touch the photo or video.
+
+**Ask the coach about form.** Open an item and tap it. For a video Orbit takes six still frames spread across it (one for a photo), shows them to you, and names the provider they will go to. Nothing is sent until you tap Send. They go with your own key, are not saved, and can show your face and surroundings. The coach says what it can see and suggests up to four cues; it cannot judge speed or feel, and it can be wrong. You can save the written review with the item.
+
+**Make a reel.** Choose items from the library, optionally add your weekly check-in photos (already in Orbit), pick Story, Square or Wide, and how long each photo and video part lasts (long videos are trimmed to their middle). Orbit finds the originals (through saved links, or you pick them all at once and it matches them by name and size), then records the reel on your device as an MP4 with a title card, date and tag on each item, and no sound. It is recorded in real time, so keep Orbit open until it finishes. The result exists only until you save or share it. Like the time-lapse, it shows your photos unblurred and is not encrypted.
+
 ## Backing up and restoring
 
 A backup is one file, always named `orbit-backup.orbitbackup`, so a new one replaces the old one. It holds your plan, every log and your settings, plus your progress photos if you tick **Include progress photos** (that makes the file much larger). It never holds your AI key.
@@ -149,7 +182,7 @@ Where the key can live:
 
 The key is never included in backups, never written to logs and never put in the repository. Model names change over time; the default is a starting point, so use one from your provider's docs.
 
-What the AI sees: the coach gets a summary of your numbers (weight, measurements, lift status, food totals), not your name and not your photos. The photo trend and downloads never call any AI. A food estimate gets only the text you typed.
+What the AI sees: the coach gets a summary of your numbers (weight, measurements, lift status, food totals), not your name and not your photos. The photo trend, downloads and reel never call any AI. A food estimate gets only the text you typed. A form check sends the few frames you confirmed, and nothing else.
 
 Using another endpoint: the Content Security Policy in `index.html` lists the only places the app may connect to. Add your endpoint's origin to `connect-src` once (for example `https://openrouter.ai`) and reload. `http://localhost` is already allowed for local models.
 
@@ -170,7 +203,7 @@ Optionally list words you never want committed (your name, measurements) in `~/.
 ## Develop
 
 ```sh
-npm test          # plan engine unit tests, no dependencies
+npm test          # plan engine and food database unit tests, no dependencies
 npm run e2e       # browser tests (needs Playwright: npm i -g playwright && npx playwright install chromium)
 ```
 
@@ -185,9 +218,12 @@ js/store.js           IndexedDB event log, media, backup and restore
 js/crypto.js          passphrase encryption and passcode hashing
 js/llm.js             provider adapters (Anthropic, OpenAI-compatible, Gemini)
 js/coach.js           coach tools, proposals and safety limits
-js/foods.js           built-in food list and search
+js/foods.js           food database search (data/foods.json) and the starter list
+js/library.js         workout photos and videos: previews, links to originals, frames for form checks
+js/reel.js            stitches clips and photos into one MP4 on a canvas
 js/foodai.js          AI nutrition estimates (suggest only)
 js/mediaexport.js     comparison image and time-lapse video, drawn on a canvas on your device
+data/foods.json       the food database (built by scripts/build-foods.mjs; sources in data/SOURCES.md)
 js/screens-*.js       screens
 tests/                unit and end-to-end tests
 docs/ARCHITECTURE.md  how it fits together and why
@@ -195,7 +231,7 @@ docs/ARCHITECTURE.md  how it fits together and why
 
 ## Roadmap
 
-Part 2: a fuller progress reel you can share (the plain photo time-lapse already exists), and form feedback where you upload a video of a set and the coach reviews it. Both will follow the same rule as everything else: they run on your device and your key.
+Part 2 is in: the reel and the coach's form check follow the same rule as everything else and run on your device and your key. Ideas not built: audio or music in the reel, choosing the exact section of a clip, and cooked Indian dishes measured in the food database.
 
 ## License
 

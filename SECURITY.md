@@ -20,6 +20,10 @@ Orbit holds sensitive things: body measurements, photos, health-adjacent logs an
 | Malicious or corrupted import | Size limit, event type allow-list, rejection of `__proto__`/`constructor`/`prototype` keys, profile fields range-checked and re-built from a whitelist. Imports are never applied without confirmation. |
 | API key leakage | Held in memory by default; optional passphrase-encrypted vault; never in backups or exports; sent only as a request header to the provider origin. |
 | Runaway or manipulated AI | Prompt tells the model that stored text is data. Tools are read-only or "propose". Calories change at most 300 per step, protein stays within 1.4 to 3.0 g/kg, lift changes at most 10 percent. Estimates go through a confirmation card and a sanity check (calories vs macros) before anything is saved. |
+| Photos and videos duplicated in storage | The library stores only a small preview and the file's name and size, never the original. Links to files (Chrome, Edge) are read-only handles kept on this device and are not in backups. |
+| Video frames leaving without consent | A coach form check shows the exact frames and the provider's host first, and nothing is sent until you tap Send. The frames are never saved. |
+| Hostile library entries in a backup | Every entry is rebuilt from a whitelist on load: ids, preview ids and exercise ids must be plain identifiers, text is length-limited and numbers are clamped. |
+| Food database tampering | It is a static file served from the app's own address, validated row by row before use, and it never runs as code. |
 | Personal data in the repository | `.gitignore` plus a pre-commit and pre-push scan for photos, backups, profile files, keys and your own private terms. |
 | Location data in photos | Photos are decoded and re-encoded as JPEG, which drops all metadata. Downloaded comparison images and time-lapse videos are redrawn on a canvas, so they carry none either. |
 
@@ -27,9 +31,10 @@ Orbit holds sensitive things: body measurements, photos, health-adjacent logs an
 
 - **Data at rest is not encrypted.** IndexedDB is readable by anyone who can use your unlocked browser profile or device. Use a device passcode and full-disk encryption. The optional Orbit passcode only gates the screen; it is not encryption.
 - **A compromised device or browser extension can read anything** the page can. Orbit cannot defend against that.
-- **AI providers see what you send them.** The coach summary and food text go to the provider you choose, under that provider's terms. Use a local model if that matters.
+- **AI providers see what you send them.** The coach summary, food text and any form-check frames you confirm go to the provider you choose, under that provider's terms. Use a local model if that matters.
 - **Hosting is part of your trust.** Whoever serves the files could serve different code. Host it yourself, pin what you deploy, and review updates as you would any app you trust with health data.
-- **Downloaded photos, images and videos are unblurred and not encrypted.** Orbit builds them on your device and warns you before each one; where they go after you tap Save or share (Photos, iCloud, a chat app) is up to you.
+- **The food database is a filter, not medical advice.** Vegetarian and non-vegetarian tags come from rules over names and categories. Check labels if it matters for allergy, religion or health.
+- **Downloaded photos, images, videos and reels are unblurred and not encrypted.** Orbit builds them on your device and warns you before each one; where they go after you tap Save or share (Photos, iCloud, a chat app) is up to you.
 - **Backups you choose not to encrypt are readable text.** Orbit warns you when you turn encryption off.
 - **A forgotten backup passphrase cannot be recovered.** That is the point.
 

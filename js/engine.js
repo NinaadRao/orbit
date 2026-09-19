@@ -355,12 +355,35 @@
     return { ok: true, value: { lift: ch.lift, fromWeek: from, factor: clean(1 + pct / 100) } };
   }
 
+  // ---------- library clips (a reference to a photo or video that stays where it was taken) ----------
+  const CLIP_TAGS = ['Form check', 'Workout', 'Personal best', 'Other'];
+  // Turns anything read from storage, a backup or a form into a safe library entry, or says why not. Every field is clamped.
+  function cleanClip(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, errors: ['That is not a library entry.'] };
+    const id = String(raw.id || '');
+    if (!/^[a-z0-9][a-z0-9_]{0,59}$/.test(id)) return { ok: false, errors: ['Bad id.'] };
+    const kind = raw.kind === 'video' ? 'video' : raw.kind === 'photo' ? 'photo' : null;
+    if (!kind) return { ok: false, errors: ['Unknown kind.'] };
+    const date = String(raw.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, errors: ['Bad date.'] };
+    const numIn = (x, lo, hi) => { const n = Number(x); return Number.isFinite(n) ? clamp(n, lo, hi) : 0; };
+    const thumb = /^[a-z0-9][a-z0-9_]{0,69}$/.test(String(raw.thumb || '')) ? String(raw.thumb) : null;
+    const lift = /^[a-z0-9][a-z0-9_]{0,39}$/.test(String(raw.lift || '')) ? String(raw.lift) : null;
+    return { ok: true, value: {
+      id, kind, date, thumb, lift,
+      tag: CLIP_TAGS.includes(raw.tag) ? raw.tag : 'Other',
+      note: cleanStr(raw.note, 200), name: cleanStr(raw.name, 80), review: String(raw.review == null ? '' : raw.review).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').slice(0, 2500),
+      size: Math.round(numIn(raw.size, 0, 1e12)), mtime: Math.round(numIn(raw.mtime, 0, 4e12)), w: Math.round(numIn(raw.w, 0, 20000)), h: Math.round(numIn(raw.h, 0, 20000)), dur: Math.round(numIn(raw.dur, 0, 36000) * 10) / 10,
+      linked: raw.linked === true,
+    } };
+  }
+
   // ---------- state projection from the event log ----------
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function project(events) {
     const voided = new Set();
     for (const e of events) if (e.type === 'event_voided') voided.add(e.data.target);
-    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], revisions: [] };
+    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], revisions: [] };
     for (const e of events) {
       if (voided.has(e.seq) || e.type === 'event_voided') continue;
       const d = e.data || {};
@@ -372,6 +395,7 @@
         case 'food_logged': s.foods.push(Object.assign({ seq: e.seq }, d)); break;
         case 'set_logged': s.sets.push(Object.assign({ seq: e.seq }, d)); break;
         case 'photo_added': s.photos.push({ seq: e.seq, date: d.date, week: d.week, angle: d.angle, id: d.id }); break;
+        case 'clip_added': { const c = cleanClip(d); if (c.ok) s.clips.push(Object.assign({ seq: e.seq }, c.value)); break; }
         default: break;
       }
     }
@@ -556,7 +580,7 @@
   }
 
   // ---------- backup / import validation ----------
-  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'event_voided'];
+  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'event_voided'];
   const BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function hasBadKeys(o, depth) {
     if (o === null || typeof o !== 'object') return false;
@@ -633,7 +657,7 @@
 
   const Engine = {
     MEALS, macroKcal, normalizeFood, parseJsonLoose, dayTotals,
-    KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
+    KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, CLIP_TAGS, cleanClip, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
     clean, roundTo, clamp, lbToKg, kgToLb, inToCm, cmToIn, isoDate, parseISO, addDays, daysBetween, weekOf, weekRange, weekdayOf,
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,

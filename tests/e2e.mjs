@@ -194,13 +194,46 @@ async function main() {
 
   await step('Fuel: search a listed food, pick servings, log it', async () => {
     await page.getByRole('button', { name: 'Add food' }).click();
-    await page.getByLabel('Search foods you eat or common ones').fill('paneer');
+    await page.getByLabel('Search foods').fill('paneer');
     await page.locator('.result', { hasText: 'Paneer, high protein' }).click();
     await page.getByLabel(/Servings of/).fill('2');
     await page.getByRole('button', { name: 'Log it' }).click();
     await page.waitForTimeout(250);
     const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
     eq([f.name, f.protein, f.source], ['Paneer, high protein', 25, 'catalog']);
+  });
+
+  await step('Fuel: the full food list is searchable, the diet filter hides meat, and a log is scaled by grams', async () => {
+    await page.getByRole('button', { name: 'Add food' }).click();
+    await page.getByLabel('Search foods').fill('salmon');
+    await page.getByRole('button', { name: 'Veg', exact: true }).click();
+    await page.waitForFunction(() => window.Foods && Foods.ready());
+    eq(await page.locator('.result', { hasText: 'salmon' }).count(), 0, 'salmon is hidden under Veg');
+    await page.getByRole('button', { name: 'Non-veg', exact: true }).click();
+    await page.getByLabel('Search foods').fill('salmon atlantic farmed raw');
+    await page.locator('.result', { hasText: 'Fish, salmon, Atlantic, farmed, raw' }).click();
+    await page.getByLabel('Amount').fill('150');
+    await page.waitForSelector('text=312 kcal');
+    await page.getByRole('button', { name: 'Log it' }).click();
+    await page.waitForTimeout(250);
+    const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
+    eq([f.name, f.kcal, f.serving, f.source], ['Fish, salmon, Atlantic, farmed, raw', 312, '150 g', 'usda']);
+    ok(Math.abs(f.protein - 30.6) < 0.6 && Math.abs(f.fat - 20.1) < 0.6, 'macros scaled from per 100 g, got ' + f.protein + ' and ' + f.fat);
+  });
+
+  await step('Fuel: Indian foods and everyday names are found, and the filter choice is remembered', async () => {
+    await page.getByRole('button', { name: 'Add food' }).click();
+    eq(await page.getByRole('button', { name: 'Non-veg', exact: true }).getAttribute('aria-pressed'), 'true', 'the last filter is remembered');
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.getByLabel('Search foods').fill('atta');
+    await page.locator('.result', { hasText: 'Wheat flour, atta' }).waitFor();
+    ok((await page.locator('.result', { hasText: 'Wheat flour, atta' }).innerText()).includes('India (IFCT)'), 'source is shown');
+    await page.getByLabel('Search foods').fill('dahi');
+    await page.locator('.result', { hasText: 'Curd / dahi' }).waitFor();
+    await page.getByRole('button', { name: 'Veg + egg', exact: true }).click();
+    const set = await page.evaluate(() => Store.getSettings().foodDiet);
+    eq(set, 'egg', 'the choice is saved in settings');
+    await page.getByRole('button', { name: 'Close' }).click();
   });
 
   await step('Fuel: AI tab without a key offers to add one and does not call the network', async () => {
@@ -822,6 +855,338 @@ async function main() {
     eq(tproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
   });
   await tctx.close();
+
+  // ================= library, form check and reel =================
+  console.log('\nLibrary and reel');
+  const lctx = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  await lctx.addInitScript(() => { window.showOpenFilePicker = undefined; }); // the plain picker: how iPhone Safari behaves
+  const lpage = await lctx.newPage(); lpage.setDefaultTimeout(8000);
+  const lproblems = await collect(lpage);
+  const loutside = [];
+  lpage.on('request', (r) => { const u = r.url(); if (!u.startsWith(base.replace('/index.html', '')) && !/^(blob|data):/.test(u) && !/api\.anthropic\.com/.test(u)) loutside.push(u); });
+  const lai = await fakeAI(lpage, async () => ({ body: textReply('You can see the bar over mid-foot. Try keeping your chest up on the way out of the hole.') }));
+  await lpage.goto(base);
+  await lpage.waitForSelector('text=Track the change.');
+  await lpage.evaluate(async () => {
+    const start = Engine.addDays(U.today(), -70), at = (w) => Engine.addDays(start, (w - 1) * 7);
+    const a = { sex: 'male', age: 31, heightCm: 180, weightKg: 82, units: { body: 'kg', length: 'cm', lift: 'lb' }, measurements: { waist: 86, chest: 100 }, goal: 'recomp', days: [1, 2, 3, 4, 5], startDate: start,
+      training: { split: 'auto', dbStep: 2.5, machineStep: 5, sets: 3, repStyle: 'mixed', deload: 'planned' }, lifts: [{ id: 'flat_db_press', on: true, weight: 40, reps: 8 }] };
+    await Store.append('profile_created', { profile: a, plan: Engine.buildPlan(a) });
+    await Store.saveSettings({ bodyUnit: 'kg', lenUnit: 'cm', liftUnit: 'lb', onboardedAt: new Date().toISOString(), blurPhotos: false });
+    for (const w of [1, 5]) {
+      const b = await new Promise((res) => { const c = document.createElement('canvas'); c.width = 300; c.height = 400; const x = c.getContext('2d'); x.fillStyle = 'hsl(' + (w * 30) + ',30%,25%)'; x.fillRect(0, 0, 300, 400); c.toBlob(res, 'image/jpeg', 0.8); });
+      await Store.putMedia('p_' + w + '_front_l', b, { week: w, angle: 'Front' });
+      await Store.append('photo_added', { date: at(w), week: w, angle: 'Front', id: 'p_' + w + '_front_l' });
+    }
+  });
+  // a photo and a short video made in the page, handed over through the file chooser like a real pick
+  const fx = await lpage.evaluate(async () => {
+    const photo = await new Promise((res) => { const c = document.createElement('canvas'); c.width = 1200; c.height = 1600; const x = c.getContext('2d'); x.fillStyle = '#284'; x.fillRect(0, 0, 1200, 1600); x.fillStyle = '#fff'; x.fillRect(400, 300, 400, 900); c.toBlob(res, 'image/jpeg', 0.9); });
+    const mt = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+    const video = await new Promise((res) => {
+      const c = document.createElement('canvas'); c.width = 640; c.height = 480; const x = c.getContext('2d');
+      const rec = new MediaRecorder(c.captureStream(30), { mimeType: mt }); const ch = []; rec.ondataavailable = (e) => ch.push(e.data); rec.onstop = () => res(new Blob(ch, { type: mt }));
+      rec.start(); let f = 0; const t = setInterval(() => { x.fillStyle = 'hsl(' + (f * 9) + ',60%,40%)'; x.fillRect(0, 0, 640, 480); x.fillStyle = '#fff'; x.fillRect(20 + f * 8, 200, 80, 80); if (++f > 60) { clearInterval(t); rec.stop(); } }, 33);
+    });
+    const buf = async (b) => Array.from(new Uint8Array(await b.arrayBuffer()));
+    return { photo: await buf(photo), video: await buf(video), vtype: mt };
+  });
+  const lfiles = [{ name: 'IMG_0001.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(fx.photo) }, { name: 'IMG_0002.' + (fx.vtype === 'video/webm' ? 'webm' : 'mp4'), mimeType: fx.vtype, buffer: Buffer.from(fx.video) }];
+  const mediaKinds = () => lpage.evaluate(async () => { const all = await Store.allMedia(); const k = {}; for (const m of all) { const n = m.kind || 'progress'; k[n] = (k[n] || 0) + 1; } return k; });
+  const pickFiles = async (buttonName, sheetScope) => {
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), (sheetScope || lpage).getByRole('button', { name: buttonName }).click()]);
+    await fc.setFiles(lfiles);
+  };
+
+  await step('library: add a photo and a video; only small previews are stored, never the originals', async () => {
+    await route(lpage, '#/progress');
+    await lpage.getByRole('link', { name: 'Open' }).last().click();
+    await lpage.waitForSelector('text=Your workout photos and videos');
+    const before = await mediaKinds();
+    await pickFiles('Add photos or videos');
+    const sheet = lpage.locator('#sheets');
+    await sheet.getByText('Nothing is copied').waitFor();
+    await sheet.getByRole('button', { name: 'Personal best' }).click();
+    await sheet.getByRole('button', { name: 'Add', exact: true }).click();
+    await lpage.waitForSelector('.libtile');
+    eq(await lpage.locator('.libtile').count(), 2);
+    const clips = await lpage.evaluate(() => Store.getState().clips.map((c) => ({ kind: c.kind, tag: c.tag, name: c.name, size: c.size, w: c.w, h: c.h, dur: c.dur, thumb: !!c.thumb })));
+    eq(clips.map((c) => c.kind).sort(), ['photo', 'video']);
+    ok(clips.every((c) => c.tag === 'Personal best' && c.thumb), 'tag and preview kept');
+    const v = clips.find((c) => c.kind === 'video'); ok(v.dur > 1 && v.dur < 4, 'video length worked out even when the recorder left it out: ' + v.dur);
+    const after = await mediaKinds();
+    eq(after.thumb, 2, 'two previews');
+    eq(after.progress, before.progress, 'progress photos untouched');
+    const bytes = await lpage.evaluate(async () => (await Store.allMedia()).filter((m) => m.kind === 'thumb').reduce((t, m) => t + m.size, 0));
+    ok(bytes < 60000, 'previews are small: ' + bytes + ' bytes against ' + (fx.photo.length + fx.video.length) + ' for the originals');
+    const stored = await lpage.evaluate(() => JSON.stringify(Store.getEvents()));
+    ok(!stored.includes('base64') && stored.length < 20000, 'no file content in the event log');
+  });
+
+  await step('library: adding the same files again skips them; edit, filter and remove work', async () => {
+    await pickFiles('Add photos or videos');
+    await lpage.locator('#sheets').getByRole('button', { name: 'Add', exact: true }).click();
+    await lpage.waitForSelector('text=already in the library');
+    eq(await lpage.evaluate(() => Store.getState().clips.length), 2);
+    await lpage.waitForTimeout(300);
+    await lpage.locator('.libtile').first().click();
+    const sheet = lpage.locator('#sheets');
+    await sheet.getByRole('button', { name: 'Form check' }).click();
+    await sheet.getByLabel('Note').fill('Top set');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await lpage.waitForTimeout(300);
+    eq(await lpage.evaluate(() => Store.getState().clips.filter((c) => c.tag === 'Form check').length), 1);
+    eq(await lpage.evaluate(() => Store.getState().clips.length), 2, 'an edit replaces, it does not duplicate');
+    await lpage.getByRole('button', { name: 'Form check', exact: true }).click();
+    eq(await lpage.locator('.libtile').count(), 1);
+    await lpage.getByRole('button', { name: 'All', exact: true }).click();
+    await lpage.locator('.libtile').last().click();
+    await sheet.getByRole('button', { name: 'Remove' }).click();
+    await sheet.getByRole('button', { name: 'Remove' }).last().click();
+    await lpage.waitForTimeout(300);
+    eq(await lpage.evaluate(() => Store.getState().clips.length), 1);
+    eq((await mediaKinds()).thumb, 1, 'its preview went with it');
+    await pickFiles('Add photos or videos');
+    await lpage.locator('#sheets').getByRole('button', { name: 'Add', exact: true }).click();
+    await lpage.waitForFunction(() => Store.getState().clips.length === 2);
+  });
+
+  await step('library: viewing the original asks for the file again and stores nothing', async () => {
+    const before = await mediaKinds();
+    await lpage.locator('.libtile').first().click();
+    const sheet = lpage.locator('#sheets');
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /View the original|Watch the original/ }).click()]);
+    await fc.setFiles(lfiles[0]);
+    await lpage.locator('#sheets .resmedia').last().waitFor();
+    ok(/not keeping a copy/.test(await lpage.locator('#sheets').innerText()), 'says it is not kept');
+    eq(await mediaKinds(), before, 'no new media stored');
+    await lpage.locator('#sheets').getByRole('button', { name: 'Close' }).last().click();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+  });
+
+  await step('library: previews and entries survive a backup and restore; a hostile entry in a backup is ignored', async () => {
+    const r = await lpage.evaluate(async () => {
+      const text = await Store.buildBackup({ media: true });
+      const obj = JSON.parse(text);
+      const thumbs = obj.media.filter((m) => m.kind === 'thumb').length;
+      obj.events.push({ seq: 9999, ts: '2026-01-01T00:00:00Z', type: 'clip_added', data: { id: '../evil', kind: 'photo', date: '2026-01-01' }, src: 'x' });
+      obj.events.push({ seq: 10000, ts: '2026-01-01T00:00:00Z', type: 'clip_added', data: { id: 'c_ok', kind: 'video', date: '2026-01-01', tag: '<img src=x onerror=alert(1)>', note: '<b>hi</b>', thumb: '../../etc', dur: 1e12 }, src: 'x' });
+      const imp = await Store.readImport(JSON.stringify(obj));
+      await Store.applyBackup(imp.payload);
+      const st = Store.getState();
+      const media = await Store.allMedia();
+      return { thumbs, clips: st.clips.map((c) => ({ id: c.id, tag: c.tag, thumb: c.thumb, dur: c.dur })), restoredThumbs: media.filter((m) => m.kind === 'thumb').length };
+    });
+    eq(r.thumbs, 2, 'both previews were in the backup');
+    eq(r.restoredThumbs, 2, 'and came back');
+    ok(r.clips.every((c) => c.id !== '../evil'), 'a path-like id is dropped');
+    const ok1 = r.clips.find((c) => c.id === 'c_ok');
+    eq([ok1.tag, ok1.thumb, ok1.dur], ['Other', null, 36000], 'unknown tag, path-like preview id and huge length are clamped');
+    eq(r.clips.length, 3);
+    await lpage.evaluate(async () => { const c = Store.getState().clips.find((x) => x.id === 'c_ok'); await Store.voidEvent(c.seq); });
+  });
+
+  const videoTile = () => lpage.locator('.libtile', { has: lpage.locator('.dur') });
+  const closeAll = async () => { for (let i = 0; i < 5; i++) { if (!await lpage.locator('#sheets .sheet').count()) break; await lpage.keyboard.press('Escape'); await lpage.waitForTimeout(150); } };
+
+  await step('form check: without a key it offers one and sends nothing', async () => {
+    await route(lpage, '#/library');
+    await videoTile().click();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Ask the coach about form' }).click();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Add a key for this session' }).waitFor();
+    eq(lai.length, 0);
+    await closeAll();
+  });
+
+  await step('form check: shows the frames and where they go before anything is sent, then sends six pictures and saves nothing but the text', async () => {
+    await lpage.evaluate(() => App.setKey('sk-ant-test-0000000000', 'typed'));
+    const before = await mediaKinds();
+    await videoTile().click();
+    const sheet = lpage.locator('#sheets');
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Ask the coach about form' }).click()]);
+    await fc.setFiles(lfiles[1]);
+    await sheet.getByText(/pictures go to api\.anthropic\.com/).waitFor();
+    eq(await sheet.locator('.framestrip img').count(), 6);
+    eq(lai.length, 0, 'nothing sent before the person confirms');
+    await sheet.getByLabel('Exercise').fill('Bench press');
+    await sheet.getByRole('button', { name: 'Send 6 pictures' }).click();
+    await sheet.getByText(/mid-foot/).waitFor();
+    eq(lai.length, 1);
+    const body = lai[0];
+    const content = body.messages[body.messages.length - 1].content;
+    eq(content.filter((c) => c.type === 'image').length, 6, 'six images');
+    ok(content.every((c) => c.type !== 'image' || c.source.media_type === 'image/jpeg'), 'JPEG frames');
+    ok(content[0].text.includes('Bench press'), 'exercise named');
+    await sheet.getByRole('button', { name: /Save with this video/ }).click();
+    await lpage.waitForFunction(() => Store.getState().clips.some((c) => c.review && /mid-foot/.test(c.review)));
+    eq(await mediaKinds(), before, 'the frames were not stored');
+    eq(await lpage.evaluate(() => Store.getState().clips.length), 2);
+    await closeAll();
+  });
+
+  await step('form check: cancelling at the confirmation sends nothing', async () => {
+    const n = lai.length;
+    await lpage.locator('.libtile', { hasNot: lpage.locator('.dur') }).first().click();
+    const sheet = lpage.locator('#sheets');
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Ask the coach about form' }).click()]);
+    await fc.setFiles(lfiles[0]);
+    await sheet.getByRole('button', { name: 'Send 1 picture' }).waitFor();
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+    await lpage.waitForTimeout(200);
+    eq(lai.length, n);
+    await closeAll();
+  });
+
+  const recordable = await lpage.evaluate(() => !!MediaOut.pickVideoMime());
+  const reelDone = async (label) => {
+    const sheet = lpage.locator('#sheets');
+    await sheet.locator('video.resmedia').waitFor({ timeout: 60000 });
+    const v = await sheet.locator('video.resmedia').evaluate((el) => new Promise((res) => { const f = () => res({ w: el.videoWidth, h: el.videoHeight, d: el.duration, e: el.error && el.error.message }); el.readyState >= 1 ? f() : (el.onloadedmetadata = f, el.onerror = f); }));
+    ok(!v.e, label + ' plays: ' + v.e);
+    return v;
+  };
+
+  await step('reel: choose items, find the originals by name and size, stitch photos and video into one MP4', async () => {
+    if (!recordable) { console.log('       (this browser cannot record MP4; skipped)'); return; }
+    await route(lpage, '#/library');
+    const eventsBefore = await lpage.evaluate(() => Store.getEvents().length), kindsBefore = await mediaKinds();
+    await lpage.getByRole('button', { name: 'Make a reel' }).click();
+    const sheet = lpage.locator('#sheets');
+    await sheet.getByText('The saved file shows your photos unblurred').waitFor();
+    await sheet.getByRole('radio', { name: '1 s', exact: true }).click();
+    await sheet.getByRole('radio', { name: '2 s', exact: true }).click();
+    await sheet.getByRole('switch', { name: 'Weekly check-in photos' }).click();
+    ok(/4 items/.test(await sheet.getByRole('status').last().innerText()), 'summary counts 2 library items and 2 check-ins: ' + await sheet.getByRole('status').last().innerText());
+    await sheet.getByRole('button', { name: 'Continue' }).click();
+    await sheet.getByText('Where are the originals?').waitFor();
+    eq(await sheet.getByText('Needed', { exact: true }).count(), 2);
+    // only the photo is picked this time: it matches, the video is still needed
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /Choose the files/ }).click()]);
+    await fc.setFiles(lfiles[0]);
+    await sheet.getByText('Needed', { exact: true }).waitFor();
+    eq(await sheet.getByText('Found', { exact: true }).count(), 1);
+    await sheet.getByRole('button', { name: 'Leave out the missing ones' }).waitFor();
+    // a file that is not one of the items matches nothing
+    const [fc2] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Choose the file' }).click()]);
+    await fc2.setFiles({ name: 'other.mp4', mimeType: 'video/mp4', buffer: Buffer.from([0, 0, 0, 0]) });
+    await lpage.locator('#toasts, .toast').getByText(/None of those matched/).first().waitFor();
+    const [fc3] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Choose the file' }).click()]);
+    await fc3.setFiles(lfiles[1]);
+    await sheet.getByText('All the originals were found').waitFor();
+    await sheet.getByRole('button', { name: 'Create the reel' }).click();
+    await sheet.getByRole('progressbar').waitFor();
+    const v = await reelDone('reel');
+    eq([v.w, v.h], [1080, 1920]);
+    // title 2 s + 2 check-ins 1 s + photo 1 s + video 1.9 s
+    ok(v.d > 5.5 && v.d < 9.5, 'about 7 seconds: ' + v.d);
+    const dl = lpage.waitForEvent('download');
+    await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
+    const d = await dl;
+    ok(/^orbit-reel-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    const mp4 = fs.readFileSync(await d.path());
+    ok(mp4.length > 1000, 'not empty');
+    eq(mp4.subarray(4, 8).toString('latin1'), 'ftyp', 'a real MP4 container, not WebM');
+    await sheet.getByRole('button', { name: 'Done' }).click();
+    eq(await lpage.evaluate(() => Store.getEvents().length), eventsBefore, 'the reel changed nothing that is stored');
+    eq(await mediaKinds(), kindsBefore, 'and stored no video');
+  });
+
+  await step('reel: cancelling while it records returns to the choices', async () => {
+    if (!recordable) return;
+    await lpage.getByRole('button', { name: 'Make a reel' }).click();
+    const sheet = lpage.locator('#sheets');
+    await sheet.getByRole('radio', { name: '2.5 s', exact: true }).click();
+    await sheet.getByRole('button', { name: 'Continue' }).click();
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /Choose the files/ }).click()]);
+    await fc.setFiles(lfiles);
+    await sheet.getByRole('button', { name: 'Create the reel' }).click();
+    await sheet.getByRole('progressbar').waitFor();
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+    await sheet.getByRole('button', { name: 'Continue' }).waitFor();
+    await closeAll();
+  });
+
+  await step('reel plan: title card, photos, and the middle part of a long video; files match by name and size', async () => {
+    const r = await lpage.evaluate(() => {
+      const items = [{ type: 'photo' }, { type: 'video', dur: 10 }, { type: 'video', dur: 1.5 }, { type: 'video', dur: 0 }];
+      const segs = Reel.segments(items, { photoSec: 1.5, clipSec: 4, title: 'T' });
+      const f = (n, size) => ({ name: n, size });
+      const m = Library.match([f('a.mov', 5), f('b.mov', 6), f('c.mov', 7)], [{ id: 'x', name: 'a.mov', size: 5 }, { id: 'y', name: 'b.mov', size: 99 }, { id: 'z', name: 'c.mov', size: 7 }]);
+      return { types: segs.map((x) => x.type), ms: segs.map((x) => x.ms), start: segs[2].start, total: Reel.secondsOf(items, { photoSec: 1.5, clipSec: 4, title: 'T' }), none: Reel.secondsOf(items, { photoSec: 1.5, clipSec: 4, title: '' }), matched: Array.from(m.keys()) };
+    });
+    eq(r.types, ['title', 'photo', 'video', 'video', 'video']);
+    eq(r.ms, [2000, 1500, 4000, 1500, 4000]);
+    eq(r.start, 3, 'a 10 s video shows seconds 3 to 7');
+    eq([r.total, r.none], [13, 11]);
+    eq(r.matched, ['x', 'z'], 'same name but a different size is not the same file');
+  });
+
+  await step('library and reel: nothing left the device, no console problems', async () => {
+    eq(loutside, [], 'requests to other origins');
+    eq(await lpage.evaluate(() => document.querySelectorAll('video').length), 0, 'no video element left behind');
+    eq(lproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
+  });
+  await lctx.close();
+
+  // ---- the same on a computer in Chrome or Edge, where the browser can keep a real link to each file (here: files in the browser's private file system) ----
+  const kctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await kctx.addInitScript(() => {
+    window.showOpenFilePicker = async () => { const r = await navigator.storage.getDirectory(); const out = []; for (const n of ['IMG_0001.jpg', window.__vname]) { try { out.push(await r.getFileHandle(n)); } catch (e) { /* not there */ } } return out; };
+  });
+  const kpage = await kctx.newPage(); kpage.setDefaultTimeout(8000);
+  const kproblems = await collect(kpage);
+  await kpage.goto(base);
+  await kpage.waitForSelector('text=Track the change.');
+  await step('linked files (Chrome, Edge): a saved link opens the original and the reel without asking again, and removing an item drops the link', async () => {
+    await kpage.evaluate(async ({ photo, video, vname }) => {
+      window.__vname = vname;
+      const start = Engine.addDays(U.today(), -14);
+      const a = { sex: 'male', age: 31, heightCm: 180, weightKg: 82, units: { body: 'kg', length: 'cm', lift: 'lb' }, measurements: { waist: 86, chest: 100 }, goal: 'recomp', days: [1, 2, 3, 4, 5], startDate: start,
+        training: { split: 'auto', dbStep: 2.5, machineStep: 5, sets: 3, repStyle: 'mixed', deload: 'planned' }, lifts: [{ id: 'flat_db_press', on: true, weight: 40, reps: 8 }] };
+      await Store.append('profile_created', { profile: a, plan: Engine.buildPlan(a) });
+      await Store.saveSettings({ bodyUnit: 'kg', lenUnit: 'cm', liftUnit: 'lb', onboardedAt: new Date().toISOString(), blurPhotos: false });
+      const r = await navigator.storage.getDirectory();
+      for (const [n, bytes] of [['IMG_0001.jpg', photo], [vname, video]]) { const f = await r.getFileHandle(n, { create: true }); const w = await f.createWritable(); await w.write(new Uint8Array(bytes)); await w.close(); }
+      location.hash = '#/library'; App.render();
+    }, { photo: fx.photo, video: fx.video, vname: lfiles[1].name });
+    await kpage.waitForSelector('text=Your workout photos and videos');
+    ok(await kpage.evaluate(() => Library.canLink()), 'links are available');
+    await kpage.getByRole('button', { name: 'Add photos or videos' }).click();
+    await kpage.locator('#sheets').getByRole('button', { name: 'Add', exact: true }).click();
+    await kpage.waitForSelector('.libtile');
+    eq(await kpage.locator('.libtile').count(), 2);
+    ok(/folders? on this computer|their folders on this computer/.test(await kpage.locator('#screen').innerText()), 'the wording says the originals stay in their folders');
+    eq(await kpage.evaluate(() => Store.getState().clips.filter((c) => c.linked).length), 2, 'both keep a link');
+    await kpage.reload();
+    await kpage.waitForSelector('.libtile');
+    await kpage.locator('.libtile').first().click();
+    await kpage.locator('#sheets').getByRole('button', { name: /View the original|Watch the original/ }).click();
+    await kpage.locator('#sheets .resmedia').last().waitFor();
+    ok(/Opened from the file on this computer/.test(await kpage.locator('#sheets').innerText()), 'opened through the link, with no picker');
+    await kpage.locator('#sheets').getByRole('button', { name: 'Close' }).last().click();
+    if (recordable) {
+      await kpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+      await kpage.getByRole('button', { name: 'Make a reel' }).click();
+      const sheet = kpage.locator('#sheets');
+      await sheet.getByRole('radio', { name: '1 s', exact: true }).click();
+      await sheet.getByRole('button', { name: 'Continue' }).click();
+      await sheet.getByText('All the originals were found').waitFor();
+      await sheet.getByRole('button', { name: 'Create the reel' }).click();
+      await sheet.locator('video.resmedia').waitFor({ timeout: 60000 });
+      await sheet.getByRole('button', { name: 'Done' }).click();
+    } else await kpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+    const ids = await kpage.evaluate(() => Store.getState().clips.map((c) => c.id));
+    for (const i of ids) ok(await kpage.evaluate((x) => Store.getMeta('clip_h_' + x).then((m) => !!m), i), 'link stored for ' + i);
+    await kpage.locator('.libtile').first().click();
+    await kpage.locator('#sheets').getByRole('button', { name: 'Remove' }).click();
+    await kpage.locator('#sheets').getByRole('button', { name: 'Remove' }).last().click();
+    await kpage.waitForFunction(() => Store.getState().clips.length === 1);
+    const left = await kpage.evaluate(() => Store.getState().clips[0].id), gone = ids.find((i) => i !== left);
+    eq(await kpage.evaluate((x) => Store.getMeta('clip_h_' + x).then((m) => !!m), gone), false, 'link dropped with the item');
+    ok(await kpage.evaluate((x) => Store.getMeta('clip_h_' + x).then((m) => !!m), left), 'the other link is kept');
+    eq(kproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
+  });
+  await kctx.close();
 
   // ================= file:// =================
   console.log('\nApp from file://');

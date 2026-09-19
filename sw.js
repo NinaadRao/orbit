@@ -4,12 +4,12 @@
  * your data lives in IndexedDB, which this file cannot read.
  */
 'use strict';
-const CACHE = 'orbit-shell-v3';
+const CACHE = 'orbit-shell-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/engine.js', 'js/util.js', 'js/crypto.js', 'js/store.js', 'js/llm.js', 'js/foods.js', 'js/foodai.js', 'js/coach.js', 'js/ui.js',
-  'js/screens-onboard.js', 'js/screens-today.js', 'js/screens-fuel.js', 'js/screens-progress.js', 'js/screens-profile.js', 'js/mediaexport.js', 'js/screens-trend.js', 'js/screens-export.js', 'js/screens-coach.js', 'js/screens-settings.js', 'js/app.js',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'js/screens-onboard.js', 'js/screens-today.js', 'js/screens-fuel.js', 'js/screens-progress.js', 'js/screens-profile.js', 'js/library.js', 'js/screens-library.js', 'js/mediaexport.js', 'js/screens-trend.js', 'js/screens-export.js', 'js/reel.js', 'js/screens-reel.js', 'js/screens-coach.js', 'js/screens-settings.js', 'js/app.js',
+  'data/foods.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'fonts/big-shoulders-display-700.woff2', 'fonts/big-shoulders-display-800.woff2', 'fonts/dm-sans-400.woff2', 'fonts/dm-sans-500.woff2', 'fonts/dm-sans-700.woff2',
 ];
 

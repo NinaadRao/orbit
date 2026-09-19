@@ -277,3 +277,35 @@ test('weekly check-in: status is upcoming, due, overdue or done, and earlier gap
   // Trend lists only the weeks so far when asked
   assert.deepEqual(E.checkIns(st, 'Front', 3).map((c) => c.week), [1, 2, 3]);
 });
+
+// ---------- library clips ----------
+test('cleanClip: keeps a good entry, clamps every field, and refuses anything unsafe', () => {
+  const good = { id: 'c_abc123', kind: 'video', date: '2026-09-01', tag: 'Personal best', lift: 'flat_db_press', note: 'Top set', name: 'IMG_0001.MOV', size: 52428800, mtime: 1780000000000, w: 1080, h: 1920, dur: 12.34, thumb: 't_c_abc123', linked: true, review: 'Squat: keep your chest up.' };
+  const r = E.cleanClip(good);
+  assert.equal(r.ok, true);
+  assert.equal(r.value.dur, 12.3);
+  assert.equal(r.value.tag, 'Personal best');
+  assert.equal(r.value.linked, true);
+  assert.equal(E.cleanClip(Object.assign({}, good, { tag: 'Sneaky' })).value.tag, 'Other', 'unknown tags fall back');
+  assert.equal(E.cleanClip(Object.assign({}, good, { linked: 'yes' })).value.linked, false, 'linked is strictly true');
+  assert.equal(E.cleanClip(Object.assign({}, good, { note: 'x'.repeat(999) })).value.note.length, 200);
+  assert.equal(E.cleanClip(Object.assign({}, good, { review: 'y'.repeat(9999) })).value.review.length, 2500);
+  assert.equal(E.cleanClip(Object.assign({}, good, { dur: 1e9, w: -5, size: 'big' })).value.dur, 36000);
+  assert.equal(E.cleanClip(Object.assign({}, good, { thumb: '../../x' })).value.thumb, null, 'a preview id cannot be a path');
+  for (const bad of [null, [], 'x', {}, Object.assign({}, good, { id: 'A B' }), Object.assign({}, good, { kind: 'audio' }), Object.assign({}, good, { date: 'yesterday' }), Object.assign({}, good, { id: '__proto__' })]) {
+    assert.equal(E.cleanClip(bad).ok, false, JSON.stringify(bad));
+  }
+});
+
+test('clips come back from the event log, and a replaced or voided entry disappears', () => {
+  const c = { id: 'c_1', kind: 'photo', date: '2026-09-01', tag: 'Workout', name: 'a.jpg', size: 10 };
+  const ev = [
+    { seq: 1, type: 'clip_added', data: c },
+    { seq: 2, type: 'clip_added', data: Object.assign({}, c, { note: 'edited' }) },
+    { seq: 3, type: 'event_voided', data: { target: 1 } },
+    { seq: 4, type: 'clip_added', data: { id: 'BAD ID', kind: 'photo', date: '2026-09-01' } },
+  ];
+  const s = E.project(ev);
+  assert.equal(s.clips.length, 1);
+  assert.equal(s.clips[0].note, 'edited');
+});

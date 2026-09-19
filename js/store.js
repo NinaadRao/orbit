@@ -19,7 +19,7 @@
 
   const DEFAULT_SETTINGS = {
     liftUnit: 'lb', bodyUnit: 'kg', lenUnit: 'in', blurPhotos: true, lockEnabled: false, lockMinutes: 2,
-    reminder: 'weekly', checkinDay: 5, encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
+    reminder: 'weekly', checkinDay: 5, foodDiet: 'auto', encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
     coach: { provider: 'anthropic', model: '', baseUrl: '', keyMode: 'session' },
     restTimer: true, logRpe: true, logWarmups: false, logNotes: true,
     onboardedAt: null,
@@ -134,11 +134,11 @@
       settings: Object.assign({}, settings, { coach: Object.assign({}, settings.coach, { keyMode: 'session' }), lastBackupAt: null }),
       media: [],
     };
-    if (o.media) {
-      for (const m of await allMedia()) {
-        const buf = await m.blob.arrayBuffer();
-        payload.media.push({ id: m.id, type: m.type, week: m.week, angle: m.angle, ts: m.ts, b64: U.b64(buf) });
-      }
+    // Library previews are tiny, so they always go in. Progress photos only when asked, because they make the file much larger.
+    for (const m of await allMedia()) {
+      if (m.kind !== 'thumb' && !o.media) continue;
+      const buf = await m.blob.arrayBuffer();
+      payload.media.push({ id: m.id, type: m.type, week: m.week, angle: m.angle, kind: m.kind === 'thumb' ? 'thumb' : undefined, ts: m.ts, b64: U.b64(buf) });
     }
     const text = JSON.stringify(payload);
     if (o.passphrase) return JSON.stringify(await root.Crypt.encryptText(text, o.passphrase));
@@ -177,7 +177,7 @@
     events = evs;
     for (const m of payload.media || []) {
       const blob = new Blob([U.unb64(m.b64)], { type: /^image\/(jpeg|png|webp)$/.test(m.type) ? m.type : 'image/jpeg' });
-      await putMedia(String(m.id).slice(0, 120), blob, { week: m.week, angle: m.angle });
+      await putMedia(String(m.id).slice(0, 120), blob, m.kind === 'thumb' ? { kind: 'thumb' } : { week: m.week, angle: m.angle });
     }
     if (payload.settings && typeof payload.settings === 'object') {
       const keep = { lastBackupAt: settings.lastBackupAt, lockEnabled: settings.lockEnabled };

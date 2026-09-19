@@ -26,7 +26,7 @@
       } finally { URL.revokeObjectURL(url); }
     }
   }
-  const dims = (im) => ({ w: im.width || im.naturalWidth, h: im.height || im.naturalHeight });
+  const dims = (im) => ({ w: im.videoWidth || im.width || im.naturalWidth, h: im.videoHeight || im.height || im.naturalHeight });
   const release = (im) => { if (im && im.close) im.close(); };
   const canvasOf = (w, hh) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(hh)); return c; };
   const toBlob = (cv, mime, q) => new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('Could not build the file.'))), mime, q));
@@ -217,5 +217,5 @@
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
-  root.MediaOut = { composeComparison, renderTimelapse, stillFrame, pickVideoMime, videoSizeMB, videoSeconds, canShare, share, saveAs };
+  root.MediaOut = { composeComparison, renderTimelapse, stillFrame, pickVideoMime, videoSizeMB, videoSeconds, canShare, share, saveAs, _: { C, FONT, DISPLAY, VIDEO_BPS, fontsReady, decode, dims, release, canvasOf, cover, pill, rr } };
 })(self);

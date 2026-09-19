@@ -14,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.argv.includes('--lan') ? '0.0.0.0' : '127.0.0.1';
 const PUBLIC = new Set(['index.html', 'manifest.webmanifest', 'sw.js']);
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json' };
 
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
@@ -22,7 +22,7 @@ http.createServer((req, res) => {
   const rel = p.replace(/^\/+/, '');
   const file = path.join(ROOT, rel);
   // Only the app itself is served: never the repo's tests, scripts, docs or .git folder.
-  const ok = file.startsWith(ROOT + path.sep) && (PUBLIC.has(rel) || /^(js|css|icons|fonts)\//.test(rel));
+  const ok = file.startsWith(ROOT + path.sep) && (PUBLIC.has(rel) || /^(js|css|icons|fonts)\//.test(rel) || rel === 'data/foods.json');
   if (!ok || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('Not found'); }
   res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
   fs.createReadStream(file).pipe(res);

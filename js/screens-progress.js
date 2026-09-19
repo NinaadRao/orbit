@@ -101,6 +101,8 @@
     const ciLine = ci.status === 'done' ? 'This week is done. Next: ' + U.longDate(E.checkinDate(plan.startDate, Math.min(E.WEEKS, ci.week + 1), set.checkinDay)) : ci.status === 'upcoming' ? 'Next check-in: ' + U.longDate(ci.date) : 'This week: ' + ci.taken + ' of ' + ci.of + ' angles';
     cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Progress photos'), h('div', { class: 'muted small' }, weeksDone + ' weekly check-in' + (weeksDone === 1 ? '' : 's') + ' complete · ' + ciLine)), UI.btn('Open', { href: '#/photos', block: false, kind: 'quiet' }))));
 
+    cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Workout photos and videos'), h('div', { class: 'muted small' }, (st.clips.length ? st.clips.length + ' saved' : 'None yet') + ' · kept where you took them, not copied')), UI.btn('Open', { href: '#/library', block: false, kind: 'quiet' }))));
+
     const hist = plan.history.slice(-5).reverse();
     if (hist.length) cards.push(UI.card(h('div', { class: 'ct' }, 'Plan changes'), ...hist.map((x) => h('div', { class: 'kv' }, h('span', null, U.shortDate(x.ts.slice(0, 10)) + ' · ' + x.src), h('b', null, String(x.reason || 'Changed').slice(0, 80))))));
 

@@ -40,6 +40,8 @@
       h('div', { class: 'linkrow' }, h('button', { type: 'button', class: 'linkbtn', onclick: o.again }, 'Change options'), h('button', { type: 'button', class: 'linkbtn', onclick: () => o.close() }, 'Done')));
   }
 
+  Screens._ = Object.assign(Screens._ || {}, { resultView, privacyNote, closeLink });
+
   // ---------- time-lapse ----------
   // o: { angle, items: check-ins with a photo, index, numbersText, wkLabel }
   Screens._.videoSheet = async function (o) {

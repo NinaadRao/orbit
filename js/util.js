@@ -153,6 +153,7 @@
       undo: 'M9 14L4 9l5-5 M4 9h10a6 6 0 0 1 0 12h-3',
       pause: 'M8 5v14M16 5v14',
       swap: 'M9 7l-5 5 5 5 M15 7l5 5-5 5',
+      film: 'M4 5h16v14H4z M8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4',
     };
     const sz = size || 22;
     return s('svg', { width: sz, height: sz, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'ic' }, s('path', { d: paths[name] || '' }));
