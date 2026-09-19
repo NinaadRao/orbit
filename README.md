@@ -97,7 +97,7 @@ Take the same five angles at the check-in weeks (1, 5, 9, 13, 17, 21 and 26). Th
 2. **Compare two dates** lets you pick any two check-ins and view them side by side, with a slider, or as an overlay that helps you line up your pose. The table underneath shows the change.
 3. **Download time-lapse** makes a short video (Story, Square or Original shape) and **Download image** makes a comparison picture (JPEG or PNG). Both are built on your device. When one is ready, tap **Save or share** and choose Save to Photos or Files.
 
-Two things to know about downloads. The saved file shows your photos **unblurred** and is **not encrypted**, so it is as private as wherever you put it. Orbit says so in each sheet. And a video is recorded in real time, so keep Orbit open on screen until it finishes. On an iPhone the video is an MP4; other browsers may save WebM, which Instagram and Photos may not accept.
+Two things to know about downloads. The saved file shows your photos **unblurred** and is **not encrypted**, so it is as private as wherever you put it. Orbit says so in each sheet. And a video is recorded in real time, so keep Orbit open on screen until it finishes. Videos are always MP4 (H.264), so they play on any phone or laptop and post to Instagram. A browser that cannot record MP4 hides the video option and you can still save the comparison image.
 
 ## Backing up and restoring
 

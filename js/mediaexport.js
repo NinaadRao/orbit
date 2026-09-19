@@ -106,9 +106,11 @@
   }
 
   // ---------- time-lapse video ----------
+  // Videos are always MP4 (H.264), which every phone, Photos, Instagram and laptop player accepts.
+  // A browser that can only record WebM gets no video option and is pointed to the image export instead.
   function pickVideoMime() {
     if (!root.MediaRecorder || !root.HTMLCanvasElement || !HTMLCanvasElement.prototype.captureStream) return null;
-    for (const m of ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
+    for (const m of ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4']) {
       try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) { /* try the next one */ }
     }
     return null;
@@ -157,7 +159,7 @@
   // o: { frames: [{blob, title, numbers}], shape: 'story'|'square'|'original', secondsPer, labels, numbers, onProgress(0..1, text), signal }
   async function renderTimelapse(o) {
     const mime = pickVideoMime();
-    if (!mime) throw new Error('This browser cannot make videos. Save a comparison image instead.');
+    if (!mime) throw new Error('This browser cannot save video as MP4. Open Orbit in Safari or Chrome, or save a comparison image instead.');
     if (!o.frames || o.frames.length < 2) throw new Error('A time-lapse needs photos from at least two check-ins.');
     await fontsReady();
     const say = (p, t) => { if (o.onProgress) o.onProgress(p, t); };
@@ -197,9 +199,9 @@
       });
       if (aborted()) { try { rec.stop(); } catch (e) { /* not started */ } stopTracks(); throw cancel(); }
       rec.stop(); await stopped; stopTracks();
-      const type = mime.split(';')[0], blob = new Blob(chunks, { type });
+      const blob = new Blob(chunks, { type: 'video/mp4' });
       if (!blob.size) throw new Error('The browser produced an empty video. Try a different shape or speed.');
-      return { blob, mime: type, ext: type === 'video/mp4' ? 'mp4' : 'webm' };
+      return { blob, mime: 'video/mp4', ext: 'mp4' };
     } finally { ims.forEach(release); }
   }
 

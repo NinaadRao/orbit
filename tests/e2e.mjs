@@ -740,7 +740,7 @@ async function main() {
   });
 
   await step('download time-lapse: warning, real video from the photos, cancel leaves nothing behind', async () => {
-    if (!await tpage.evaluate(() => !!MediaOut.pickVideoMime())) { console.log('       (this browser cannot record video; skipped)'); return; }
+    if (!await tpage.evaluate(() => !!MediaOut.pickVideoMime())) { console.log('       (this browser cannot record MP4; skipped)'); return; }
     await route(tpage, '#/photos/trend');
     await tpage.getByRole('button', { name: 'Download time-lapse' }).click();
     const sheet = tpage.locator('#sheets');
@@ -757,8 +757,10 @@ async function main() {
     const dl = tpage.waitForEvent('download');
     await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
     const d = await dl;
-    ok(/^orbit-timelapse-front-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
-    ok(fs.statSync(await d.path()).size > 1000, 'not empty');
+    ok(/^orbit-timelapse-front-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    const mp4 = fs.readFileSync(await d.path());
+    ok(mp4.length > 1000, 'not empty');
+    eq(mp4.subarray(4, 8).toString('latin1'), 'ftyp', 'a real MP4 container, not WebM');
     await sheet.getByRole('button', { name: 'Done' }).click();
   });
 

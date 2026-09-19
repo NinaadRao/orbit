@@ -72,7 +72,7 @@
         UI.toggleRow('Week and date', 'Shown on each frame', opt.labels, (v) => { opt.labels = v; refresh(); }),
         UI.toggleRow('Weight and waist', 'Shown on each frame', opt.numbers, (v) => { opt.numbers = v; refresh(); }),
         privacyNote(),
-        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot record video. Open Orbit in Safari or Chrome, or save a comparison image instead.'),
+        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Orbit in Safari or Chrome, or save a comparison image instead.'),
         UI.btn('Create video', { icon: 'download', disabled: !supported, onClick: create }),
         size, closeLink(closeSheet));
       say(); refresh();
