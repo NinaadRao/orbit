@@ -205,3 +205,40 @@ test('loose JSON parsing and day totals', () => {
   const state = { foods: [{ date: 'd1', kcal: 300, protein: 20, carbs: 30, fat: 8 }, { date: 'd1', kcal: 100, protein: 5, carbs: 10, fat: 2 }, { date: 'd2', kcal: 999 }] };
   assert.deepEqual(E.dayTotals(state, 'd1'), { kcal: 400, protein: 25, carbs: 40, fat: 10, n: 2 });
 });
+
+test('photo trend: numbers around a check-in date use a 3-day mean, then the closest weigh-in, and never reach far', () => {
+  const st = { weights: [{ date: '2026-01-01', kg: 80 }, { date: '2026-01-03', kg: 79 }, { date: '2026-01-04', kg: 81 }, { date: '2026-01-20', kg: 78 }], meas: [], photos: [] };
+  assert.equal(E.weightAround(st.weights, '2026-01-02'), 80);          // three weigh-ins within 3 days
+  assert.equal(E.weightAround(st.weights, '2026-01-09'), 81);          // nothing within 3 days: closest within 7 (Jan 4 is 5 away)
+  assert.equal(E.weightAround(st.weights, '2026-01-12'), null);        // Jan 4 is 8 days away and Jan 20 is 8 days away
+  assert.equal(E.weightAround([], '2026-01-01'), null);
+});
+
+test('photo trend: measurements pick the closest entry within 10 days, earlier on a tie', () => {
+  const meas = [{ date: '2026-01-01', site: 'waist', cm: 86 }, { date: '2026-01-15', site: 'waist', cm: 85 }, { date: '2026-01-08', site: 'chest', cm: 100 }];
+  assert.equal(E.measAround(meas, 'waist', '2026-01-08'), 86);         // 7 days from both: the earlier one
+  assert.equal(E.measAround(meas, 'waist', '2026-01-13'), 85);
+  assert.equal(E.measAround(meas, 'waist', '2026-02-10'), null);       // too far
+  assert.equal(E.measAround(meas, 'hips', '2026-01-08'), null);        // never measured
+});
+
+test('photo trend: one entry per check-in week with the numbers of that photo date', () => {
+  const st = {
+    weights: [{ date: '2026-01-02', kg: 82 }, { date: '2026-02-01', kg: 80.5 }], meas: [{ date: '2026-01-02', site: 'waist', cm: 86 }, { date: '2026-02-01', site: 'waist', cm: 84.4 }],
+    photos: [{ week: 1, angle: 'Front', date: '2026-01-02', id: 'a' }, { week: 5, angle: 'Front', date: '2026-02-01', id: 'b' }, { week: 5, angle: 'Side', date: '2026-02-01', id: 'c' }],
+  };
+  const c = E.checkIns(st, 'Front');
+  assert.deepEqual(c.map((x) => x.week), E.PHOTO_WEEKS);
+  assert.deepEqual(c.filter((x) => x.photo).map((x) => x.week), [1, 5]);
+  assert.equal(c[0].snap.weightKg, 82); assert.equal(c[1].snap.meas.waist, 84.4); assert.equal(c[1].snap.meas.chest, null);
+  assert.equal(c[2].snap, null);
+  assert.equal(E.checkIns(st, 'Side').filter((x) => x.photo).length, 1);
+});
+
+test('photo trend: green means toward the goal, and a plan that does not care shows no colour', () => {
+  const plan = { goal: 'recomp', measTargets: { waist: { start: 86, target: 83.5 }, chest: { start: 100, target: 103 }, hips: { start: 95, target: 95 } } };
+  assert.equal(E.goalDir(plan, 'waist'), -1); assert.equal(E.goalDir(plan, 'chest'), 1); assert.equal(E.goalDir(plan, 'hips'), 0); assert.equal(E.goalDir(plan, 'bicepL'), 0);
+  assert.equal(E.goalDir(plan, 'weight'), 0); assert.equal(E.goalDir({ goal: 'cut' }, 'weight'), -1); assert.equal(E.goalDir({ goal: 'build' }, 'weight'), 1);
+  assert.equal(E.changeTone(-1.5, -1), 'teal'); assert.equal(E.changeTone(-1.5, 1), 'coral'); assert.equal(E.changeTone(0.01, 1), '');
+  assert.equal(E.changeTone(2, 0), ''); assert.equal(E.changeTone(null, 1), '');
+});

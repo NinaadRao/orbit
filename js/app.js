@@ -39,7 +39,7 @@
       [/^#\/today$/, () => S.today()],
       [/^#\/lifts$/, () => S.lifts()], [/^#\/lifts\/([a-z0-9_]+)$/, (m) => S.liftDetail(m[1])],
       [/^#\/fuel$/, () => S.fuel()],
-      [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()],
+      [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()], [/^#\/photos\/trend$/, () => S.photoTrend()], [/^#\/photos\/compare$/, () => S.photoCompare()],
       [/^#\/coach$/, () => S.coach()], [/^#\/coach\/setup$/, () => S.coachSetup()],
       [/^#\/settings$/, () => S.settings()], [/^#\/settings\/plan$/, () => S.planSettings()],
     ];

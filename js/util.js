@@ -87,9 +87,16 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => clear(box), 3600);
   }
-  function sheet(title, body, actions) {
+  // opts.onClose runs once, however the sheet is closed (button, backdrop tap or Escape).
+  function sheet(title, body, actions, opts) {
     const host = document.getElementById('sheets');
-    const close = () => { if (wrap.parentNode) host.removeChild(wrap); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
+    let closed = false;
+    const close = () => {
+      if (wrap.parentNode) host.removeChild(wrap);
+      document.removeEventListener('keydown', onKey);
+      if (prev && prev.focus) prev.focus();
+      if (!closed) { closed = true; if (opts && opts.onClose) opts.onClose(); }
+    };
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     const prev = document.activeElement;
     const bar = h('div', { class: 'sheet-actions' });
@@ -141,6 +148,8 @@
       x: 'M6 6l12 12M18 6L6 18',
       trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
       undo: 'M9 14L4 9l5-5 M4 9h10a6 6 0 0 1 0 12h-3',
+      pause: 'M8 5v14M16 5v14',
+      swap: 'M9 7l-5 5 5 5 M15 7l5 5-5 5',
     };
     const sz = size || 22;
     return s('svg', { width: sz, height: sz, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'ic' }, s('path', { d: paths[name] || '' }));

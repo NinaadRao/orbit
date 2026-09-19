@@ -33,6 +33,8 @@ A short tour of how Orbit is put together and why. It is written so you can expl
 
 **Zero runtime dependencies, no build.** Classic scripts, one file per concern. Less supply-chain surface, nothing to rot, and it runs from a folder. The trade-off is manual module wiring and no tree-shaking, which is acceptable for a few thousand lines.
 
+**Photos are derived views, not new state.** The photo trend and compare screens add no events. `Engine.checkIns` joins each photo to the numbers around its date (a 3-day mean of weigh-ins, the closest measurement within 10 days) and `Engine.goalDir` says which direction counts as progress, so the "green means toward your goal" colouring comes from the plan and is unit-tested. Exports are drawn on a canvas (`js/mediaexport.js`): a comparison image is a single draw, and a time-lapse is recorded from the canvas with `MediaRecorder` in real time, preferring MP4 (which iPhones and Instagram accept) and falling back to WebM. Redrawing the pixels drops all camera and location data, nothing is uploaded, and the finished file is only handed to the OS share sheet or a download on a fresh tap, because browsers require a user gesture for that and a long recording would have used it up.
+
 **Offline through a service worker.** Cache the app shell, serve stale-while-revalidate. It never caches or reads user data: that lives in IndexedDB.
 
 ## Failure modes considered
@@ -44,6 +46,7 @@ A short tour of how Orbit is put together and why. It is written so you can expl
 | Corrupt or hostile import | Validated and rejected before anything is applied. |
 | Provider outage or bad key | Readable error, retries with backoff, manual entry always available. |
 | Model returns junk numbers | Clamped, cross-checked and shown for confirmation. |
+| Browser cannot record video, or the tab is hidden mid-recording | The video option says so and points to the image export; a hidden tab pauses drawing, so the sheet asks you to keep Orbit open. |
 | Two tabs open | Events are appended atomically; reload to see the other tab's changes. A multi-tab lock is a possible improvement. |
 
 ## Testing

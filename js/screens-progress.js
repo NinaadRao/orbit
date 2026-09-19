@@ -107,7 +107,7 @@
 
   // ---------- Photos ----------
   let urls = [];
-  let selWeek = null, cmpAngle = 'Front';
+  let selWeek = null;
   function revokeUrls() { for (const u of urls) URL.revokeObjectURL(u); urls = []; }
 
   async function toJpeg(file, max) {
@@ -182,23 +182,28 @@
       U.sheet('Photo', box, [{ label: 'Replace', kind: 'quiet', run: () => { setTimeout(() => pick(p.angle), 0); } }, { label: 'Delete', kind: 'danger', run: async () => { await Store.voidEvent(p.seq); await Store.delMedia(p.id); root.App.render(); } }, { label: 'Close', kind: 'primary' }]);
     }
 
-    // Compare first check-in with the latest, for one angle
-    const weeksWith = Array.from(new Set(st.photos.filter((p) => p.angle === cmpAngle).map((p) => p.week))).sort((a, b) => a - b);
-    let cmp = null;
-    if (weeksWith.length >= 2) {
-      const a = st.photos.find((p) => p.angle === cmpAngle && p.week === weeksWith[0]), b = st.photos.find((p) => p.angle === cmpAngle && p.week === weeksWith[weeksWith.length - 1]);
-      const ia = h('img', { alt: cmpAngle + ' week ' + a.week }), ib = h('img', { alt: cmpAngle + ' week ' + b.week });
-      const wrap = h('div', { class: 'photocmp' + (set.blurPhotos ? ' blurred' : '') }, h('div', null, ia, h('div', { class: 'muted small' }, 'Week ' + a.week)), h('div', null, ib, h('div', { class: 'muted small' }, 'Week ' + b.week)));
-      fillImg(ia, a.id, wrap); fillImg(ib, b.id, wrap);
-      cmp = wrap;
+    // Your trend: the first and latest check-in for the angle with the most photos, then the two screens that go further
+    const tAngle = Screens._.trendAngle(st);
+    const tHave = E.checkIns(st, tAngle).filter((c) => c.photo);
+    let pair = null;
+    if (tHave.length >= 2) {
+      const first = tHave[0], last = tHave[tHave.length - 1];
+      const ia = h('img', { alt: tAngle + ' week ' + first.week }), ib = h('img', { alt: tAngle + ' week ' + last.week });
+      const ta = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ia, h('span', { class: 'lbl' }, 'Week ' + first.week)), tb = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ib, h('span', { class: 'lbl' }, 'Week ' + last.week));
+      pair = h('div', { class: 'trendpair' }, ta, tb);
+      fillImg(ia, first.photo.id, ta); fillImg(ib, last.photo.id, tb);
     }
-    const angleSeg = UI.pills({ items: E.ANGLES, values: new Set([cmpAngle]), multi: false, onChange: (v) => { cmpAngle = Array.from(v)[0]; root.App.render(); } });
+    const trendCard = UI.card(
+      h('div', { class: 'target-top' }, h('div', { class: 'ct' }, 'Your photo trend'), set.blurPhotos ? U.chip('Blurred', 'line') : null),
+      pair || h('div', { class: 'muted' }, 'Add the same angle at two check-ins and you can scrub through your progress here.'),
+      h('div', { class: 'muted small' }, 'Photos live only on this device and never go to the coach.'),
+      h('div', { class: 'row' }, UI.btn('See trend', { href: '#/photos/trend', block: false }), UI.btn('Compare', { href: '#/photos/compare', kind: 'quiet', block: false })));
 
     return UI.page(UI.header('Photos', 'Stored on this device only.', { back: '#/progress' }), UI.scroller(
       wkSeg,
       UI.card(h('div', { class: 'ct' }, 'Week ' + chosen + (E.PHOTO_WEEKS.includes(cur) && cur === chosen ? ' · this week' : '')), slots, h('div', { class: 'muted small' }, 'Same spot, same light, same time of day, relaxed then flexed. Photos are compressed and stripped of location data when saved.'), input),
-      UI.card(h('div', { class: 'ct' }, 'Then and now'), angleSeg, cmp || h('div', { class: 'muted' }, 'Add this angle at two check-ins to compare.')),
+      trendCard,
       UI.toggleRow('Blur thumbnails', 'Hide photos on screen until you open one', !!set.blurPhotos, (v) => { Store.saveSettings({ blurPhotos: v }).then(() => root.App.render()); })));
   };
-  Screens._ = Object.assign(Screens._ || {}, { toJpeg });
+  Screens._ = Object.assign(Screens._ || {}, { toJpeg, gotoWeek: (w) => { selWeek = w; } });
 })(self);

@@ -4,6 +4,7 @@ A private, local-first tracker for lifts, food, body weight, measurements and pr
 
 - **Plan**: answer a few questions, get calories, macros, a weekly split, week-by-week lift targets (with deloads) and six-month measurement goals.
 - **Log**: sets (with effort and rest timer), weigh-ins, measurements, food, and five-angle photos at check-in weeks.
+- **Photo trend**: scrub or play through your check-ins with the weight and measurements of each day under the photo, compare any two dates (side by side, slider or overlay), and save a time-lapse video or a comparison image. Photos stay blurred until you tap.
 - **Fuel**: find a listed food, describe a meal to your own AI, type raw ingredients, or enter macros by hand. AI results always show an editable confirmation card and nothing is saved until you tap "Looks right".
 - **Coach**: a chat that runs on *your* model with *your* key. It can suggest changes; you tap Apply; every change has Undo.
 - **Backup**: one encrypted file you can drop into iCloud Drive, Google Drive or anywhere else.
@@ -21,7 +22,12 @@ Everything is plain HTML, CSS and JavaScript. There is nothing to build and no r
   <img src="docs/img/backup.png" width="200" alt="Privacy and backup: one encrypted file, restore from a file">
 </p>
 
-<p align="center"><sub>Screenshots use a made-up lifter and a stand-in AI reply, not real data.</sub></p>
+<p align="center">
+  <img src="docs/img/photo-trend.png" width="200" alt="Photo trend: scrub through check-ins with the numbers of each day under the photo">
+  <img src="docs/img/photo-compare.png" width="200" alt="Compare: any two check-ins with a slider, and a button to download the image">
+</p>
+
+<p align="center"><sub>Screenshots use a made-up lifter, stand-in silhouettes and a stand-in AI reply, not real data.</sub></p>
 
 ## Run it
 
@@ -83,6 +89,16 @@ Two things worth knowing:
 1. **The address is your data's identity.** Browsers keep data per address, and the Home Screen app keeps its own copy separate from Safari. Do your first-run setup in the place you will actually use, or restore a backup into it. If you ever move hosts, make a backup first and restore it at the new address.
 2. **Safari can erase site data** for sites you have not opened in about a week. Home Screen apps are treated more kindly, and Orbit asks the browser to keep its data, but the only real safety net is a backup file.
 
+## Your photo trend
+
+Take the same five angles at the check-in weeks (1, 5, 9, 13, 17, 21 and 26). Then:
+
+1. Progress, then **Open** on Progress photos, then **See trend** in the Your photo trend card. Pick an angle and drag along the check-in dots, or press play. The weight and measurements from around each photo's date sit under it, and green means the change is toward your goal.
+2. **Compare two dates** lets you pick any two check-ins and view them side by side, with a slider, or as an overlay that helps you line up your pose. The table underneath shows the change.
+3. **Download time-lapse** makes a short video (Story, Square or Original shape) and **Download image** makes a comparison picture (JPEG or PNG). Both are built on your device. When one is ready, tap **Save or share** and choose Save to Photos or Files.
+
+Two things to know about downloads. The saved file shows your photos **unblurred** and is **not encrypted**, so it is as private as wherever you put it. Orbit says so in each sheet. And a video is recorded in real time, so keep Orbit open on screen until it finishes. On an iPhone the video is an MP4; other browsers may save WebM, which Instagram and Photos may not accept.
+
 ## Backing up and restoring
 
 A backup is one file named like `orbit-2026-09-19.orbitbackup`. It holds your plan, every log and your settings, plus your progress photos if you tick **Include progress photos** (that makes the file much larger). It never holds your AI key.
@@ -132,7 +148,7 @@ Where the key can live:
 
 The key is never included in backups, never written to logs and never put in the repository. Model names change over time; the default is a starting point, so use one from your provider's docs.
 
-What the AI sees: the coach gets a summary of your numbers (weight, measurements, lift status, food totals), not your name and not your photos. A food estimate gets only the text you typed.
+What the AI sees: the coach gets a summary of your numbers (weight, measurements, lift status, food totals), not your name and not your photos. The photo trend and downloads never call any AI. A food estimate gets only the text you typed.
 
 Using another endpoint: the Content Security Policy in `index.html` lists the only places the app may connect to. Add your endpoint's origin to `connect-src` once (for example `https://openrouter.ai`) and reload. `http://localhost` is already allowed for local models.
 
@@ -170,6 +186,7 @@ js/llm.js             provider adapters (Anthropic, OpenAI-compatible, Gemini)
 js/coach.js           coach tools, proposals and safety limits
 js/foods.js           built-in food list and search
 js/foodai.js          AI nutrition estimates (suggest only)
+js/mediaexport.js     comparison image and time-lapse video, drawn on a canvas on your device
 js/screens-*.js       screens
 tests/                unit and end-to-end tests
 docs/ARCHITECTURE.md  how it fits together and why
@@ -177,7 +194,7 @@ docs/ARCHITECTURE.md  how it fits together and why
 
 ## Roadmap
 
-Part 2: an automated progress reel you can download and share, and form feedback where you upload a video of a set and the coach reviews it. Both will follow the same rule as everything else: they run on your device and your key.
+Part 2: a fuller progress reel you can share (the plain photo time-lapse already exists), and form feedback where you upload a video of a set and the coach reviews it. Both will follow the same rule as everything else: they run on your device and your key.
 
 ## License
 

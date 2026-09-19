@@ -409,6 +409,47 @@
     for (const m of meas) if (m.site === site && (!best || m.date >= best.date)) best = m;
     return best;
   }
+  // ---------- photo trend: the numbers that belong to a photo ----------
+  // Weight around a date: the mean of the weigh-ins within 3 days either side, else the closest one within 7 days.
+  function weightAround(weights, date) {
+    const near = weights.filter((w) => Math.abs(daysBetween(date, w.date)) <= 3);
+    if (near.length) return near.reduce((t, w) => t + w.kg, 0) / near.length;
+    let best = null, bestGap = 8;
+    for (const w of weights) { const g = Math.abs(daysBetween(date, w.date)); if (g < bestGap || (g === bestGap && best && w.date < best.date)) { best = w; bestGap = g; } }
+    return best && bestGap <= 7 ? best.kg : null;
+  }
+  // A measurement around a date: the closest entry within 10 days; on a tie the earlier one.
+  function measAround(meas, site, date) {
+    let best = null, bestGap = 11;
+    for (const m of meas) {
+      if (m.site !== site) continue;
+      const g = Math.abs(daysBetween(date, m.date));
+      if (g < bestGap || (g === bestGap && best && m.date < best.date)) { best = m; bestGap = g; }
+    }
+    return best && bestGap <= 10 ? best.cm : null;
+  }
+  function snapshotAt(state, date) {
+    const out = { weightKg: weightAround(state.weights, date), meas: {} };
+    for (const [site] of MEAS_SITES) out.meas[site] = measAround(state.meas, site, date);
+    return out;
+  }
+  // One entry per check-in week for an angle, with the photo (if any) and the numbers around its date.
+  function checkIns(state, angle) {
+    return PHOTO_WEEKS.map((week) => {
+      const photo = state.photos.find((p) => p.week === week && p.angle === angle) || null;
+      return { week, photo, date: photo ? photo.date : null, snap: photo ? snapshotAt(state, photo.date) : null };
+    });
+  }
+  // +1 when going up is the goal, -1 when going down is, 0 when the plan does not care.
+  function goalDir(plan, key) {
+    if (key === 'weight') return plan.goal === 'build' ? 1 : plan.goal === 'cut' ? -1 : 0;
+    const tg = plan.measTargets && plan.measTargets[key];
+    return tg ? Math.sign(clean(tg.target - tg.start)) : 0;
+  }
+  function changeTone(delta, dir, eps) {
+    if (delta == null || !dir || Math.abs(delta) < (eps == null ? 0.05 : eps)) return '';
+    return (delta > 0) === (dir > 0) ? 'teal' : 'coral';
+  }
   function setsForWeek(state, week) {
     const [a, b] = weekRange(state.plan.startDate, week);
     return state.sets.filter((x) => x.date >= a && x.date <= b && !x.warmup);
@@ -576,6 +617,7 @@
     clean, roundTo, clamp, lbToKg, kgToLb, inToCm, cmToIn, isoDate, parseISO, addDays, daysBetween, weekOf, weekRange, weekdayOf,
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,
+    weightAround, measAround, snapshotAt, checkIns, goalDir, changeTone,
     liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

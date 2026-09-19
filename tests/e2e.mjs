@@ -583,6 +583,207 @@ async function main() {
   });
   await octx.close();
 
+  // ================= photo trend, compare and saving =================
+  console.log('\nPhoto trend');
+  const tctx = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  const tpage = await tctx.newPage(); tpage.setDefaultTimeout(6000);
+  const tproblems = await collect(tpage);
+  const outside = []; // anything a photo screen or export sends to another origin (there must be none)
+  tpage.on('request', (r) => { const u = r.url(); if (!u.startsWith(base.replace('/index.html', '')) && !/^(blob|data):/.test(u)) outside.push(u); });
+  await tpage.goto(base);
+  await tpage.waitForSelector('text=Track the change.');
+  // fictional data: three Front check-ins (weeks 1, 5, 9) with a weigh-in and measurements each; cm and kg
+  await tpage.evaluate(async () => {
+    const start = Engine.addDays(U.today(), -70), at = (w) => Engine.addDays(start, (w - 1) * 7);
+    const a = { sex: 'male', age: 31, heightCm: 180, weightKg: 82, units: { body: 'kg', length: 'cm', lift: 'lb' }, measurements: { waist: 86, chest: 100 }, goal: 'recomp', days: [1, 2, 3, 4, 5], startDate: start,
+      training: { split: 'auto', dbStep: 2.5, machineStep: 5, sets: 3, repStyle: 'mixed', deload: 'planned' }, lifts: [{ id: 'flat_db_press', on: true, weight: 40, reps: 8 }] };
+    await Store.append('profile_created', { profile: a, plan: Engine.buildPlan(a) });
+    await Store.saveSettings({ bodyUnit: 'kg', lenUnit: 'cm', liftUnit: 'lb', onboardedAt: new Date().toISOString() });
+    const kg = { 1: 82, 5: 81, 9: 80.2 }, waist = { 1: 86, 5: 85, 9: 84.2 }, chest = { 1: 100, 5: 100.5, 9: 101.2 };
+    const fig = (w) => new Promise((res) => {
+      const c = document.createElement('canvas'); c.width = 300; c.height = 400; const x = c.getContext('2d');
+      x.fillStyle = 'hsl(' + (w * 20) + ',30%,25%)'; x.fillRect(0, 0, 300, 400); x.fillStyle = '#c9d6cf'; x.beginPath(); x.arc(150, 80, 30, 0, 7); x.fill(); x.fillRect(90, 130, 120, 220);
+      c.toBlob(res, 'image/jpeg', 0.8);
+    });
+    for (const w of [1, 5, 9]) {
+      await Store.append('weight_logged', { date: at(w), kg: kg[w] });
+      await Store.append('measurement_logged', { date: at(w), site: 'waist', cm: waist[w] });
+      await Store.append('measurement_logged', { date: at(w), site: 'chest', cm: chest[w] });
+      const id = 'p_' + w + '_front_t';
+      await Store.putMedia(id, await fig(w), { week: w, angle: 'Front' });
+      await Store.append('photo_added', { date: at(w), week: w, angle: 'Front', id });
+    }
+  });
+  const eventsBefore = await tpage.evaluate(() => Store.getEvents().length);
+  const mediaBefore = await tpage.evaluate(async () => (await Store.allMedia()).length);
+
+  await step('photos screen offers the trend and compare, and shows the first and latest photo', async () => {
+    await route(tpage, '#/photos');
+    await tpage.getByText('Your photo trend').waitFor();
+    eq(await tpage.locator('.trendthumb').count(), 2);
+    ok(await tpage.locator('.trendthumb.blur').count() === 2, 'thumbnails follow the blur setting');
+    await tpage.getByRole('link', { name: 'See trend' }).click();
+    await tpage.waitForSelector('.stage');
+    eq(await tpage.evaluate(() => location.hash), '#/photos/trend');
+  });
+
+  await step('trend: latest check-in first, blurred until tapped, with the numbers and green only toward the goal', async () => {
+    const stage = tpage.locator('.stage');
+    ok(await stage.evaluate((el) => el.classList.contains('blur')), 'blurred by default');
+    ok(/Blurred/.test(await tpage.locator('.stage-badge').innerText()), 'badge says blurred');
+    ok(/Week 9/.test(await tpage.locator('.stage-cap').innerText()), 'starts on the latest check-in');
+    await stage.click();
+    ok(!(await stage.evaluate((el) => el.classList.contains('blur'))), 'tap reveals');
+    const cards = await tpage.locator('.tstat').allInnerTexts();
+    ok(/Weight/.test(cards[0]) && /80\.2/.test(cards[0]) && /-1\.8 kg/.test(cards[0]), 'weight card: ' + cards[0]);
+    ok(/Waist/.test(cards[1]) && /84\.2/.test(cards[1]) && /-1\.8 cm/.test(cards[1]), 'waist card: ' + cards[1]);
+    ok(/Chest/.test(cards[2]) && /101\.2/.test(cards[2]) && /\+1\.2 cm/.test(cards[2]), 'chest card: ' + cards[2]);
+    ok(await tpage.locator('.tstat .td.teal').count() === 2, 'waist down and chest up are toward the recomp goal');
+    ok(await tpage.locator('.tstat').first().locator('.td.teal, .td.coral').count() === 0, 'weight is neutral on a recomp');
+    ok(await tpage.locator('.stage-img').evaluate((el) => el.complete && el.naturalWidth > 0), 'photo loaded from local storage');
+  });
+
+  await step('trend: keyboard scrub, play stops at the last check-in, empty weeks lead back to the check-in screen', async () => {
+    const scrub = tpage.locator('.scrub');
+    await scrub.focus();
+    await tpage.keyboard.press('Home');
+    ok(/Week 1\b/.test(await tpage.locator('.stage-cap').innerText()), 'Home goes to the first');
+    ok(/Week 1,/.test(await scrub.getAttribute('aria-valuetext')), 'slider announces the week');
+    await tpage.keyboard.press('ArrowRight');
+    ok(/Week 5\b/.test(await tpage.locator('.stage-cap').innerText()), 'arrow moves to the next photo');
+    await tpage.locator('.tstat').first().waitFor();
+    ok(/Starting point|-\d/.test(await tpage.locator('.tstat').first().innerText()), 'numbers follow the photo');
+    await tpage.getByRole('button', { name: /^Speed/ }).click(); // 2x
+    eq(await tpage.getByRole('button', { name: /^Speed/ }).innerText(), 'Speed 2x');
+    await tpage.keyboard.press('Home');
+    await tpage.getByRole('button', { name: 'Play through the check-ins' }).click();
+    await tpage.waitForFunction(() => /Week 9\b/.test(document.querySelector('.stage-cap').textContent), null, { timeout: 5000 });
+    await tpage.getByRole('button', { name: 'Play through the check-ins' }).waitFor(); // back to a play button: it stopped by itself
+    const hrefs = await tpage.locator('a.tthumb.none').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+    eq(hrefs.length, 4); ok(hrefs.every((x) => x === '#/photos'));
+    await tpage.locator('a.tthumb.none').first().click();
+    await tpage.waitForSelector('.photogrid');
+    ok(/Wk 13/.test(await tpage.locator('.pill.on').innerText()), 'opens the check-in week you tapped');
+  });
+
+  await step('trend: an angle with no photos says so, and the waist chart shows the check-ins', async () => {
+    await route(tpage, '#/photos/trend');
+    await tpage.locator('.chart').first().waitFor();
+    ok(await tpage.locator('.chart circle').count() >= 3, 'a dot per check-in');
+    await tpage.getByRole('button', { name: 'Side', exact: true }).click();
+    await tpage.getByText('You have no Side photos yet').waitFor();
+    ok(await tpage.getByRole('button', { name: 'Download time-lapse' }).count() === 0, 'nothing to download yet');
+    await tpage.getByRole('button', { name: 'Front', exact: true }).click();
+    await tpage.waitForSelector('.stage');
+  });
+
+  await step('compare: pick any two dates; slider, side by side and overlay; numbers with the change', async () => {
+    await tpage.getByRole('link', { name: 'Compare two dates' }).click();
+    await tpage.waitForSelector('.cmp-slider');
+    eq(await tpage.getByLabel('Before').inputValue(), '1'); eq(await tpage.getByLabel('After').inputValue(), '9');
+    const handle = tpage.locator('.cmp-handle');
+    eq(await handle.getAttribute('aria-valuenow'), '50');
+    await handle.focus(); await tpage.keyboard.press('ArrowRight');
+    eq(await handle.getAttribute('aria-valuenow'), '55');
+    const box = await tpage.locator('.cmp-slider').boundingBox();
+    await tpage.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2); await tpage.mouse.down(); await tpage.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2); await tpage.mouse.up();
+    ok(Number(await handle.getAttribute('aria-valuenow')) >= 75, 'dragging moves the handle');
+    const rows = await tpage.locator('.cmprow:not(.head)').allInnerTexts();
+    ok(rows.length === 3 && /Weight/.test(rows[0]) && /82\.0 kg/.test(rows[0]) && /80\.2 kg/.test(rows[0]) && /-1\.8 kg/.test(rows[0]), 'weight row: ' + rows[0]);
+    ok(/Waist/.test(rows[1]) && /-1\.8 cm/.test(rows[1]), 'waist row: ' + rows[1]);
+    ok(/Chest/.test(rows[2]) && /\+1\.2 cm/.test(rows[2]), 'chest row: ' + rows[2]);
+    await tpage.getByRole('radio', { name: 'Side by side' }).click();
+    eq(await tpage.locator('.cmp-side img').count(), 2);
+    await tpage.getByRole('radio', { name: 'Overlay' }).click();
+    await tpage.getByLabel('Blend').fill('20');
+    eq(await tpage.locator('.cmp-over').evaluate((el) => el.style.opacity), '0.2');
+    await tpage.getByLabel('After').selectOption('5'); await tpage.getByLabel('Before').selectOption('5');
+    ok(await tpage.getByRole('button', { name: 'Download image' }).isDisabled(), 'the same check-in twice cannot be downloaded');
+    await tpage.getByLabel('Before').selectOption('1'); await tpage.getByLabel('After').selectOption('9');
+  });
+
+  await step('download image: unblurred warning, PNG saved with a plain name, built and kept on this device only', async () => {
+    await tpage.getByRole('radio', { name: 'Side by side' }).click();
+    await tpage.getByRole('button', { name: 'Download image' }).click();
+    const sheet = tpage.locator('#sheets');
+    await sheet.getByText('The saved file shows your photos unblurred').waitFor();
+    ok(/not encrypted/.test(await sheet.innerText()), 'says it is not encrypted');
+    ok(await sheet.locator('.exprev.blur').count() === 1, 'the preview follows the blur setting');
+    await sheet.getByRole('radio', { name: 'PNG' }).click();
+    await sheet.getByRole('button', { name: 'Save image' }).click();
+    await sheet.locator('img.resmedia').waitFor();
+    const dim = await sheet.locator('img.resmedia').evaluate((el) => new Promise((r) => { const f = () => r([el.naturalWidth, el.naturalHeight]); el.complete && el.naturalWidth ? f() : (el.onload = f); }));
+    eq(dim[0], 1808); ok(dim[1] > 1200, 'photos plus the measurements table: ' + dim[1]);
+    const dl = tpage.waitForEvent('download');
+    await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
+    const d = await dl;
+    ok(/^orbit-compare-front-wk1-wk9-\d{4}-\d{2}-\d{2}\.png$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    const p = await d.path(); const head = fs.readFileSync(p).subarray(0, 8);
+    eq(Array.from(head), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    await sheet.getByRole('button', { name: 'Done' }).click();
+    eq(await tpage.locator('#sheets .sheet').count(), 0);
+  });
+
+  await step('a saved JPEG is a plain re-drawn image with no camera or location block, in each layout', async () => {
+    const r = await tpage.evaluate(async () => {
+      const st = Store.getState(), cis = Engine.checkIns(st, 'Front').filter((c) => c.photo);
+      const a = (await Store.getMedia(cis[0].photo.id)).blob, b = (await Store.getMedia(cis[2].photo.id)).blob;
+      const out = [];
+      for (const layout of ['side', 'slider', 'overlay']) {
+        const blob = await MediaOut.composeComparison({ a: { blob: a, label: 'Week 1' }, b: { blob: b, label: 'Week 9' }, layout, format: 'jpeg', labels: true, rows: [{ name: 'Weight', a: '82.0 kg', b: '80.2 kg', change: '-1.8 kg', tone: '' }], head: ['Wk 1', 'Wk 9'] });
+        const u8 = new Uint8Array(await blob.arrayBuffer());
+        out.push({ layout, type: blob.type, soi: [u8[0], u8[1]], exif: new TextDecoder('latin1').decode(u8.subarray(0, 400)).includes('Exif') });
+      }
+      return out;
+    });
+    for (const x of r) { eq(x.type, 'image/jpeg', x.layout); eq(x.soi, [0xff, 0xd8], x.layout); ok(!x.exif, 'no Exif in ' + x.layout); }
+  });
+
+  await step('download time-lapse: warning, real video from the photos, cancel leaves nothing behind', async () => {
+    if (!await tpage.evaluate(() => !!MediaOut.pickVideoMime())) { console.log('       (this browser cannot record video; skipped)'); return; }
+    await route(tpage, '#/photos/trend');
+    await tpage.getByRole('button', { name: 'Download time-lapse' }).click();
+    const sheet = tpage.locator('#sheets');
+    await sheet.getByText('The saved file shows your photos unblurred').waitFor();
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+    eq(await tpage.locator('#sheets .sheet').count(), 0);
+    await tpage.getByRole('button', { name: 'Download time-lapse' }).click();
+    await sheet.getByRole('radio', { name: 'Square' }).click();
+    await sheet.getByRole('radio', { name: '0.5 s' }).click();
+    await sheet.getByRole('button', { name: 'Create video' }).click();
+    await sheet.locator('video.resmedia').waitFor({ timeout: 20000 });
+    const v = await sheet.locator('video.resmedia').evaluate((el) => new Promise((res) => { const f = () => res({ w: el.videoWidth, h: el.videoHeight, d: el.duration, e: el.error && el.error.message }); el.readyState >= 1 ? f() : (el.onloadedmetadata = f, el.onerror = f); }));
+    ok(!v.e, 'plays: ' + v.e); eq([v.w, v.h], [1080, 1080]); ok(v.d > 1 && v.d < 4, 'about 3 photos x 0.5 s: ' + v.d);
+    const dl = tpage.waitForEvent('download');
+    await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
+    const d = await dl;
+    ok(/^orbit-timelapse-front-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    ok(fs.statSync(await d.path()).size > 1000, 'not empty');
+    await sheet.getByRole('button', { name: 'Done' }).click();
+  });
+
+  await step('a cancelled recording stops cleanly and returns to the options', async () => {
+    if (!await tpage.evaluate(() => !!MediaOut.pickVideoMime())) return;
+    await tpage.getByRole('button', { name: 'Download time-lapse' }).click();
+    const sheet = tpage.locator('#sheets');
+    await sheet.getByRole('radio', { name: '1.5 s' }).click();
+    await sheet.getByRole('button', { name: 'Create video' }).click();
+    await sheet.getByRole('progressbar').waitFor();
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+    await sheet.getByRole('button', { name: 'Create video' }).waitFor();
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  await step('exports change nothing that is stored, add nothing to a backup and send nothing off the device', async () => {
+    eq(await tpage.evaluate(() => Store.getEvents().length), eventsBefore);
+    eq(await tpage.evaluate(async () => (await Store.allMedia()).length), mediaBefore);
+    eq(outside, [], 'requests to other origins');
+    const bad = /\b(null|undefined|NaN)\b/;
+    for (const h of ['#/photos', '#/photos/trend', '#/photos/compare']) { await route(tpage, h); const t = await tpage.locator('#screen').innerText(); ok(!bad.test(t), h + ' shows: ' + (t.match(bad) || [])[0]); }
+    eq(tproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
+  });
+  await tctx.close();
+
   // ================= file:// =================
   console.log('\nApp from file://');
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
