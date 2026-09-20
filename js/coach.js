@@ -229,7 +229,7 @@
       const res = await root.LLM.chat(cfg, { system, messages: history, tools: TOOLS, signal: hooks.signal, maxTokens: 1500 }, { onText: (t) => hooks.onText && hooks.onText(finalText + t) });
       const content = [];
       if (res.text) content.push({ type: 'text', text: res.text });
-      for (const c of res.toolCalls) content.push({ type: 'tool_use', id: c.id, name: c.name, input: c.input });
+      for (const c of res.toolCalls) content.push({ type: 'tool_use', id: c.id, name: c.name, input: c.input, sig: c.sig });
       if (!content.length) content.push({ type: 'text', text: '(no reply)' });
       history.push({ role: 'assistant', content });
       finalText += res.text ? res.text + '\n\n' : '';

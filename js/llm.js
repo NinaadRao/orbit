@@ -5,7 +5,7 @@
  * Internal message format (Anthropic-like):
  *   { role: 'user'|'assistant', content: [ {type:'text',text}
  *        | {type:'image', mime, b64}
- *        | {type:'tool_use', id, name, input}
+ *        | {type:'tool_use', id, name, input, sig?}   (sig: Gemini's thought signature, sent back as it came)
  *        | {type:'tool_result', tool_use_id, content} ] }
  */
 (function (root) {
@@ -177,15 +177,29 @@
   }
 
   // ---------- Google Gemini ----------
-  function toGemini(messages) {
+  // Gemini 3 and later return a "thought signature" with a function call and refuse the next request unless the call
+  // is sent back with it. It is opaque, so it is kept on the tool_use block (sig) and copied back untouched. A call we
+  // have no signature for (a conversation that began with another model) gets Google's documented "skip validation" value.
+  const SKIP_SIGNATURE = 'skip_thought_signature_validator';
+  const needsSignature = (model) => /gemini-(?:[3-9]|[1-9]\d)/i.test(String(model || ''));
+  function toGemini(messages, model) {
     const names = {};
     const contents = [];
+    const g3 = needsSignature(model);
     for (const m of messages) {
       const parts = [];
+      let calls = 0;
       for (const c of m.content) {
         if (c.type === 'text') parts.push({ text: c.text });
         else if (c.type === 'image') parts.push({ inlineData: { mimeType: c.mime, data: c.b64 } });
-        else if (c.type === 'tool_use') { names[c.id] = c.name; parts.push({ functionCall: { name: c.name, args: c.input || {} } }); }
+        else if (c.type === 'tool_use') {
+          names[c.id] = c.name;
+          const part = { functionCall: { name: c.name, args: c.input || {} } };
+          const sig = c.sig || (g3 && calls === 0 ? SKIP_SIGNATURE : '');
+          if (sig) part.thoughtSignature = sig;
+          calls++;
+          parts.push(part);
+        }
         else if (c.type === 'tool_result') parts.push({ functionResponse: { name: names[c.tool_use_id] || 'tool', response: { result: String(c.content) } } });
       }
       contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts });
@@ -203,19 +217,24 @@
     return s;
   }
   async function streamGoogle(cfg, req, hooks) {
-    const body = { systemInstruction: { parts: [{ text: req.system }] }, contents: toGemini(req.messages) };
+    const body = { systemInstruction: { parts: [{ text: req.system }] }, contents: toGemini(req.messages, cfg.model) };
     if (req.tools && req.tools.length) body.tools = [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parameters: geminiSchema(t.schema) })) }];
     const url = PROVIDERS.google.base + '/v1beta/models/' + encodeURIComponent(cfg.model) + ':streamGenerateContent?alt=sse';
     const resp = await fetchWithRetry(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.apiKey }, body: JSON.stringify(body) }, req.signal);
     const out = { text: '', toolCalls: [], stop: '' };
-    let n = 0;
+    let n = 0, pending = '';
     for await (const ev of sseEvents(resp)) {
       let d; try { d = JSON.parse(ev.data); } catch (e) { continue; }
       const c = d.candidates && d.candidates[0];
       if (!c) continue;
       for (const p of (c.content && c.content.parts) || []) {
-        if (p.text) { out.text += p.text; hooks.onText && hooks.onText(out.text); }
-        if (p.functionCall) out.toolCalls.push({ id: 'g' + (++n), name: p.functionCall.name, input: p.functionCall.args || {} });
+        if (p.text && !p.thought) { out.text += p.text; hooks.onText && hooks.onText(out.text); }
+        // The signature normally sits on the call itself; if it arrives on an earlier part of the same reply, the first call takes it.
+        if (p.thoughtSignature && !p.functionCall) pending = p.thoughtSignature;
+        if (p.functionCall) {
+          const sig = p.thoughtSignature || (out.toolCalls.length === 0 ? pending : '');
+          out.toolCalls.push({ id: 'g' + (++n), name: p.functionCall.name, input: p.functionCall.args || {}, sig: sig || undefined });
+        }
       }
       if (c.finishReason) out.stop = c.finishReason;
     }
@@ -241,5 +260,5 @@
     } finally { clearTimeout(t); }
   }
 
-  root.LLM = { PROVIDERS, chat, ping, originOf, cleanBase, endpointOf };
+  root.LLM = { PROVIDERS, chat, ping, originOf, cleanBase, endpointOf, toGemini };
 })(self);
