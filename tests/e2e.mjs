@@ -1321,6 +1321,20 @@ async function main() {
     await lpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
   });
 
+  await step('library: a file the browser cannot show gets a plain note instead of a blank box, and the tap opens the picker at once', async () => {
+    await lpage.locator('.libtile').first().click();
+    const sheet = lpage.locator('#sheets');
+    const t0 = Date.now();
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /View the original|Watch the original/ }).click()]);
+    ok(Date.now() - t0 < 2000, 'the picker opened straight from the tap');
+    await fc.setFiles({ name: 'broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('this is not a video') });
+    await lpage.locator('#sheets .resmedia').last().waitFor();
+    await lpage.getByText(/cannot show this file/).waitFor();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Close' }).last().click();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+    await lpage.waitForTimeout(200);
+  });
+
   await step('library: previews and entries survive a backup and restore; a hostile entry in a backup is ignored', async () => {
     const r = await lpage.evaluate(async () => {
       const text = await Store.buildBackup({ media: true });

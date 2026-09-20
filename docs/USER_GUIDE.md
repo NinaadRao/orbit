@@ -75,6 +75,8 @@ Progress, then **Open** on Workout photos and videos. **Add photos or videos** t
 - **iPhone (Safari or the Home Screen app):** a web app cannot keep a link into your photo library, so to watch an original again, or to use it in a form check or reel, you pick it again. Orbit uses it in memory and lets go. This is the price of not copying it.
 - **Chrome or Edge on a computer, and recent Chrome on Android:** Orbit can keep a real link to each file, so it opens without asking again. If you move or rename the file, the link stops working and you pick it again. If a link cannot be made, Orbit uses the normal file picker instead.
 
+**Watching or viewing the original.** Open an item and tap **Watch the original** (or **View the original** for a photo). On an iPhone the file picker opens; choose the same photo or video again. If the browser cannot show the file (some phone formats, such as HEIC photos and HEVC videos, only open on Apple devices), Orbit says so instead of showing a blank box, and the original is still fine in Photos or Files.
+
 A backup includes the entries and their previews, never the originals. Removing an item from Orbit does not touch the photo or video.
 
 **Ask the coach about form.** Open an item and tap it. For a video Orbit takes six still frames spread across it (one for a photo), shows them to you, and names the provider they will go to. Nothing is sent until you tap Send. They go with your own key, are not saved, and can show your face and surroundings. The coach says what it can see and suggests up to four cues; it cannot judge speed or feel, and it can be wrong. You can save the written review with the item.

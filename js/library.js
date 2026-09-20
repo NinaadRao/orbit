@@ -137,12 +137,15 @@
     cache.set(id, handle);
     try { await root.Store.setMeta('clip_h_' + id, handle); return true; } catch (e) { return false; }
   }
+  // ids whose saved link has already been looked up, so a tap can decide without waiting on the database
+  const looked = new Set();
   async function getHandle(id) {
     if (cache.has(id)) return cache.get(id);
     try { const hd = await root.Store.getMeta('clip_h_' + id); if (hd && hd.kind === 'file') { cache.set(id, hd); return hd; } } catch (e) { /* none */ }
+    finally { looked.add(id); }
     return null;
   }
-  async function dropHandle(id) { cache.delete(id); try { await root.Store.delMeta('clip_h_' + id); } catch (e) { /* none */ } }
+  async function dropHandle(id) { cache.delete(id); looked.delete(id); try { await root.Store.delMeta('clip_h_' + id); } catch (e) { /* none */ } }
   // The original through a saved link, or null when there is no link, permission was refused, or the file moved.
   async function fromLink(clip) {
     const hd = await getHandle(clip.id);
@@ -170,7 +173,8 @@
     }
     return new Promise((resolve) => {
       const accept = o.kind === 'video' ? 'video/*' : o.kind === 'photo' ? 'image/*' : 'image/*,video/*';
-      const input = h('input', { type: 'file', accept, multiple: !!o.multiple, class: 'hidden', 'aria-label': o.label || 'Choose photos or videos' });
+      // Kept "on the page" but out of sight: some iPhone versions ignore a click on an input that is display:none.
+      const input = h('input', { type: 'file', accept, multiple: !!o.multiple, class: 'offscreen', 'aria-label': o.label || 'Choose photos or videos' });
       input.addEventListener('change', () => { const files = Array.from(input.files || []); input.remove(); resolve(files.length ? { files, handles: null } : null); });
       input.addEventListener('cancel', () => { input.remove(); resolve(null); });
       document.body.appendChild(input);
@@ -178,12 +182,17 @@
     });
   }
   // The original of a library item: through its link when there is one, otherwise the person picks it again.
+  // A browser only opens its file picker while it still counts the tap as a tap, and waiting on the database first
+  // can use that up (Safari on iPhone is strict about it). So when there is no link to try, the picker opens at once.
   async function original(clip) {
+    const again = () => pick({ multiple: false, kind: clip.kind, label: 'Choose the original ' + clip.kind }).then((r) => (r ? { file: r.files[0], how: 'picked', handle: r.handles ? r.handles[0] : null } : null));
+    if (!canLink() || (looked.has(clip.id) && !cache.has(clip.id))) return again();
     const f = await fromLink(clip);
     if (f) return { file: f, how: 'link' };
-    const r = await pick({ multiple: false, kind: clip.kind, label: 'Choose the original ' + clip.kind });
-    return r ? { file: r.files[0], how: 'picked', handle: r.handles ? r.handles[0] : null } : null;
+    return again();
   }
+  // Look up the saved link for an item ahead of time (when its sheet opens), so the tap on "Watch the original" can act straight away.
+  function warm(clip) { return canLink() && clip ? getHandle(clip.id).catch(() => null) : Promise.resolve(null); }
 
   // Match files the person picked again to library items by name and size. Returns Map(clip id -> File).
   function match(files, clips) {
@@ -194,6 +203,6 @@
     return out;
   }
 
-  const Library = { match, MAX_FILES, THUMB_SIDE, kindOf, dateOf, fmtDur, readInfo, frames, toB64, canLink, saveHandle, getHandle, dropHandle, fromLink, pick, original, openVideo, ready, knownDuration, seekTo, noLinks: false };
+  const Library = { match, MAX_FILES, THUMB_SIDE, kindOf, dateOf, fmtDur, readInfo, frames, toB64, canLink, saveHandle, getHandle, dropHandle, fromLink, pick, original, warm, openVideo, ready, knownDuration, seekTo, noLinks: false };
   root.Library = Library;
 })(self);

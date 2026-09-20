@@ -106,11 +106,13 @@
     const set = Store.getSettings();
     const media = c.kind === 'video' ? h('video', { src: url, controls: true, playsinline: true, class: 'resmedia', 'aria-label': 'Original video' }) : h('img', { src: url, alt: 'Original photo', class: 'resmedia' });
     const warn = h('div', { class: 'warnbox hidden', role: 'note' }, 'This does not look like the item you saved (its length is different). It is shown anyway.');
+    const noplay = h('div', { class: 'warnbox hidden', role: 'alert' }, 'This browser cannot show this file (some phone formats, such as HEIC photos or HEVC videos, only open on Apple devices or in Safari). The original is fine where it is. Open it from Photos or Files instead.');
+    media.addEventListener('error', () => { noplay.classList.remove('hidden'); warn.classList.add('hidden'); });
     if (c.kind === 'video' && c.dur) media.addEventListener('loadedmetadata', () => { if (Number.isFinite(media.duration) && Math.abs(media.duration - c.dur) > 1.5) warn.classList.remove('hidden'); });
     let hidden = !!set.blurPhotos;
     const holder = h('div', { class: 'resbox' + (hidden ? ' blur' : '') }, media);
     const peek = set.blurPhotos ? h('button', { type: 'button', class: 'chip line peekbtn', onclick: () => { hidden = !hidden; holder.classList.toggle('blur', hidden); peek.textContent = hidden ? 'Show' : 'Blur'; } }, 'Show') : null;
-    U.sheet(c.kind === 'video' ? 'Original video' : 'Original photo', h('div', { class: 'stack' }, holder, peek, warn,
+    U.sheet(c.kind === 'video' ? 'Original video' : 'Original photo', h('div', { class: 'stack' }, holder, peek, noplay, warn,
       h('div', { class: 'muted small' }, got.how === 'link' ? 'Opened from the file on this computer.' : 'You picked it again. Orbit is using it now and is not keeping a copy.')), [{ label: 'Close', kind: 'primary' }], { onClose: () => URL.revokeObjectURL(url) });
   }
 
@@ -175,6 +177,7 @@
 
   // ---------- one item ----------
   function openClip(c) {
+    Library.warm(c);
     const st = Store.getState(), set = Store.getSettings();
     let tag = c.tag, lift = c.lift;
     const note = UI.field({ label: 'Note', value: c.note, maxlength: 200 });
