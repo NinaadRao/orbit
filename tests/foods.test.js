@@ -78,8 +78,10 @@ test('the shipped food file loads completely and covers what a lifter eats', () 
   const find = (n) => list.find((f) => f.name === n);
   const egg = find('Egg, whole, raw, fresh'); assert.deepEqual([egg.kcal, egg.protein, egg.carbs, egg.fat], [143, 12.6, 0.7, 9.5]); // USDA reference values
   const lentil = find('Lentils, raw'); assert.deepEqual([lentil.kcal, lentil.protein, lentil.fat], [352, 24.6, 1.1]);
-  const paneer = find('Paneer'); assert.ok(paneer && paneer.src === 1 && paneer.diet === 0 && Math.abs(paneer.protein - 18.9) < 0.1);
-  assert.equal(find('Ghee').kcal, 900, 'oils get an energy value');
+  assert.ok(list.every((f) => f.src === 0), 'the bundled list is USDA only; source 1 is reserved for a person\'s own list');
+  assert.ok(raw.sources.length === 1 && raw.sources[0].id === 'usda');
+  assert.equal(find('Butter oil, anhydrous').kcal, 876, 'fats carry their energy value');
+  assert.ok(Foods.parseDb(raw).find((f) => f.name === 'Butter oil, anhydrous').alias.includes('ghee'), 'ghee finds butter oil');
 });
 
 test('no vegetarian-tagged food names meat, fish or gelatin, apart from the plant-based ones', () => {
@@ -96,7 +98,7 @@ test('search ranks the food you meant first', () => {
   assert.ok(top('almonds').includes('Nuts, almonds'));
   assert.ok(top('mutton', { limit: 10 }).some((n) => /^(Goat|Sheep|Lamb)/.test(n)), 'everyday Indian word finds goat and sheep');
   assert.ok(top('bhindi').some((n) => /okra|ladies finger/i.test(n)));
-  assert.ok(top('atta')[0].includes('atta'));
+  assert.ok(top('atta').some((n) => /^Wheat flour, whole/.test(n)), 'atta finds whole wheat flour');
   assert.ok(top('moong dal').some((n) => /green gram|mung/i.test(n)));
   assert.equal(Foods.search('zzzzzz', { limit: 5 }).length, 0);
   assert.equal(Foods.search('', { limit: 5 }).length, 0);
@@ -137,4 +139,77 @@ test('the loader fetches once and keeps the result', async () => {
   const F3 = require('../js/foods.js');
   await assert.rejects(() => F3.load(() => Promise.resolve({ ok: false })), /could not be loaded/);
   assert.equal(F3.ready(), false, 'a failure can be retried');
+});
+
+// ---------- the person's own list ----------
+const CSV = fs.readFileSync(path.join(__dirname, '..', 'docs', 'food-import-example.csv'), 'utf8');
+
+test('own list: the example CSV reads completely and diets map from words', () => {
+  const r = Foods.parseImport(CSV, 'food-import-example.csv');
+  assert.equal(r.rows.length, 6); assert.equal(r.skipped, 0); assert.equal(r.name, 'food-import-example');
+  assert.deepEqual(r.rows.map((x) => x[1]), [0, 0, 0, 1, 2, 3]);
+  assert.deepEqual(r.rows[0], ['Example millet flour', 0, 361, 11.5, 67.5, 5, 11.5, 'bajra']);
+});
+
+test('own list: JSON in both shapes, string or number values, and unknown diet means check the label', () => {
+  const a = Foods.parseImport(JSON.stringify({ orbitFoods: 1, name: 'Mine', foods: [{ name: 'A', kcal: '100', protein: 5, carbs: 10, fat: 2, diet: 'Veg' }, { name: 'B', kcal: 50, protein: 1, carbs: 1, fat: 1, diet: 'vegan?', aliases: ['x', 'y'] }] }));
+  assert.equal(a.name, 'Mine'); assert.deepEqual(a.rows.map((x) => x[1]), [0, 3]); assert.equal(a.rows[1][7], 'x y'); assert.equal(a.rows[0][6], 0, 'fibre defaults to 0');
+  const b = Foods.parseImport('[{"name":"C","kcal":1,"protein":0,"carbs":0,"fat":0}]', 'c.json');
+  assert.equal(b.name, 'c'); assert.equal(b.rows.length, 1);
+});
+
+test('own list: bad rows are skipped and counted, and useless files are refused with a reason', () => {
+  const r = Foods.parseImport('name,kcal,protein,carbs,fat\nOk,100,5,5,5\n,100,5,5,5\nHuge,5000,5,5,5\nText,abc,1,1,1\nNeg,10,-1,1,1\n', 'x.csv');
+  assert.equal(r.rows.length, 1); assert.equal(r.skipped, 4); assert.ok(r.why.length >= 3);
+  assert.throws(() => Foods.parseImport('', 'x.csv'), /empty/);
+  assert.throws(() => Foods.parseImport('name,kcal\nA,1\n', 'x.csv'), /Missing: protein/);
+  assert.throws(() => Foods.parseImport('{"foods": 3}'), /No list of foods/);
+  assert.throws(() => Foods.parseImport('[{"name":"x","kcal":9999,"protein":1,"carbs":1,"fat":1}]'), /No usable foods/);
+  assert.throws(() => Foods.parseImport('x'.repeat(Foods.IMPORT_MAX_BYTES + 1)), /15 MB/);
+});
+
+test('own list: text is cleaned, so control characters and markup stay inert data', () => {
+  const r = Foods.parseImport('[{"name":"  <img src=x onerror=alert(1)>\\u0000\\n Tea ","kcal":1,"protein":0,"carbs":0,"fat":0}]');
+  assert.equal(r.rows[0][0], '<img src=x onerror=alert(1)> Tea'); // stored as text; the app only ever sets textContent
+});
+
+test('own list: useUser makes rows searchable as "My list", re-checks them, and can be cleared', () => {
+  Foods.useDb(Foods.parseDb(raw));
+  const r = Foods.parseImport(CSV, 'x.csv');
+  assert.equal(Foods.useUser(r.rows.concat([['Broken', 9, 1, 1, 1, 1, 0, ''], ['Big', 0, 5000, 1, 1, 1, 0, ''], null, 'x']), 'My tables'), 6);
+  assert.equal(Foods.userCount(), 6); assert.equal(Foods.userName(), 'My tables');
+  const hit = Foods.search('bajra', { limit: 3 })[0];
+  assert.equal(hit.name, 'Example millet flour'); assert.equal(hit.src, 1); assert.equal(hit.per100, true);
+  assert.equal(Foods.SOURCE_LABEL[hit.src], 'My list');
+  assert.equal(Foods.search('fish fillet', { diet: 'veg' }).filter((f) => f.src === 1).length, 0, 'the diet filter applies to the own list too');
+  assert.equal(Foods.search('mystery snack', { diet: 'veg' }).length, 0, 'check-the-label foods hide from Veg');
+  assert.equal(Foods.useUser([], ''), 0); assert.equal(Foods.userName(), '');
+  assert.equal(Foods.search('bajra').filter((f) => f.src === 1).length, 0);
+});
+
+test('IFCT converter: writes an import file with word diets, and refuses to write inside the repository', async () => {
+  const { toImport } = await import('../scripts/ifct-to-import.mjs');
+  const { buildFromIfct } = await build();
+  const hdr = 'name,grup,lang,enerc,protcnt,fatce,choavldf,fibtg';
+  const pad = ',,';
+  const csv = [hdr + pad, 'Test flour,Cereals and Millets,"H. Testata",1500,10,2,70,8' + pad, 'Test fish,Marine Fish,,400,20,3,0,0' + pad, 'Test egg,Egg and Egg Products,,600,12,10,1,0' + pad].join('\n');
+  const rows = buildFromIfct(csv);
+  const j = toImport(rows, 'Fictional');
+  assert.equal(j.orbitFoods, 1); assert.deepEqual(j.foods.map((f) => f.diet), ['veg', 'nonveg', 'egg']);
+  const back = Foods.parseImport(JSON.stringify(j), 'x.json');
+  assert.equal(back.rows.length, 3); assert.equal(back.skipped, 0);
+  const { spawnSync } = require('node:child_process');
+  const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'orbit-ifct-'));
+  const inp = path.join(tmp, 'index.csv'); fs.writeFileSync(inp, csv);
+  const script = path.join(__dirname, '..', 'scripts', 'ifct-to-import.mjs');
+  const bad = spawnSync('node', [script, inp, '--out', path.join(__dirname, '..', 'leak.orbitfoods.json')], { encoding: 'utf8' });
+  assert.equal(bad.status, 2); assert.match(bad.stderr, /Refusing to write inside/); assert.equal(fs.existsSync(path.join(__dirname, '..', 'leak.orbitfoods.json')), false);
+  const good = spawnSync('node', [script, inp, '--out', path.join(tmp, 'ifct.orbitfoods.json')], { encoding: 'utf8' });
+  assert.equal(good.status, 0, good.stderr); assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'ifct.orbitfoods.json'), 'utf8')).foods.length, 3);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('the bundled data holds no rows from the IFCT tables', () => {
+  assert.ok(!/IFCT|Indian Food Composition|National Institute of Nutrition/i.test(JSON.stringify(raw.sources)));
+  assert.ok(raw.foods.every((f) => f[7] === 0));
 });

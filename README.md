@@ -42,7 +42,8 @@ A private, local-first tracker for lifts, food, body weight, measurements and pr
 - Today shows the day's workout. Missed weeks show as Behind, not as an error, and you can catch up or skip.
 
 **Fuel**
-- Search about 7,800 foods with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI, type raw ingredients, or enter macros by hand.
+- Search about 7,200 foods (USDA data) with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI, type raw ingredients, or enter macros by hand.
+- Add your own food list from a CSV or JSON file, such as regional tables you have the right to use. It stays on your device.
 - AI results always show an editable confirmation card. Nothing is saved until you tap "Looks right".
 
 **Body and photos**
@@ -83,7 +84,7 @@ Then open Orbit from its home screen icon, answer the setup questions (about fou
 ## Documentation
 
 - [docs/INSTALL.md](docs/INSTALL.md): run, install on iPhone or Android, update, fix problems.
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): photo trend, food database, workout library, form check, reel, and the AI features and your key.
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): photo trend, food database and your own food list, workout library, form check, reel, and the AI features and your key.
 - [docs/BACKUP.md](docs/BACKUP.md): make and restore a backup, and keep the app if you do not use it daily.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it fits together and why, and the file layout.
 - [SECURITY.md](SECURITY.md): what is and is not protected.
@@ -116,4 +117,6 @@ The end-to-end tests use fictional numbers and a fake AI provider, and check the
 
 ## License
 
-The code is MIT. Fonts (Big Shoulders Display, DM Sans) are under the SIL Open Font License; see `fonts/`. The food data in `data/foods.json` is **not** covered by the code's licence: it comes from USDA (public domain) and from India's IFCT 2017 tables (personal use unless the National Institute of Nutrition gives permission). Read [data/SOURCES.md](data/SOURCES.md) before making the repository public or hosting the app publicly.
+The code is MIT. Fonts (Big Shoulders Display, DM Sans) are under the SIL Open Font License; see `fonts/`.
+
+The bundled food data in `data/foods.json` is **not** covered by the code's licence. It is USDA FoodData Central SR Legacy (public domain, CC0), as arranged in the TempoLife food database (CC-BY-4.0): *Food nutrition data from TempoLife (tempolife.app), CC-BY-4.0.* USDA asks for this acknowledgement: *U.S. Department of Agriculture, Agricultural Research Service. FoodData Central. fdc.nal.usda.gov.* The Indian Food Composition Tables (IFCT 2017) are **not** included, because their publisher does not allow electronic redistribution without written permission; you can load a copy you obtained yourself as your own list, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md#your-own-food-list). Details: [data/SOURCES.md](data/SOURCES.md).

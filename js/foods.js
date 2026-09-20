@@ -1,9 +1,11 @@
 /*
- * Food search: a full offline database plus a short list of typical home-style Indian dishes.
+ * Food search: a full offline database, an optional list the person loads themselves, and a short list of typical home-style dishes.
  *
- * The database is data/foods.json (about 7,800 foods per 100 g: USDA SR Legacy and the Indian Food Composition Tables 2017;
- * see data/SOURCES.md). It loads the first time Fuel is opened and is kept for offline use by the service worker.
- * The short list below is different: typical values for plain, home-style dishes that neither dataset measures cooked
+ * The database is data/foods.json (about 7,200 foods per 100 g from USDA SR Legacy, public domain; see data/SOURCES.md).
+ * It loads the first time Fuel is opened and is kept for offline use by the service worker.
+ * The person's own list is a JSON or CSV file they choose (parseImport). It is kept on the device only, never bundled or uploaded,
+ * so data with its own terms (for example the Indian Food Composition Tables) never has to be shipped with the app.
+ * The short list below is different: typical values for plain, home-style dishes that a database does not measure cooked
  * (a katori of dal, a phulka, an idli). Those numbers are approximate and labelled so.
  *
  * diet: 0 vegetarian, 1 egg, 2 meat, poultry, fish or gelatin, 3 unclear ingredients (restaurant, canned soup, ready meal).
@@ -55,8 +57,8 @@
   function tokens(q) { return String(q || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
 
   // ---------- the database ----------
-  const DB = { list: null, promise: null };
-  const SOURCE_LABEL = ['USDA', 'India (IFCT)'];
+  const DB = { list: null, promise: null, user: [], userName: '' };
+  const SOURCE_LABEL = ['USDA', 'My list'];
   const isNum = (x, hi) => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= hi;
 
   // Reads data/foods.json. Anything malformed is skipped, so a damaged file can never put odd values into the log.
@@ -67,7 +69,7 @@
       const a = json.foods[i];
       if (!Array.isArray(a) || typeof a[0] !== 'string' || !a[0] || a[0].length > 160) continue;
       const diet = a[1], src = a[7];
-      if (![0, 1, 2, 3].includes(diet) || ![0, 1].includes(src)) continue;
+      if (![0, 1, 2, 3].includes(diet) || src !== 0) continue;
       if (!isNum(a[2], 900) || !isNum(a[3], 100) || !isNum(a[4], 100) || !isNum(a[5], 100) || !isNum(a[6], 100)) continue;
       const alias = typeof a[8] === 'string' ? a[8].slice(0, 120) : '';
       out.push({ id: 'd' + i, name: a[0], serving: '100 g', kcal: a[2], protein: a[3], carbs: a[4], fat: a[5], fibre: a[6], diet, src, alias, per100: true, hayWords: words(a[0] + ' ' + alias) });
@@ -76,6 +78,80 @@
     return out;
   }
   function useDb(list) { DB.list = list; DB.promise = Promise.resolve(list); return list; }
+
+  // ---------- the person's own list ----------
+  // A file the person chooses: JSON ({"orbitFoods":1,"name":"...","foods":[{name,kcal,protein,carbs,fat,fibre?,diet?,aliases?}]} or just the array)
+  // or CSV with a header row (name,kcal,protein,carbs,fat,fibre,diet,aliases; the last three are optional). All values are per 100 g.
+  // diet is veg, egg, nonveg or check; anything else, or nothing, means "check the label". Every row is checked; bad rows are skipped and counted.
+  const IMPORT_MAX_BYTES = 15 * 1024 * 1024, IMPORT_MAX_ROWS = 30000;
+  const DIET_WORDS = { veg: 0, vegetarian: 0, egg: 1, eggetarian: 1, nonveg: 2, 'non-veg': 2, 'non veg': 2, meat: 2, check: 3 };
+  const tidy = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+  const numOf = (x) => { if (x == null || x === '') return null; const n = typeof x === 'number' ? x : Number(String(x).trim()); return Number.isFinite(n) ? n : null; };
+  function csvRows(text) {
+    const rows = []; let row = [], cur = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if (c !== '\r') cur += c;
+    }
+    if (cur.length || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+  // Returns { name, rows: [[name, diet, kcal, protein, carbs, fat, fibre, alias]], total, skipped, why }. Throws a readable Error when nothing usable is found.
+  function parseImport(text, fileName) {
+    if (typeof text !== 'string' || !text.trim()) throw new Error('That file is empty.');
+    if (text.length > IMPORT_MAX_BYTES) throw new Error('That file is over 15 MB. Split it or remove columns you do not need.');
+    const t = text.replace(/^\uFEFF/, '');
+    let items = [], name = '';
+    if (/^\s*[\[{]/.test(t)) {
+      let j; try { j = JSON.parse(t); } catch (e) { throw new Error('That file looks like JSON but could not be read.'); }
+      const arr = Array.isArray(j) ? j : j && Array.isArray(j.foods) ? j.foods : null;
+      if (!arr) throw new Error('No list of foods found. Expected {"foods": [...]} or a plain list.');
+      if (j && !Array.isArray(j)) name = tidy(j.name, 60);
+      items = arr;
+    } else {
+      const rows = csvRows(t);
+      const head = (rows[0] || []).map((c) => tidy(c, 40).toLowerCase());
+      const col = (k) => head.indexOf(k);
+      for (const k of ['name', 'kcal', 'protein', 'carbs', 'fat']) if (col(k) < 0) throw new Error('The first row must name the columns: name, kcal, protein, carbs, fat (then optionally fibre, diet, aliases). Missing: ' + k + '.');
+      for (const r of rows.slice(1)) items.push({ name: r[col('name')], kcal: r[col('kcal')], protein: r[col('protein')], carbs: r[col('carbs')], fat: r[col('fat')], fibre: col('fibre') >= 0 ? r[col('fibre')] : null, diet: col('diet') >= 0 ? r[col('diet')] : null, aliases: col('aliases') >= 0 ? r[col('aliases')] : null });
+    }
+    if (!name) name = tidy(String(fileName || '').replace(/\.[a-z0-9]{1,5}$/i, ''), 60) || 'My list';
+    const out = [], why = new Set(); let skipped = 0;
+    const total = items.length;
+    for (const it of items) {
+      if (out.length >= IMPORT_MAX_ROWS) { skipped++; why.add('only the first ' + IMPORT_MAX_ROWS.toLocaleString('en-US') + ' foods are kept'); continue; }
+      if (!it || typeof it !== 'object') { skipped++; why.add('a row was not an entry'); continue; }
+      const nm = tidy(it.name, 160);
+      const kcal = numOf(it.kcal), p = numOf(it.protein), c = numOf(it.carbs), f = numOf(it.fat), fib = it.fibre == null || it.fibre === '' ? 0 : numOf(it.fibre);
+      if (!nm) { skipped++; why.add('a food had no name'); continue; }
+      if (kcal == null || p == null || c == null || f == null || fib == null) { skipped++; why.add('some rows had a missing or non-numeric value'); continue; }
+      if (!isNum(kcal, 900) || !isNum(p, 100) || !isNum(c, 100) || !isNum(f, 100) || !isNum(fib, 100)) { skipped++; why.add('some values were outside what 100 g can hold'); continue; }
+      const dw = tidy(it.diet, 20).toLowerCase(), diet = Object.prototype.hasOwnProperty.call(DIET_WORDS, dw) ? DIET_WORDS[dw] : 3;
+      const al = Array.isArray(it.aliases) ? it.aliases.map((x) => tidy(x, 40)).join(' ') : tidy(it.aliases, 120);
+      out.push([nm, diet, Math.round(kcal), Math.round(p * 10) / 10, Math.round(c * 10) / 10, Math.round(f * 10) / 10, Math.round(fib * 10) / 10, al.slice(0, 120)]);
+    }
+    if (!out.length) throw new Error('No usable foods found' + (why.size ? ' (' + Array.from(why).slice(0, 2).join('; ') + ')' : '') + '. Values are per 100 g: kcal up to 900, the rest up to 100.');
+    return { name, rows: out, total, skipped, why: Array.from(why) };
+  }
+  // Makes the parsed rows searchable. Rows are checked again, so what is read back from storage is never trusted either.
+  function useUser(rows, name) {
+    const list = [];
+    for (let i = 0; Array.isArray(rows) && i < rows.length && list.length < IMPORT_MAX_ROWS; i++) {
+      const a = rows[i];
+      if (!Array.isArray(a) || typeof a[0] !== 'string' || !a[0] || a[0].length > 160 || ![0, 1, 2, 3].includes(a[1])) continue;
+      if (!isNum(a[2], 900) || !isNum(a[3], 100) || !isNum(a[4], 100) || !isNum(a[5], 100) || !isNum(a[6], 100)) continue;
+      const alias = typeof a[7] === 'string' ? a[7].slice(0, 120) : '';
+      list.push({ id: 'u' + i, name: a[0], serving: '100 g', kcal: a[2], protein: a[3], carbs: a[4], fat: a[5], fibre: a[6], diet: a[1], src: 1, alias, per100: true, hayWords: words(a[0] + ' ' + alias) });
+    }
+    DB.user = list; DB.userName = list.length ? tidy(name, 60) : '';
+    return list.length;
+  }
+  const userCount = () => DB.user.length;
+  const userName = () => DB.userName;
   function load(fetcher) {
     if (DB.list) return Promise.resolve(DB.list);
     if (DB.promise) return DB.promise;
@@ -88,7 +164,7 @@
     return DB.promise;
   }
   const ready = () => !!DB.list;
-  const count = () => (DB.list ? DB.list.length : 0) + CATALOG.length;
+  const count = () => (DB.list ? DB.list.length : 0) + DB.user.length + CATALOG.length;
 
   // 'all', 'veg' (vegetarian only), 'egg' (vegetarian and egg), 'nonveg' (meat, poultry and fish only)
   const DIETS = ['all', 'veg', 'egg', 'nonveg'];
@@ -129,7 +205,7 @@
     const o = opts || {}, t = tokens(q), diet = o.diet || 'all';
     if (!t.length) return [];
     const out = [];
-    for (const pool of [CATALOG, DB.list || []]) {
+    for (const pool of [CATALOG, DB.user, DB.list || []]) {
       for (const f of pool) {
         if (!dietOk(diet, f.diet)) continue;
         const s = score(f, t);
@@ -165,7 +241,7 @@
     return recents(foods, 200).filter((f) => t.every((w) => f.name.toLowerCase().includes(w))).slice(0, limit || 5);
   }
 
-  const api = { CATALOG, search, recents, searchRecents, load, ready, count, parseDb, useDb, scale, dietOk, dietFor, DIETS, DIET_LABEL, DIET_TONE, SOURCE_LABEL };
+  const api = { CATALOG, search, recents, searchRecents, load, ready, count, parseDb, useDb, parseImport, useUser, userCount, userName, IMPORT_MAX_BYTES, scale, dietOk, dietFor, DIETS, DIET_LABEL, DIET_TONE, SOURCE_LABEL };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Foods = api;
 })(typeof self !== 'undefined' ? self : this);

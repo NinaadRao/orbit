@@ -38,7 +38,7 @@ After the first load the app is cached on your phone and works without your comp
 
 ### Option B: a public host (free, but the address is public)
 
-Any static host works, for example Cloudflare Pages or Netlify Drop. The folder holds code and the food list only, so no data of yours is exposed, but anyone who knows the address can load the (empty) app. If you would rather not advertise it, use Option A or pick an unguessable project name. The food list has its own terms; read [data/SOURCES.md](../data/SOURCES.md) before putting it on a public address.
+Any static host works, for example Cloudflare Pages or Netlify Drop. The folder holds code and the food list only, so no data of yours is exposed, but anyone who knows the address can load the (empty) app. If you would rather not advertise it, use Option A or pick an unguessable project name. The bundled food list is USDA data (public domain) with a CC-BY attribution that the app shows; see [data/SOURCES.md](../data/SOURCES.md).
 
 1. Run `npm run site` (or `sh scripts/make-site.sh`). It creates `dist/` with only what a host needs, leaving out tests, docs and `.git`.
 2. Put `dist/` online (menu names change now and then):

@@ -25,6 +25,45 @@
     return Store.append('food_logged', data);
   }
 
+  // ---------- the person's own food list ----------
+  // Kept in this browser only (meta store), never in backups and never in the repository. See Foods.parseImport for the file format.
+  let userLoaded = null;
+  function loadUserList() {
+    if (!userLoaded) {
+      userLoaded = Store.getMeta('userFoods').then((rec) => { if (rec && rec.v === 1) Foods.useUser(rec.rows, rec.name); }).catch(() => { /* none stored */ });
+    }
+    return userLoaded;
+  }
+  // Reads a chosen file, shows what was found, and only stores it after "Use this list".
+  async function readListFile(file, onDone) {
+    if (!file) return;
+    if (file.size > Foods.IMPORT_MAX_BYTES) return U.toast('That file is over 15 MB.', 'warn');
+    let r;
+    try { r = Foods.parseImport(await file.text(), file.name); } catch (e) { return U.toast(String(e && e.message ? e.message : e).slice(0, 240), 'warn'); }
+    const names = r.rows.slice(0, 4).map((x) => x[0]).join(', ');
+    const body = h('div', { class: 'stack' },
+      h('div', { class: 'ct' }, r.name),
+      h('div', null, U.withCommas(r.rows.length) + ' foods can be used' + (r.skipped ? ', ' + U.withCommas(r.skipped) + ' skipped' : '') + '.'),
+      r.skipped ? h('div', { class: 'muted small' }, 'Skipped because ' + r.why.join('; ') + '.') : null,
+      h('div', { class: 'muted small' }, 'For example: ' + names + (r.rows.length > 4 ? ', ...' : '')),
+      h('div', { class: 'muted small' }, 'Foods with no diet marked show "check the label". The list is kept on this device only. It is not put in backups and never uploaded, so choose the file again on a new phone.'));
+    U.sheet('Use this food list?', body, [{ label: 'Cancel', kind: 'quiet' }, { label: 'Use this list', kind: 'primary', run: () => {
+      (async () => {
+        try {
+          await Store.setMeta('userFoods', { v: 1, name: r.name, at: new Date().toISOString(), rows: r.rows });
+          Foods.useUser(r.rows, r.name); userLoaded = Promise.resolve();
+          U.toast('Added ' + U.withCommas(Foods.userCount()) + ' foods to Find.'); onDone();
+        } catch (e) { U.toast('Could not save the list on this device.', 'warn'); }
+      })();
+    } }]);
+  }
+  function removeListSheet(onDone) {
+    U.confirmSheet('Remove your food list?', 'It is deleted from this device. Foods you already logged from it stay in your log.', 'Remove', async () => {
+      try { await Store.delMeta('userFoods'); } catch (e) { /* ignore */ }
+      Foods.useUser([], ''); onDone();
+    }, true);
+  }
+
   // ---------- Fuel screen ----------
   Screens.fuel = function () {
     const st = Store.getState(), plan = st.plan, t = U.today();
@@ -133,10 +172,24 @@
       const notListed = h('div', { class: 'stack' },
         h('div', { class: 'muted small' }, 'Not listed? Type the raw ingredients (like "200 g paneer, 1 tbsp oil, 2 rotis") and get an estimate, or enter the macros yourself.'),
         h('div', { class: 'row' }, UI.btn('Type ingredients', { kind: 'quiet', onClick: () => { aiText = q.input.value.trim(); tab = 'ingr'; draw(); } }), UI.btn('Enter macros', { kind: 'quiet', onClick: () => { mFields.name = q.input.value.trim().slice(0, 80); tab = 'manual'; draw(); } })));
-      const credit = h('div', { class: 'muted small' }, 'Per 100 g unless a serving is shown. Food data: USDA FoodData Central and the Indian Food Composition Tables 2017. The Veg, Egg and Non-veg tags come from each food\'s group and name, so read the label if it matters. "Approximate" entries are typical home-style values.');
+      const credit = h('div', { class: 'muted small' }, 'Per 100 g unless a serving is shown. Food data: USDA FoodData Central (public domain), arranged by TempoLife (CC-BY-4.0). The Veg, Egg and Non-veg tags come from each food\'s group and name, so read the label if it matters. "Approximate" entries are typical home-style values.');
+      const myList = h('div', { class: 'stack' });
+      const listFile = h('input', { type: 'file', class: 'hidden', accept: '.json,.csv,text/csv,application/json,text/plain', 'aria-label': 'Food list file' });
+      listFile.addEventListener('change', () => { const file = listFile.files && listFile.files[0]; listFile.value = ''; readListFile(file, () => afterListChange()); });
+      const pickListFile = () => listFile.click();
+      const drawMyList = () => {
+        U.clear(myList);
+        const n = Foods.userCount();
+        if (n) U.put(myList, h('div', { class: 'kv' }, h('span', null, 'My list: ' + Foods.userName()), h('b', null, U.withCommas(n) + ' foods')),
+          h('div', { class: 'row' }, UI.btn('Replace', { kind: 'quiet', onClick: () => pickListFile() }), UI.btn('Remove', { kind: 'quiet', onClick: () => removeListSheet(afterListChange) })));
+        else U.put(myList, h('div', { class: 'muted small' }, 'Want foods that are not here, such as your own regional tables? Add a list from a file. It stays on this device.'),
+          UI.btn('Add my own food list', { kind: 'quiet', icon: 'file', onClick: () => pickListFile() }));
+      };
+      const afterListChange = () => { drawMyList(); showResults(); };
       q.input.addEventListener('input', () => { shown = 12; showResults(); });
-      U.put(body, q, dietPills, status, results, more, notListed, credit);
-      showResults();
+      U.put(body, q, dietPills, status, results, more, notListed, listFile, myList, credit);
+      drawMyList(); showResults();
+      if (!Foods.userCount()) loadUserList().then(() => { if (document.body.contains(body)) afterListChange(); });
       if (!Foods.ready()) Foods.load().then(() => { if (document.body.contains(body)) showResults(); }).catch(() => { failed = true; if (document.body.contains(body)) showResults(); });
     }
     function drawPick() {
@@ -166,7 +219,7 @@
       upd();
       const notes = [];
       if (f.diet === 3) notes.push('The ingredients of this food are not clear, so check the label if you avoid meat or egg.');
-      if (f.src === 1) notes.push('Indian Food Composition Tables values are for the food as listed, usually raw.');
+      if (f.src === 1) notes.push('From your own list. Check that the amount matches how it was measured (raw or cooked).');
       U.put(body, h('div', { class: 'ct' }, f.name), h('div', { class: 'row' }, dietChip(f), U.chip(srcNote(f), 'line')), h('div', { class: 'muted small' }, 'Numbers are per 100 g. Weigh cooked food against a cooked entry and raw against a raw one.'), ...notes.map((n) => h('div', { class: 'muted small' }, n)), gf, quick, live,
         h('div', { class: 'row' }, UI.btn('Back', { kind: 'quiet', onClick: () => { pick = null; draw(); } }), UI.btn('Log it', { onClick: async () => {
           const n = numOrNull(grams);
@@ -174,7 +227,7 @@
           const m = Foods.scale(f, n);
           const r = E.normalizeFood({ name: f.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
           if (!r.ok) return U.toast(r.errors[0], 'warn');
-          await saveFood(date, meal, r.value, { serving: Math.round(n * 10) / 10 + ' g', source: f.src === 1 ? 'ifct' : 'usda' });
+          await saveFood(date, meal, r.value, { serving: Math.round(n * 10) / 10 + ' g', source: f.src === 1 ? 'mylist' : 'usda' });
           finish();
         } })));
     }

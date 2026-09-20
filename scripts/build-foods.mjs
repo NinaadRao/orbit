@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 /*
- * Builds data/foods.json, the offline food database used by Fuel, from two open datasets.
+ * Builds data/foods.json, the offline food database used by Fuel, from the public-domain USDA SR Legacy data.
  *
- *   node scripts/build-foods.mjs --usda <tempolife-foods.json> --ifct <ifct2017 index.csv> [--out data/foods.json]
+ *   node scripts/build-foods.mjs --usda <tempolife-foods.json> [--out data/foods.json]
  *
- * The two inputs come from the npm packages listed in data/SOURCES.md (npm pack tempo-food-db @ifct2017/compositions).
- * Only rows whose own source field says USDA SR Legacy are kept from the first file. The rest of that file (curated
+ * The input comes from the npm package listed in data/SOURCES.md (npm pack tempo-food-db@1.0.0).
+ * Only rows whose own source field says USDA SR Legacy are kept. The rest of that file (curated
  * rows without a public source) is left out on purpose. Nothing here touches the network, and nothing personal is read or written.
+ *
+ * The Indian Food Composition Tables 2017 are NOT bundled: their publisher does not allow electronic redistribution without
+ * written permission. buildFromIfct() below is used only by scripts/ifct-to-import.mjs, which turns a copy that YOU obtained
+ * into a file you can load into your own Orbit (Fuel, Find, "Add my own food list"). See data/SOURCES.md.
  *
  * Each food is stored per 100 g as [name, diet, kcal, protein, carbs, fat, fibre, source, aliases]
  *   diet: 0 vegetarian, 1 contains egg (or very likely does), 2 meat, poultry, fish, shellfish or gelatin, 3 ingredients unclear (restaurant, canned soup, ready meal)
- *   source: 0 USDA SR Legacy, 1 IFCT 2017 (India)
+ *   source: 0 USDA SR Legacy (1 is used in the app for a person's own list and never appears in this file)
  * The diet tag is worked out from the food group and the words in the name. It is a helpful filter, not a guarantee.
  */
 import fs from 'node:fs';
@@ -88,7 +92,7 @@ export function localNames(lang) {
 // Everyday Indian words for foods the datasets name in English or Latin, so a search for "mutton", "dahi" or "bhindi" finds them.
 // This is vocabulary only. No numbers come from here.
 const ALIAS_RULES = [
-  [/^(Lamb|Goat|Sheep|Mutton)\b/i, 'mutton'], [/^Yogurt\b/i, 'curd dahi'], [/^Buttermilk\b/i, 'chaas chhaas'], [/clarified butter|\bghee\b/i, 'ghee desi'],
+  [/^(Lamb|Goat|Sheep|Mutton)\b/i, 'mutton'], [/^Yogurt\b/i, 'curd dahi'], [/^Buttermilk\b/i, 'chaas chhaas'], [/clarified butter|butter oil|\bghee\b/i, 'ghee desi'],
   [/^(Chickpeas|Bengal gram)\b/i, 'chana chole kabuli'], [/^(Lentils?|Lentil)\b/i, 'masoor dal'], [/^(Pigeon peas?|Red gram)\b/i, 'toor tur arhar dal'],
   [/^(Mung beans?|Green gram)\b/i, 'moong dal'], [/^(Black gram)\b/i, 'urad dal'], [/kidney beans?/i, 'rajma'], [/^Rice\b/i, 'chawal'],
   [/^Wheat flour, (white|refined)/i, 'maida'], [/^Wheat flour, whole/i, 'atta'], [/^Spinach\b/i, 'palak'], [/^Cauliflower\b/i, 'gobi phool gobhi'],
@@ -143,28 +147,27 @@ export function buildFromIfct(csvText) {
   return out;
 }
 
-export function assemble(usda, ifct, built) {
+export function assemble(usda, built) {
   return {
     v: 1, built: built || new Date().toISOString().slice(0, 10),
     sources: [
-      { id: 'usda', name: 'USDA FoodData Central, SR Legacy', licence: 'Public domain (U.S. government)', via: 'tempo-food-db 1.0.0 (CC-BY-4.0, TempoLife)' },
-      { id: 'ifct', name: 'Indian Food Composition Tables 2017, National Institute of Nutrition, Hyderabad', licence: 'MIT package by Subhajit Sahu; data by NIN, cite the source', via: '@ifct2017/compositions 2.0.9' },
+      { id: 'usda', name: 'U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, SR Legacy. fdc.nal.usda.gov', licence: 'Public domain, CC0 1.0', via: 'tempo-food-db 1.0.0 (CC-BY-4.0, TempoLife; Food nutrition data from TempoLife, tempolife.app)' },
     ],
     fields: ['name', 'diet', 'kcal', 'protein', 'carbs', 'fat', 'fibre', 'source', 'aliases'],
-    foods: ifct.concat(usda),
+    foods: usda,
   };
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const arg = (k) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : null; };
-  const uf = arg('usda'), inf = arg('ifct'), out = arg('out') || path.join(here, '..', 'data', 'foods.json');
-  if (!uf || !inf) { console.error('Usage: node scripts/build-foods.mjs --usda <tempolife-foods.json> --ifct <ifct index.csv> [--out data/foods.json]'); process.exit(2); }
+  const uf = arg('usda'), out = arg('out') || path.join(here, '..', 'data', 'foods.json');
+  if (process.argv.includes('--ifct')) { console.error('The IFCT tables are not bundled. Use scripts/ifct-to-import.mjs to make a file for your own Orbit.'); process.exit(2); }
+  if (!uf) { console.error('Usage: node scripts/build-foods.mjs --usda <tempolife-foods.json> [--out data/foods.json]'); process.exit(2); }
   const usda = buildFromUsda(JSON.parse(fs.readFileSync(uf, 'utf8')));
-  const ifct = buildFromIfct(fs.readFileSync(inf, 'utf8'));
-  const db = assemble(usda, ifct);
+  const db = assemble(usda);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, '{"v":1,"built":' + JSON.stringify(db.built) + ',"sources":' + JSON.stringify(db.sources) + ',"fields":' + JSON.stringify(db.fields) + ',"foods":[\n' + db.foods.map((f) => JSON.stringify(f)).join(',\n') + '\n]}\n');
   const by = [0, 0, 0]; for (const f of db.foods) by[f[1]]++;
-  console.log('Wrote ' + out + ': ' + db.foods.length + ' foods (' + ifct.length + ' Indian, ' + usda.length + ' USDA); vegetarian ' + by[0] + ', egg ' + by[1] + ', meat or fish ' + by[2] + '.');
+  console.log('Wrote ' + out + ': ' + db.foods.length + ' foods (USDA); vegetarian ' + by[0] + ', egg ' + by[1] + ', meat or fish ' + by[2] + '.');
 }

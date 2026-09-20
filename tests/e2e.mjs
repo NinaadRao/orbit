@@ -221,18 +221,66 @@ async function main() {
     ok(Math.abs(f.protein - 30.6) < 0.6 && Math.abs(f.fat - 20.1) < 0.6, 'macros scaled from per 100 g, got ' + f.protein + ' and ' + f.fat);
   });
 
-  await step('Fuel: Indian foods and everyday names are found, and the filter choice is remembered', async () => {
+  await step('Fuel: everyday Indian names find USDA foods, and the filter choice is remembered', async () => {
     await page.getByRole('button', { name: 'Add food' }).click();
     eq(await page.getByRole('button', { name: 'Non-veg', exact: true }).getAttribute('aria-pressed'), 'true', 'the last filter is remembered');
     await page.getByRole('button', { name: 'All', exact: true }).click();
     await page.getByLabel('Search foods').fill('atta');
-    await page.locator('.result', { hasText: 'Wheat flour, atta' }).waitFor();
-    ok((await page.locator('.result', { hasText: 'Wheat flour, atta' }).innerText()).includes('India (IFCT)'), 'source is shown');
+    await page.locator('.result', { hasText: 'Wheat flour, whole' }).first().waitFor();
+    ok((await page.locator('.result', { hasText: 'Wheat flour, whole' }).first().innerText()).includes('USDA'), 'source is shown');
+    await page.getByLabel('Search foods').fill('ghee');
+    await page.locator('.result', { hasText: 'Butter oil, anhydrous' }).waitFor();
     await page.getByLabel('Search foods').fill('dahi');
-    await page.locator('.result', { hasText: 'Curd / dahi' }).waitFor();
+    await page.locator('.result', { hasText: /^Yogurt/ }).first().waitFor();
     await page.getByRole('button', { name: 'Veg + egg', exact: true }).click();
     const set = await page.evaluate(() => Store.getSettings().foodDiet);
     eq(set, 'egg', 'the choice is saved in settings');
+    await page.getByRole('button', { name: 'Close' }).click();
+  });
+
+  await step('Fuel: the person\'s own food list is added from a file, searched, logged, kept off backups, and removed', async () => {
+    const file = path.join(tmp, 'my-tables.csv');
+    fs.copyFileSync(path.join(ROOT, 'docs', 'food-import-example.csv'), file);
+    await page.getByRole('button', { name: 'Add food' }).click();
+    await page.getByLabel('Search foods').fill('zzzz');
+    ok(await page.getByRole('button', { name: 'Add my own food list' }).isVisible(), 'the add button is offered');
+    ok((await page.locator('body').innerText()).includes('CC-BY-4.0'), 'the TempoLife attribution is on the Find screen');
+    ok(!/Indian Food Composition/i.test(await page.locator('body').innerText()), 'the app no longer claims to ship IFCT');
+    await page.getByLabel('Food list file').setInputFiles(file);
+    await page.getByText('Use this food list?').waitFor();
+    ok((await page.locator('.sheet').last().innerText()).includes('6 foods can be used'), 'counts are shown before anything is stored');
+    eq(await page.evaluate(async () => (await Store.getMeta('userFoods')) === undefined), true, 'nothing is stored before confirming');
+    await page.getByRole('button', { name: 'Use this list' }).click();
+    await page.getByText('My list: my-tables').waitFor();
+    await page.getByRole('button', { name: 'All', exact: true }).click();
+    await page.getByLabel('Search foods').fill('bajra');
+    const row = page.locator('.result', { hasText: 'Example millet flour' });
+    await row.waitFor();
+    ok((await row.innerText()).includes('My list'), 'the source says My list');
+    await row.click();
+    await page.getByLabel('Amount').fill('50');
+    await page.getByRole('button', { name: 'Log it' }).click();
+    await page.waitForTimeout(250);
+    const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
+    eq([f.name, f.kcal, f.serving, f.source], ['Example millet flour', 181, '50 g', 'mylist']);
+    // it survives a reload, and is not in a backup
+    await page.reload(); await page.waitForFunction(() => window.App && window.Store);
+    await route(page, '#/fuel');
+    await page.getByRole('button', { name: 'Add food' }).click();
+    await page.getByLabel('Search foods').fill('bajra');
+    await page.locator('.result', { hasText: 'Example millet flour' }).waitFor();
+    const bk = await page.evaluate(() => Store.buildBackup({ media: false }));
+    ok(!bk.includes('Example millet flour') || bk.split('Example millet flour').length === 2, 'only the logged entry, not the list, is in a backup');
+    eq(bk.includes('Example lentil soup mix'), false, 'the rest of the list is not in the backup');
+    // a bad file is refused with a reason and changes nothing
+    const bad = path.join(tmp, 'bad.csv'); fs.writeFileSync(bad, 'name,kcal\nA,1\n');
+    await page.getByLabel('Food list file').setInputFiles(bad);
+    await page.getByText(/Missing: protein/).waitFor();
+    await page.getByRole('button', { name: 'Remove' }).click();
+    await page.getByRole('button', { name: 'Remove', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Add my own food list' }).waitFor();
+    eq(await page.evaluate(async () => (await Store.getMeta('userFoods')) === undefined), true, 'removed from the device');
+    eq(await page.locator('.result', { hasText: 'Example millet flour' }).count(), 0, 'and no longer searchable');
     await page.getByRole('button', { name: 'Close' }).click();
   });
 

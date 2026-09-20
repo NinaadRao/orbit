@@ -14,14 +14,35 @@ Two things to know about downloads. The saved file shows your photos **unblurred
 
 ## The food database
 
-Fuel's **Find** tab searches about 7,800 foods, each with calories, protein, carbs, fat and fibre per 100 g, and asks for the amount in grams. A filter under the search box shows **All**, **Veg**, **Veg + egg** or **Non-veg**; it starts from the diet you gave in Profile and remembers your choice. Type a word or the start of one ("paneer", "chick", "dal"). Many foods also answer to their Indian names.
+Fuel's **Find** tab searches about 7,200 foods, each with calories, protein, carbs, fat and fibre per 100 g, and asks for the amount in grams. A filter under the search box shows **All**, **Veg**, **Veg + egg** or **Non-veg**; it starts from the diet you gave in Profile and remembers your choice. Type a word or the start of one ("paneer", "chick", "dal"). Many foods also answer to everyday Indian names ("atta", "dahi", "bhindi", "ghee").
 
 Where it comes from, and what to watch for:
 
-- About 7,200 rows are from the US **USDA SR Legacy** database (public domain), and about 540 from India's **IFCT 2017** tables (National Institute of Nutrition, Hyderabad). They are bundled as one static file, `data/foods.json`, that the app fetches from its own address. Nothing is looked up online. See [data/SOURCES.md](../data/SOURCES.md) for the exact packages, licences and how the file is built (`scripts/build-foods.mjs`).
+- The bundled rows are from the US **USDA SR Legacy** database (public domain), as arranged by TempoLife (CC-BY-4.0). They are one static file, `data/foods.json`, that the app fetches from its own address. Nothing is looked up online. See [data/SOURCES.md](../data/SOURCES.md) for the exact package, licences and how the file is built (`scripts/build-foods.mjs`).
 - The vegetarian and non-vegetarian tags are worked out from the food's name and category by rules, and checked by tests, but they are a **filter, not a guarantee**. Cheese is tagged vegetarian even though some is made with animal rennet, and anything unclear (restaurant items, canned soups, branded products) is tagged "check the label" and appears only under All.
-- Neither source measures home-cooked Indian dishes, so a plate of rajma chawal is not in it. The short starter list of common dishes is labelled approximate, and the **Describe** and **Ingredients** tabs are for everything else.
-- USDA carbohydrates include fibre; IFCT lists available carbohydrate. Orbit shows each as the source gives it.
+- USDA does not measure home-cooked Indian dishes, so a plate of rajma chawal is not in it. The short starter list of common dishes is labelled approximate, and the **Describe** and **Ingredients** tabs are for everything else.
+- USDA carbohydrates include fibre. Orbit shows the number as the source gives it.
+
+## Your own food list
+
+Want foods that are not in the bundled list, for example Indian Food Composition Tables values? Orbit does not ship those, because their publisher does not allow it. You can load a list you have the right to use, from a file on your device:
+
+1. Fuel, **Add food**, **Find**, then **Add my own food list** at the bottom.
+2. Choose a `.csv` or `.json` file. Orbit shows how many foods it can use and how many rows it skipped, and stores nothing until you tap **Use this list**.
+3. Search as usual. Your foods show **My list** as their source and follow the same diet filter.
+
+The list is kept **on this device only**. It is not in backups and never uploaded, so choose the file again on a new phone. **Replace** loads another file; **Remove** deletes it. Foods you already logged stay in your log either way.
+
+**File format.** All values are per 100 g. A CSV needs a header row; `fibre`, `diet` and `aliases` are optional:
+
+```
+name,kcal,protein,carbs,fat,fibre,diet,aliases
+Example millet flour,361,11.5,67.5,5,11.5,veg,bajra
+```
+
+`diet` is `veg`, `egg`, `nonveg` or `check` (anything else, or empty, becomes "check the label"). `aliases` are extra words that should find the food. A JSON file can be a list of the same objects, or `{"name": "My list", "foods": [ ... ]}`. Values must be numbers (kcal up to 900, the rest up to 100), and rows that are not are skipped. Files up to 15 MB and 30,000 foods are read. A working example is [food-import-example.csv](food-import-example.csv).
+
+**IFCT 2017.** The tables are copyright the National Institute of Nutrition (ICMR) in Hyderabad, and their terms allow personal use with acknowledgement. If you have a copy of the compositions table (`index.csv` from the `@ifct2017/compositions` package), `node scripts/ifct-to-import.mjs index.csv --out ~/Documents/orbit-private/ifct.orbitfoods.json` converts it to this format, with diets and everyday names filled in. The script refuses to write inside the Orbit folder, and `*.orbitfoods.json` is ignored by git and blocked by the privacy check. Keep the file to yourself unless the Institute gives permission. IFCT lists available carbohydrate and usually raw foods, so weigh raw against a raw entry.
 
 ## Library, form check and reel
 

@@ -2,6 +2,8 @@
 *.orbitbackup
 *.orbitprofile
 profile*.json
+*.orbitfoods.json
+*.orbitfoods.csv
 exports/
 backups/
 private/

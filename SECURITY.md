@@ -24,6 +24,7 @@ Orbit holds sensitive things: body measurements, photos, health-adjacent logs an
 | Video frames leaving without consent | A coach form check shows the exact frames and the provider's host first, and nothing is sent until you tap Send. The frames are never saved. |
 | Hostile library entries in a backup | Every entry is rebuilt from a whitelist on load: ids, preview ids and exercise ids must be plain identifiers, text is length-limited and numbers are clamped. |
 | Food database tampering | It is a static file served from the app's own address, validated row by row before use, and it never runs as code. |
+| A hostile own-list file | It is size-limited (15 MB, 30,000 rows), parsed as data, every row range-checked and control characters removed, and shown only as text. Nothing is stored until you confirm, and it is never uploaded or put in a backup. |
 | Personal data in the repository | `.gitignore` plus a pre-commit and pre-push scan for photos, backups, profile files, keys and your own private terms. |
 | Location data in photos | Photos are decoded and re-encoded as JPEG, which drops all metadata. Downloaded comparison images and time-lapse videos are redrawn on a canvas, so they carry none either. |
 

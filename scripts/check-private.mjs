@@ -13,6 +13,7 @@ const staged = process.argv.includes('--staged');
 const git = (args, opts) => execFileSync('git', args, Object.assign({ encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }, opts));
 
 const BAD_EXT = /\.(heic|heif|jpe?g|mov|mp4|m4v|webm|3gp|orbitbackup|orbitprofile)$/i;
+const BAD_FOODS = /\.orbitfoods\.(json|csv)$/i; // a person's own food list, which may carry someone else's copyright
 const IMG_EXT = /\.(png|gif|webp|svg)$/i;
 const IMG_OK = /^(icons|docs\/img)\//;
 const BAD_DIR = /(^|\/)(private|exports|backups|photos|media)\//i;
@@ -41,6 +42,7 @@ for (const f of files) {
   if (BAD_EXT.test(f)) problems.push(f + ': photos, videos and Orbit backups must never be committed');
   else if (IMG_EXT.test(f) && !IMG_OK.test(f)) problems.push(f + ': images are only allowed in icons/ and docs/img/');
   if (BAD_DIR.test(f)) problems.push(f + ': this folder name is reserved for personal data');
+  if (BAD_FOODS.test(f)) problems.push(f + ': a personal food list may carry someone else\'s copyright (for example IFCT), so it must not be committed');
   if (BAD_NAME.test(f)) problems.push(f + ': looks like a secret or personal profile file');
   let buf;
   try { buf = staged ? execFileSync('git', ['show', ':' + f], { maxBuffer: 512 * 1024 * 1024 }) : fs.readFileSync(f); } catch (e) { continue; }
