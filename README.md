@@ -114,10 +114,6 @@ npm run e2e       # browser tests (needs Playwright: npm i -g playwright && npx 
 
 The end-to-end tests use fictional numbers and a fake AI provider, and check the security claims (CSP, Trusted Types, hostile input, encrypted round trips, file:// and localhost). The file layout is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#files).
 
-## Roadmap
-
-Part 2 is in: the reel and the coach's form check run on your device and your key. Ideas not built: audio or music in the reel, choosing the exact section of a clip, and cooked Indian dishes measured in the food database.
-
 ## License
 
 The code is MIT. Fonts (Big Shoulders Display, DM Sans) are under the SIL Open Font License; see `fonts/`. The food data in `data/foods.json` is **not** covered by the code's licence: it comes from USDA (public domain) and from India's IFCT 2017 tables (personal use unless the National Institute of Nutrition gives permission). Read [data/SOURCES.md](data/SOURCES.md) before making the repository public or hosting the app publicly.
