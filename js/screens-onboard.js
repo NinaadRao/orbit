@@ -104,7 +104,7 @@
     return h('div', { class: 'page welcome' },
       U.brandMark(),
       h('div', { class: 'display hero' }, U.TAGLINE[0], h('br'), U.TAGLINE[1]),
-      h('p', { class: 'muted lead' }, 'Regoal is what you do every day: circle back, log it, go again. Bulk, cut or recomp, it keeps the receipts.'),
+      h('p', { class: 'muted lead' }, 'Regoal is for the goal you have now and the next one after it: set it, track it, review it, go again. Bulk, cut, a half marathon or a mile in the pool, it keeps the receipts.'),
       h('div', { class: 'feats' },
         feature('lock', 'Lives on this phone.', 'No account, no cloud, no server. There is nothing to sign up for.'),
         feature('key', 'Bring your own brain.', 'Plug in your own AI coach key, or skip the AI entirely.'),
