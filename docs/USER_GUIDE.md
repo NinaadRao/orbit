@@ -20,6 +20,10 @@ How the bigger features work, in more detail than the README. For installing, se
 
 Lifts, then **Add a lift**. About 40 are built in (barbell, dumbbell, machine, cable and bodyweight); pick one, enter a weight and reps you can do for a solid set, and Orbit builds the same week-by-week progression for it. **Something else** lets you add your own: name, muscle, equipment, whether it is a heavy compound, medium or high-rep lift, and where you are now. Choose which workout it goes on, the best fit for the muscle, or none if you only want to track it. There is no limit. On a lift's page, **Stop tracking this lift** removes it from your targets; your logged sets stay in your history and the exercise stays in its workout as a plain one. Onboarding has the same **Add another lift** button.
 
+## Your profile
+
+Open Profile from the person icon on Today. **Edit** (or **Add name**) at the top and **Edit profile** under Basics open the same sheet: name, sex, age, height, body fat and diet style. Only what you change is saved, as one change you can undo, and it is kept in backups. The name is never sent to a coach. Weight is not edited here: it comes from your weigh-ins. Changing age, height or sex does not change your calorie and protein targets; those are in Plan settings (**Plan settings**, then **Edit targets** or **Change goal**).
+
 ## Your photo trend
 
 Take the same five angles at your weekly check-in. The day is yours to set in **Profile** (Friday to begin with); Today asks for it that day, stays on it until all five are saved, and flags any week you missed. Check-ins are named by their date (Fri, 18 Sep), never "week 5": the Photos screen has one list of dates, and the trend, compare and downloads all show dates. Then:

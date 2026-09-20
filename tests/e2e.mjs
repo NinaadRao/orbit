@@ -851,6 +851,35 @@ async function main() {
     await page.evaluate(async () => { await Store.saveSettings({ checkinDay: 5 }); });
   });
 
+  await step('profile: name and basics can be edited, bad values are refused, and untouched fields stay exactly as they were', async () => {
+    await route(page, '#/profile');
+    await page.getByText('Basics', { exact: true }).waitFor();
+    const before = await page.evaluate(() => { const p = Store.getState().profile; return { h: p.heightCm, w: p.weightKg, sex: p.sex, age: p.age }; });
+    await page.getByRole('button', { name: /^(Edit|Add name)$/ }).first().click();
+    const sh = page.locator('#sheets');
+    await sh.getByText('Edit profile').first().waitFor();
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Nothing changed.').waitFor();
+    await sh.getByLabel('Age', { exact: true }).fill('7');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText(/age between 14 and 90/).waitFor();
+    ok(await sh.getByText('Edit profile').count() >= 1, 'the sheet stays open on a bad value');
+    await sh.getByLabel('Age', { exact: true }).fill('33');
+    await sh.getByLabel('Name (optional)').fill('  Ninaad   Rao ');
+    await sh.getByLabel('Diet style').selectOption('Vegan');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Profile updated.').waitFor();
+    const after = await page.evaluate(() => { const p = Store.getState().profile; return { name: p.name, age: p.age, diet: p.diet, h: p.heightCm, w: p.weightKg, sex: p.sex }; });
+    eq(after.name, 'Ninaad Rao'); eq(after.age, 33); eq(after.diet, 'Vegan');
+    eq(after.h, before.h, 'height untouched'); eq(after.w, before.w, 'starting weight untouched'); eq(after.sex, before.sex);
+    ok(/Ninaad Rao/.test(await page.locator('#screen').innerText()) && /33 years/.test(await page.locator('#screen').innerText()), 'Profile shows the new values');
+    ok(await page.getByRole('button', { name: 'Edit', exact: true }).count() >= 1, 'the header button now says Edit');
+    const n = await page.evaluate(() => Store.getEvents().filter((e) => e.type === 'profile_edited').length);
+    eq(n, 1, 'one event for the whole edit');
+    await page.evaluate(async () => { const e = Store.getEvents().filter((x) => x.type === 'profile_edited').pop(); await Store.voidEvent(e.seq); });
+    eq(await page.evaluate(() => Store.getState().profile.age), before.age, 'voiding the edit restores the old values');
+  });
+
   await step('a new backup always has the same file name so it replaces the old one', async () => {
     await route(page, '#/settings');
     ok(await page.getByText(/Choose a backup folder|This browser cannot delete old backups/).count() >= 1, 'the folder option or the honest note is shown');

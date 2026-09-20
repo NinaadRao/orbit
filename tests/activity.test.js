@@ -424,3 +424,27 @@ test('the coach relocating a session swaps it, adds it, or leaves it, and always
   const c = E.relocateSession(E.project(e), 'Legs', '2026-01-10', '2026-01-08');
   assert.deepEqual(c.events.map((m) => m.date + ':' + m.session), ['2026-01-10:Legs']);
 });
+
+// ---------- editing the profile ----------
+test('profile edits: only known fields are kept, one bad field refuses the edit, and the projection applies good ones', () => {
+  const r = E.cleanProfileEdit({ name: '  Ninaad   Rao ', age: '31', heightCm: 181.234, bodyFatPct: '', diet: 'Vegan', sex: 'other', weightKg: 1, plan: {} });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.value, { name: 'Ninaad Rao', age: 31, heightCm: 181.234, bodyFatPct: null, diet: 'Vegan', sex: 'other' }, 'unknown fields such as weightKg and plan are dropped');
+  assert.equal(E.cleanProfileEdit({ name: 'n'.repeat(99) }).value.name.length, 40);
+  assert.equal(E.cleanProfileEdit({ name: 'a\u0000b\nc' }).value.name, 'a b c');
+  for (const bad of [{ age: 5 }, { age: 'x' }, { heightCm: 20 }, { heightCm: 500 }, { bodyFatPct: 1 }, { bodyFatPct: 99 }, { diet: 'Carnivore' }, { sex: 'robot' }, { name: 5 }, { name: 'ok', age: 200 }, null, [], 'x', JSON.parse('{"__proto__":{"a":1}}')]) assert.equal(E.cleanProfileEdit(bad).ok, false, JSON.stringify(bad));
+  const { events } = base();
+  events.push(ev('profile_edited', { fields: { name: 'Ninaad', age: 31 } }));
+  let s = E.project(events);
+  assert.equal(s.profile.name, 'Ninaad'); assert.equal(s.profile.age, 31);
+  assert.equal(s.profile.weightKg, 80, 'untouched fields stay');
+  assert.equal(E.validateEvents(events), null, 'the new event type is accepted in a backup file');
+  events.push(ev('profile_edited', { fields: { age: 999, name: 'Nope' } }), ev('profile_edited', { fields: 'x' }), ev('profile_edited', {}));
+  s = E.project(events);
+  assert.equal(s.profile.name, 'Ninaad', 'a bad edit changes nothing, not even its good fields');
+  assert.equal(s.profile.age, 31);
+  // Undo: voiding the first edit takes it back.
+  const first = events.find((e) => e.type === 'profile_edited');
+  const s2 = E.project(events.concat(ev('event_voided', { target: first.seq })));
+  assert.equal(s2.profile.name, undefined);
+});

@@ -22,7 +22,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
   <img src="docs/img/progress.png" width="190" alt="Progress: weight trend and measurements against goals">
   <img src="docs/img/checkin.png" width="190" alt="Weekly photo check-in: pick a check-in by its date, then add the five angles">
   <img src="docs/img/photo-compare.png" width="190" alt="Compare: any two check-ins with a slider">
-  <img src="docs/img/profile.png" width="190" alt="Profile: your basics, your plan, and the weekly check-in day">
+  <img src="docs/img/profile.png" width="190" alt="Profile: your name and basics (editable), your plan, and the weekly check-in day">
 </p>
 <p align="center">
   <img src="docs/img/fuel-confirm.png" width="190" alt="Fuel: an AI food estimate you check and edit before it is saved">
@@ -41,7 +41,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 
 **Plan**
 - Answer a few questions and get calories, macros, a weekly split, week-by-week lift targets with planned deload weeks, and six-month measurement goals.
-- Change targets any time. Profile shows your basics and your plan.
+- Change targets any time. Profile shows your basics and your plan, and you can edit your name, sex, age, height, body fat and diet there.
 
 **Train**
 - Log sets with effort and a rest timer. Each lift shows Hit, Partial or Todo against its weekly target.

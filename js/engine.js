@@ -446,6 +446,7 @@
       try {
       switch (e.type) {
         case 'profile_created': s.profile = clone(d.profile); s.plan = clone(d.plan); break;
+        case 'profile_edited': { if (s.profile) { const r = cleanProfileEdit(d && d.fields); if (r.ok) Object.assign(s.profile, r.value); } break; }
         case 'plan_revised': if (s.plan) applyRevision(s.plan, d, e); s.revisions.push({ seq: e.seq, ts: e.ts, src: e.src, reason: d.reason, changes: d.changes }); break;
         case 'weight_logged': s.weights.push({ seq: e.seq, date: d.date, kg: d.kg }); break;
         case 'measurement_logged': s.meas.push({ seq: e.seq, date: d.date, site: d.site, cm: d.cm }); break;
@@ -675,7 +676,7 @@
   }
 
   // ---------- backup / import validation ----------
-  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'event_voided'];
+  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'profile_edited', 'event_voided'];
   const BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function hasBadKeys(o, depth) {
     if (o === null || typeof o !== 'object') return false;
@@ -683,6 +684,24 @@
     if (Array.isArray(o)) return o.some((x) => hasBadKeys(x, depth + 1));
     for (const k of Object.keys(o)) { if (BAD_KEYS.includes(k)) return true; if (hasBadKeys(o[k], depth + 1)) return true; }
     return false;
+  }
+  // The basics a person can change after onboarding. Only the fields present are checked and kept; anything else is dropped,
+  // and one bad field refuses the whole edit, so a half-valid file never changes the profile.
+  const PROFILE_DIETS = ['Vegetarian', 'Vegan', 'Eggetarian', 'Pescatarian', 'Everything'];
+  function cleanProfileEdit(f) {
+    if (!f || typeof f !== 'object' || Array.isArray(f) || hasBadKeys(f, 0)) return { ok: false, errors: ['That is not a profile change.'] };
+    const out = {}, errors = [], has = (k) => Object.prototype.hasOwnProperty.call(f, k);
+    if (has('name')) { if (typeof f.name !== 'string') errors.push('Name should be text.'); else out.name = f.name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40); }
+    if (has('sex')) { if (['male', 'female', 'other'].includes(f.sex)) out.sex = f.sex; else errors.push('Pick a sex from the list.'); }
+    if (has('age')) { const n = Number(f.age); if (Number.isFinite(n) && n >= 14 && n <= 90) out.age = Math.round(n); else errors.push('Enter an age between 14 and 90.'); }
+    if (has('heightCm')) { const n = Number(f.heightCm); if (Number.isFinite(n) && n >= 120 && n <= 230) out.heightCm = clean(n); else errors.push('Enter a height between 120 and 230 cm (3 ft 11 in to 7 ft 6 in).'); }
+    if (has('bodyFatPct')) {
+      if (f.bodyFatPct === null || f.bodyFatPct === '') out.bodyFatPct = null;
+      else { const n = Number(f.bodyFatPct); if (Number.isFinite(n) && n >= 3 && n <= 60) out.bodyFatPct = Math.round(n * 10) / 10; else errors.push('Body fat should be between 3 and 60 percent, or empty.'); }
+    }
+    if (has('diet')) { if (PROFILE_DIETS.includes(f.diet)) out.diet = f.diet; else errors.push('Pick a diet style from the list.'); }
+    if (errors.length) return { ok: false, errors };
+    return { ok: true, value: out };
   }
   function validateEvents(events, max) {
     if (!Array.isArray(events)) return 'Events must be a list.';
@@ -1002,7 +1021,7 @@
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,
     weightAround, measAround, snapshotAt, checkIns, goalDir, changeTone,
-    liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES,
+    liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES, cleanProfileEdit, PROFILE_DIETS,
     LIFT_MUSCLES, LIFT_EQUIP, LIFT_CLS, defaultGain, cleanLift, newLiftId, slug, exId,
     validISO, hasLift, changeSession, relocateSession, ACTIVITIES, EFFORTS, metFor, estimateKcal, cleanWorkout, workoutName, bodyKg, defaultActiveGoal, sessionFor, moveSession, setIndex, sessionDoneIn, weekPlan,
     dayIndex, dayStreaks, weekStreaks, activitySummary, activityWeeks, activityMix, activityDigest,
