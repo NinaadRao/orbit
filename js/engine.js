@@ -27,6 +27,8 @@
   const cmToIn = (c) => c / CM_PER_IN;
 
   function pad2(n) { return String(n).padStart(2, '0'); }
+  // A real calendar date in YYYY-MM-DD form (2026-02-30 and 2026-09-31 are not).
+  function validISO(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && isoDate(parseISO(s)) === s; }
   function isoDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   function parseISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 12, 0, 0); }
   function addDays(s, n) { const d = parseISO(s); d.setDate(d.getDate() + n); return isoDate(d); }
@@ -102,7 +104,39 @@
     pullups: { name: 'Pull-ups', muscle: 'back', equip: 'bw', cls: 'medium', gain: 0, def: [null, 4] },
     barbell_squat: { name: 'Barbell squat', muscle: 'legs', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [95, 8] },
     barbell_bench: { name: 'Barbell bench press', muscle: 'chest', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [95, 8] },
+    // More lifts to track after setup. Anything else can be added as a custom lift.
+    deadlift: { name: 'Deadlift', muscle: 'back', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [135, 5] },
+    rdl: { name: 'Romanian deadlift', muscle: 'legs', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [95, 8] },
+    overhead_press: { name: 'Barbell overhead press', short: 'Overhead press', muscle: 'shoulders', equip: 'barbell', cls: 'heavy', gain: 0.25, def: [65, 8] },
+    incline_barbell: { name: 'Incline barbell press', muscle: 'chest', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [75, 8] },
+    barbell_row: { name: 'Barbell row', muscle: 'back', equip: 'barbell', cls: 'medium', gain: 0.30, def: [95, 8] },
+    hip_thrust: { name: 'Hip thrust', muscle: 'legs', equip: 'barbell', cls: 'heavy', gain: 0.30, def: [135, 8] },
+    hack_squat: { name: 'Hack squat', muscle: 'legs', equip: 'machine', cls: 'heavy', gain: 0.25, def: [180, 8] },
+    machine_press: { name: 'Machine chest press', muscle: 'chest', equip: 'machine', cls: 'medium', gain: 0.27, def: [110, 10] },
+    cable_row: { name: 'Seated cable row', muscle: 'back', equip: 'machine', cls: 'medium', gain: 0.27, def: [110, 10] },
+    chest_row: { name: 'Chest-supported row', muscle: 'back', equip: 'machine', cls: 'medium', gain: 0.27, def: [90, 10] },
+    dips: { name: 'Dips', muscle: 'chest', equip: 'bw', cls: 'medium', gain: 0, def: [null, 6] },
+    chinups: { name: 'Chin-ups', muscle: 'back', equip: 'bw', cls: 'medium', gain: 0, def: [null, 5] },
+    hammer_curl: { name: 'Hammer curl', muscle: 'arms', equip: 'db', cls: 'medium', gain: 0.33, def: [30, 10] },
+    ez_curl: { name: 'EZ-bar curl', muscle: 'arms', equip: 'barbell', cls: 'medium', gain: 0.30, def: [55, 10] },
+    preacher_curl: { name: 'Preacher curl', muscle: 'arms', equip: 'machine', cls: 'medium', gain: 0.27, def: [50, 10] },
+    pushdown: { name: 'Triceps pushdown', muscle: 'arms', equip: 'machine', cls: 'medium', gain: 0.27, def: [50, 10] },
+    oh_tri: { name: 'Overhead triceps extension', muscle: 'arms', equip: 'db', cls: 'medium', gain: 0.30, def: [40, 10] },
+    lateral_raise: { name: 'Lateral raise', muscle: 'shoulders', equip: 'db', cls: 'high', gain: 0.20, def: [15, 15] },
+    rear_delt: { name: 'Rear-delt fly', muscle: 'shoulders', equip: 'machine', cls: 'high', gain: 0.20, def: [50, 15] },
+    face_pull: { name: 'Face pull', muscle: 'shoulders', equip: 'machine', cls: 'high', gain: 0.20, def: [50, 15] },
+    db_shrug: { name: 'DB shrug', muscle: 'shoulders', equip: 'db', cls: 'medium', gain: 0.30, def: [60, 12] },
+    cable_fly: { name: 'Cable fly', muscle: 'chest', equip: 'machine', cls: 'high', gain: 0.25, def: [30, 12] },
+    goblet_squat: { name: 'Goblet squat', muscle: 'legs', equip: 'db', cls: 'medium', gain: 0.35, def: [50, 10] },
+    lunge: { name: 'Walking lunge', muscle: 'legs', equip: 'db', cls: 'medium', gain: 0.35, def: [30, 10] },
+    calf_raise: { name: 'Calf raise', muscle: 'legs', equip: 'machine', cls: 'high', gain: 0.20, def: [180, 15] },
+    cable_crunch: { name: 'Cable crunch', muscle: 'core', equip: 'machine', cls: 'high', gain: 0.25, def: [80, 12] },
   };
+  const LIFT_MUSCLES = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core'];
+  const LIFT_EQUIP = ['db', 'machine', 'barbell', 'bw'];
+  const LIFT_CLS = ['heavy', 'medium', 'high'];
+  // How much a lift is expected to grow over the plan, by type, when the person adds their own lift.
+  function defaultGain(cls, equip) { return equip === 'bw' ? 0 : cls === 'heavy' ? (equip === 'barbell' ? 0.30 : 0.25) : cls === 'high' ? 0.20 : 0.27; }
   const DEFAULT_LIFT_ORDER = ['flat_db_press', 'incline_db_press', 'shoulder_press', 'lat_pulldown', 'db_row', 'curl', 'leg_press', 'leg_curl', 'leg_ext', 'bulgarian', 'pullups', 'barbell_squat'];
 
   function blockOfWeek(w) { return w <= 3 ? 0 : w <= 9 ? 1 : w <= 15 ? 2 : w <= 21 ? 3 : 4; }
@@ -347,7 +381,7 @@
     return { ok: true, value: { kcal: roundTo(kcal, 5), protein: roundTo(protein, 1), carbs, fat } };
   }
   function validateLiftChange(plan, ch) {
-    const l = plan.lifts[ch.lift];
+    const l = Object.prototype.hasOwnProperty.call(plan.lifts, ch.lift) ? plan.lifts[ch.lift] : null;
     if (!l) return { ok: false, errors: ['Unknown lift.'] };
     const pct = Number(ch.percent);
     if (!Number.isFinite(pct) || Math.abs(pct) > LIMITS.maxLiftPct || pct === 0) return { ok: false, errors: ['Lift changes are limited to 10 percent at a time.'] };
@@ -378,15 +412,38 @@
     } };
   }
 
+  // Turns a lift read from a revision into a safe plan entry, or null. Every field is checked and clamped.
+  function cleanLift(raw, id) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const equip = LIFT_EQUIP.includes(raw.equip) ? raw.equip : null;
+    const name = cleanStr(raw.name, 60);
+    if (!equip || !name) return null;
+    const out = {
+      id, name, short: cleanStr(raw.short || name, 40), muscle: LIFT_MUSCLES.includes(raw.muscle) ? raw.muscle : 'other', equip,
+      cls: LIFT_CLS.includes(raw.cls) ? raw.cls : 'medium', gain: clamp(Number(raw.gain) || 0, 0, 1), sets: clamp(Math.round(Number(raw.sets) || 3), 1, 8),
+      repStyle: ['heavy', 'mixed', 'pump'].includes(raw.repStyle) ? raw.repStyle : 'mixed', unit: raw.unit === 'kg' ? 'kg' : 'lb', adjust: [],
+    };
+    if (equip === 'bw') { out.bw = true; out.startReps = clamp(Math.round(Number(raw.startReps) || 4), 1, 60); }
+    else {
+      const five = (x, hi) => (Array.isArray(x) && x.length === 5 && x.every((v) => typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= hi) ? x.slice() : null);
+      const kg = five(raw.blockKg, 700), units = five(raw.blockUnits, 2000), step = Number(raw.step);
+      if (!kg || !units || !(step > 0 && step <= 50)) return null;
+      out.step = step; out.blockKg = kg; out.blockUnits = units;
+    }
+    if (Array.isArray(raw.adjust)) for (const a of raw.adjust.slice(0, 30)) if (a && Number.isFinite(a.fromWeek) && Number.isFinite(a.factor) && a.factor >= 0.25 && a.factor <= 4) out.adjust.push({ fromWeek: clamp(Math.round(a.fromWeek), 1, WEEKS), factor: clean(a.factor) });
+    return out;
+  }
+
   // ---------- state projection from the event log ----------
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function project(events) {
     const voided = new Set();
     for (const e of events) if (e.type === 'event_voided') voided.add(e.data.target);
-    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], revisions: [] };
+    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], workouts: [], moves: Object.create(null), revisions: [] };
     for (const e of events) {
       if (voided.has(e.seq) || e.type === 'event_voided') continue;
       const d = e.data || {};
+      try {
       switch (e.type) {
         case 'profile_created': s.profile = clone(d.profile); s.plan = clone(d.plan); break;
         case 'plan_revised': if (s.plan) applyRevision(s.plan, d, e); s.revisions.push({ seq: e.seq, ts: e.ts, src: e.src, reason: d.reason, changes: d.changes }); break;
@@ -396,8 +453,15 @@
         case 'set_logged': s.sets.push(Object.assign({ seq: e.seq }, d)); break;
         case 'photo_added': s.photos.push({ seq: e.seq, date: d.date, week: d.week, angle: d.angle, id: d.id }); break;
         case 'clip_added': { const c = cleanClip(d); if (c.ok) s.clips.push(Object.assign({ seq: e.seq }, c.value)); break; }
+        case 'workout_logged': { const w = cleanWorkout(d); if (w.ok) s.workouts.push(Object.assign({ seq: e.seq }, w.value)); break; }
+        case 'session_moved': {
+          const date = String(d.date || ''), name = cleanStr(d.session, 40);
+          if (validISO(date) && name) s.moves[date] = name;
+          break;
+        }
         default: break;
       }
+      } catch (err) { /* one unusable event must never stop the app from opening; it is skipped */ }
     }
     s.weights.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.seq - b.seq));
     return s;
@@ -406,17 +470,48 @@
     const c = d.changes || {};
     const before = {};
     for (const k of ['kcal', 'protein', 'carbs', 'fat', 'goal']) if (c[k] != null) { before[k] = plan[k]; plan[k] = c[k]; }
-    if (c.liftAdjust && plan.lifts[c.liftAdjust.lift]) plan.lifts[c.liftAdjust.lift].adjust.push({ fromWeek: c.liftAdjust.fromWeek, factor: c.liftAdjust.factor });
+    const has = (id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(plan.lifts, id);
+    if (c.liftAdjust && has(c.liftAdjust.lift) && Number.isFinite(c.liftAdjust.factor) && c.liftAdjust.factor >= 0.25 && c.liftAdjust.factor <= 4 && Number.isFinite(c.liftAdjust.fromWeek)) {
+      plan.lifts[c.liftAdjust.lift].adjust.push({ fromWeek: clamp(Math.round(c.liftAdjust.fromWeek), 1, WEEKS), factor: c.liftAdjust.factor });
+    }
     if (c.measTargets) plan.measTargets = c.measTargets;
-    // A lift added after onboarding goes on the day that trains that muscle.
+    // A lift added after onboarding goes on the day that trains that muscle, or on the session the person chose.
+    // Whatever arrives here (a person's form, a coach proposal, a backup file) is rebuilt from a whitelist first.
     if (c.addLifts && typeof c.addLifts === 'object') {
       for (const id of Object.keys(c.addLifts)) {
-        const l = c.addLifts[id];
-        if (!/^[a-z0-9_]{1,40}$/.test(id) || plan.lifts[id] || !l || !l.blockKg && !l.bw) continue;
+        if (!/^[a-z0-9_]{1,40}$/.test(id) || BAD_KEYS.includes(id) || has(id)) continue;
+        const l = cleanLift(c.addLifts[id], id);
+        if (!l) continue;
         plan.lifts[id] = l;
-        const day = plan.workouts.find((w) => w.focus.includes(l.muscle)) || plan.workouts[plan.workouts.length - 1];
-        if (day) day.ex.unshift({ lift: id, n: l.name, sets: l.sets || 3, range: '', rest: 150, m: l.muscle });
+        const want = c.placeLifts && typeof c.placeLifts === 'object' && typeof c.placeLifts[id] === 'string' ? c.placeLifts[id] : null;
+        // The plan may already list this exercise as a plain one (an accessory), maybe in more than one session.
+        // Those are upgraded in place, never listed twice. "None" takes them out of every session.
+        const sn = slug(l.name);
+        let found = 0;
+        for (const w of plan.workouts) {
+          for (let i = w.ex.length - 1; i >= 0; i--) {
+            const x = w.ex[i];
+            if (x.lift || slug(x.n) !== sn) continue;
+            found++;
+            if (want === '-') { w.ex.splice(i, 1); continue; }
+            x.lift = id; x.n = l.name; x.m = l.muscle; x.range = '';
+          }
+        }
+        if (want === '-') continue; // tracked, but not part of any session
+        const named = want ? plan.workouts.find((w) => w.name === want) : null;
+        if (found && (!named || named.ex.some((x) => x.lift === id))) continue;
+        const day = named || plan.workouts.find((w) => w.focus.includes(l.muscle)) || plan.workouts[plan.workouts.length - 1];
+        if (!day) continue;
+        const entry = { lift: id, n: l.name, sets: l.sets || 3, range: '', rest: l.cls === 'heavy' ? 150 : 90, m: l.muscle };
+        if (want || l.cls === 'heavy') day.ex.unshift(entry); else day.ex.push(entry);
       }
+    }
+    // Stop tracking a lift: its logged sets stay, and it becomes an ordinary exercise in the session.
+    if (has(c.removeLift)) {
+      const gone = c.removeLift;
+      delete plan.lifts[gone];
+      // `was` remembers the old id, so sets logged while it was tracked still count towards that session being done.
+      for (const w of plan.workouts) for (const ex of w.ex) if (ex.lift === gone) { ex.lift = null; ex.was = gone; ex.range = ex.range || '8-12'; }
     }
     plan.history.push({ seq: e.seq, ts: e.ts, src: e.src || 'user', reason: d.reason || '', before, changes: c });
   }
@@ -580,7 +675,7 @@
   }
 
   // ---------- backup / import validation ----------
-  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'event_voided'];
+  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'event_voided'];
   const BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function hasBadKeys(o, depth) {
     if (o === null || typeof o !== 'object') return false;
@@ -655,6 +750,251 @@
     return t;
   }
 
+  // ---------- activity: workouts, streaks, calories burnt ----------
+  // MET values are [easy, moderate, hard], rounded from the Compendium of Physical Activities (2024 adult edition).
+  // Pickleball has no official value, so its numbers sit between badminton and doubles tennis. All of this is an estimate.
+  const ACTIVITIES = {
+    strength: { name: 'Strength training', met: [3.5, 5, 6] },
+    swimming: { name: 'Swimming', met: [5.8, 7, 9.8] },
+    football: { name: 'Football', met: [7, 8.5, 10] },
+    tennis: { name: 'Tennis', met: [6, 7.3, 8] },
+    badminton: { name: 'Badminton', met: [4.5, 5.5, 7] },
+    pickleball: { name: 'Pickleball', met: [3.5, 4.5, 6] },
+    hot_yoga: { name: 'Hot yoga', met: [2.5, 3, 4] },
+    yoga: { name: 'Yoga', met: [2, 2.5, 4] },
+    running: { name: 'Running', met: [7, 9.8, 11.5] },
+    cycling: { name: 'Cycling', met: [4, 6.8, 10] },
+    walking: { name: 'Walking', met: [2.8, 3.5, 5] },
+    hiking: { name: 'Hiking', met: [4.5, 6, 7.8] },
+    hiit: { name: 'HIIT or circuits', met: [6, 8, 10] },
+    cricket: { name: 'Cricket', met: [3.5, 4.8, 6] },
+    basketball: { name: 'Basketball', met: [4.5, 6.5, 8] },
+    table_tennis: { name: 'Table tennis', met: [3, 4, 5] },
+    squash: { name: 'Squash', met: [7.3, 9, 12] },
+    rowing: { name: 'Rowing', met: [4.8, 7, 8.5] },
+    climbing: { name: 'Climbing', met: [5, 7.5, 8.5] },
+    boxing: { name: 'Boxing or martial arts', met: [5, 7.8, 10.3] },
+    dance: { name: 'Dance', met: [3.5, 5, 7] },
+    stretching: { name: 'Stretching or mobility', met: [2, 2.3, 2.8] },
+    other: { name: 'Other activity', met: [3, 5, 7] },
+  };
+  const EFFORTS = ['easy', 'moderate', 'hard'];
+  const isActivity = (t) => typeof t === 'string' && Object.prototype.hasOwnProperty.call(ACTIVITIES, t);
+  function metFor(type, effort) {
+    const a = isActivity(type) ? ACTIVITIES[type] : ACTIVITIES.other, i = EFFORTS.indexOf(effort);
+    return a.met[i < 0 ? 1 : i];
+  }
+  // Active calories: what the session burnt above sitting still, (MET - 1) x kg x hours.
+  function estimateKcal(type, effort, mins, kg) {
+    const m = clamp(Number(mins) || 0, 0, 600), w = clamp(Number(kg) || 70, 30, 300);
+    return Math.round(Math.max(0, metFor(type, effort) - 1) * w * m / 60);
+  }
+  const hasLift = (plan, id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(plan.lifts, id);
+  function slug(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'x'; }
+  // An id for a lift the person makes up: c_<name>_<n>, unique in this plan, always safe to store and to import.
+  function newLiftId(plan, name) {
+    const base = 'c_' + slug(name);
+    for (let n = 1; n < 1000; n++) { const id = base + '_' + n; if (!Object.prototype.hasOwnProperty.call(plan.lifts, id)) return id; }
+    return base + '_' + Date.now().toString(36).slice(-4);
+  }
+  const exId = (ex) => ex.lift || 'acc_' + slug(ex.n);
+
+  // Turns a workout read from the log (or a coach proposal, or a backup) into a safe entry, or refuses it.
+  function cleanWorkout(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, errors: ['That is not a workout.'] };
+    const date = String(raw.date || '');
+    if (!validISO(date)) return { ok: false, errors: ['Bad date.'] };
+    const mins = Math.round(Number(raw.mins));
+    if (!(mins >= 1)) return { ok: false, errors: ['Add how long it lasted.'] };
+    const kcal = clamp(Math.round(Number(raw.kcal) || 0), 0, 5000);
+    return { ok: true, value: {
+      id: /^w_[a-z0-9]{3,24}$/.test(String(raw.id || '')) ? String(raw.id) : '',
+      date, type: isActivity(raw.type) ? raw.type : 'other', label: cleanStr(raw.label, 40),
+      mins: clamp(mins, 1, 600), effort: EFFORTS.includes(raw.effort) ? raw.effort : 'moderate',
+      kcal, manual: raw.manual === true && kcal > 0, session: cleanStr(raw.session, 40), note: cleanStr(raw.note, 200),
+    } };
+  }
+  const workoutName = (w) => w.label || (isActivity(w.type) ? ACTIVITIES[w.type] : ACTIVITIES.other).name;
+  // Body weight to use for a date: the weigh-ins around it, else the latest one before it, else the starting weight.
+  function bodyKg(state, date) {
+    const near = weightAround(state.weights, date);
+    if (near) return near;
+    let last = null;
+    for (const w of state.weights) if (w.date <= date) last = w;
+    return last ? last.kg : (state.profile && state.profile.weightKg) || 70;
+  }
+  function defaultActiveGoal(profile) { const n = profile && Array.isArray(profile.days) ? profile.days.length : 0; return clamp(n || 4, 1, 7); }
+
+  // ----- the suggested session for a day. The plan says a weekday; the person can move it. -----
+  // Returns { session, planned, moved }: what is on for that date, what the plan had, and whether they differ.
+  function sessionFor(plan, moves, date) {
+    const planned = plan.workouts.find((x) => x.weekday === weekdayOf(date)) || null;
+    const mv = moves && moves[date];
+    let session = planned;
+    if (mv === 'rest') session = null;
+    else if (mv) session = plan.workouts.find((x) => x.name === mv) || planned;
+    return { session, planned, moved: (session ? session.name : null) !== (planned ? planned.name : null) };
+  }
+  // Moving a session to another day. If that day already has one, the two swap. Returns the session_moved payloads to write.
+  function moveSession(plan, moves, fromDate, toDate) {
+    if (fromDate === toDate) return [];
+    const a = sessionFor(plan, moves, fromDate).session;
+    if (!a) return [];
+    const b = sessionFor(plan, moves, toDate).session;
+    return [{ date: toDate, session: a.name }, { date: fromDate, session: b ? b.name : 'rest' }];
+  }
+  // Do session `name` on `date` instead of whatever is planned there. Returns { events, moved, dropped }.
+  // If `name` is still to do on another day of that plan week, that day is cleared (or takes the displaced session, if it is
+  // later). The displaced session gets the next free day that week, or comes off the week: it is never counted as missed.
+  function changeSession(state, date, name, today) {
+    const plan = state.plan, target = plan.workouts.find((w) => w.name === name);
+    const none = { events: [], moved: null, dropped: null };
+    if (!target) return none;
+    const cur = sessionFor(plan, state.moves, date).session;
+    if (cur && cur.name === name) return none;
+    const week = weekOf(plan.startDate, date), idx = setIndex(state), b = weekRange(plan.startDate, week)[1], a = weekRange(plan.startDate, week)[0];
+    const out = new Map([[date, name]]);
+    let from = null;
+    if (!sessionDoneIn(state, target, week, idx)) {
+      for (let d = a; d <= b && !from; d = addDays(d, 1)) if (d !== date) { const s = sessionFor(plan, state.moves, d).session; if (s && s.name === name) from = d; }
+    }
+    if (from) out.set(from, 'rest');
+    let moved = null, dropped = null;
+    if (cur && !sessionDoneIn(state, cur, week, idx)) {
+      let home = from && from > date ? from : null;
+      for (let d = addDays(date, 1); d <= b && !home; d = addDays(d, 1)) if (!out.has(d) && !sessionFor(plan, state.moves, d).session) home = d;
+      if (home) { out.set(home, cur.name); moved = { name: cur.name, date: home }; } else dropped = cur.name;
+    }
+    return { events: Array.from(out, ([d, n]) => ({ date: d, session: n })), moved, dropped };
+  }
+  // Move a named session to `to`: swap with what is there, or, if it is not on the coming plan, add it on that day.
+  function relocateSession(state, name, to, today) {
+    const plan = state.plan, idx = setIndex(state);
+    let from = null;
+    const toWeek = weekOf(plan.startDate, to);
+    // only a session still to do in the same plan week is swapped: moving it across weeks would quietly empty another week
+    for (let i = 0; i <= 13 && !from; i++) { const d = addDays(today, i), wk = weekOf(plan.startDate, d), s = sessionFor(plan, state.moves, d).session; if (wk === toWeek && s && s.name === name && !sessionDoneIn(state, s, wk, idx)) from = d; }
+    if (from === to) return { events: [], from, displaced: null, dropped: null };
+    if (from) { const there = sessionFor(plan, state.moves, to).session; return { events: moveSession(plan, state.moves, from, to), from, displaced: there ? there.name : null, dropped: null }; }
+    const r = changeSession(state, to, name, today);
+    return { events: r.events, from: null, displaced: r.moved ? r.moved.name : null, dropped: r.dropped };
+  }
+  // Working sets grouped by day.
+  function setIndex(state) {
+    const m = new Map();
+    for (const x of state.sets) if (!x.warmup && typeof x.date === 'string') { const a = m.get(x.date); if (a) a.push(x); else m.set(x.date, [x]); }
+    return m;
+  }
+  // A session counts as done in a plan week when a strength workout was logged for it, or when on one day
+  // at least half of its exercises got working sets. It does not matter which weekday that was.
+  function sessionDoneIn(state, session, week, idx) {
+    const [a, b] = weekRange(state.plan.startDate, week);
+    if (state.workouts.some((w) => w.type === 'strength' && w.session === session.name && w.date >= a && w.date <= b)) return true;
+    if (!session.ex.length) return false;
+    for (let d = a; d <= b; d = addDays(d, 1)) {
+      const ss = idx.get(d);
+      if (!ss || ss.length < 2) continue;
+      const have = new Set(ss.map((x) => x.lift));
+      // an exercise also counts when its sets were logged before it became a tracked lift
+      if (session.ex.filter((ex) => have.has(exId(ex)) || have.has('acc_' + slug(ex.n)) || (ex.was && have.has(ex.was))).length / session.ex.length >= 0.5) return true;
+    }
+    return false;
+  }
+  // The sessions on for one plan week, after moves, with where each stands.
+  function weekPlan(state, week, today, idx) {
+    const ix = idx || setIndex(state), [a, b] = weekRange(state.plan.startDate, week), out = [];
+    for (let d = a; d <= b; d = addDays(d, 1)) {
+      const f = sessionFor(state.plan, state.moves, d);
+      if (!f.session) continue;
+      const done = sessionDoneIn(state, f.session, week, ix);
+      out.push({ date: d, name: f.session.name, moved: f.moved, done, status: done ? 'done' : d < today ? 'missed' : d === today ? 'today' : 'upcoming' });
+    }
+    return out;
+  }
+
+  // ----- when was the person active -----
+  function dayIndex(state) {
+    const m = new Map();
+    const get = (d) => { let o = m.get(d); if (!o) { o = { date: d, mins: 0, kcal: 0, workouts: 0, sets: 0, kinds: [] }; m.set(d, o); } return o; };
+    for (const w of state.workouts) { const o = get(w.date); o.mins += w.mins; o.kcal += w.kcal; o.workouts++; if (!o.kinds.includes(w.type)) o.kinds.push(w.type); }
+    for (const x of state.sets) if (!x.warmup && typeof x.date === 'string') { const o = get(x.date); o.sets++; if (!o.kinds.includes('strength')) o.kinds.push('strength'); }
+    return m;
+  }
+  function dayStreaks(days, today) {
+    let cur = 0, d = days.has(today) ? today : addDays(today, -1);
+    while (days.has(d)) { cur++; d = addDays(d, -1); }
+    let best = 0, run = 0, prev = null;
+    for (const k of Array.from(days.keys()).filter((x) => x <= today).sort()) { run = prev && daysBetween(prev, k) === 1 ? run + 1 : 1; if (run > best) best = run; prev = k; }
+    return { cur, best };
+  }
+  // Weeks in a row (plan weeks) with at least `goal` active days. The week in progress never breaks a streak; it only adds to it once the goal is met.
+  function weekStreaks(days, start, today, goal) {
+    const wi = (d) => Math.floor(daysBetween(start, d) / 7);
+    const per = new Map();
+    for (const k of days.keys()) if (k <= today) per.set(wi(k), (per.get(wi(k)) || 0) + 1);
+    const cw = wi(today);
+    let cur = 0, w = (per.get(cw) || 0) >= goal ? cw : cw - 1;
+    while ((per.get(w) || 0) >= goal) { cur++; w--; }
+    let best = 0, run = 0, prev = null;
+    for (const k of Array.from(per.keys()).filter((x) => per.get(x) >= goal).sort((a, b) => a - b)) { run = prev != null && k === prev + 1 ? run + 1 : 1; if (run > best) best = run; prev = k; }
+    return { cur, best, thisWeekDays: per.get(cw) || 0 };
+  }
+  function activitySummary(state, today, goal) {
+    const days = dayIndex(state), g = clamp(Math.round(goal) || 4, 1, 7), start = state.plan.startDate;
+    const ds = dayStreaks(days, today), ws = weekStreaks(days, start, today, g);
+    const week = weekOf(start, today), [a, b] = weekRange(start, week);
+    const tw = { week, days: 0, goal: g, mins: 0, kcal: 0, workouts: 0 };
+    for (const [k, o] of days) if (k >= a && k <= b && k <= today) { tw.days++; tw.mins += o.mins; tw.kcal += o.kcal; tw.workouts += o.workouts; }
+    const last14 = [];
+    for (let i = 13; i >= 0; i--) { const d = addDays(today, -i), o = days.get(d); last14.push({ date: d, active: !!o, kinds: o ? o.kinds.slice() : [] }); }
+    const past = Array.from(days.keys()).filter((k) => k <= today).sort();
+    const lastActive = past.length ? past[past.length - 1] : null;
+    const totals = { days: past.length, workouts: 0, mins: 0, kcal: 0 };
+    for (const k of past) { const o = days.get(k); totals.workouts += o.workouts; totals.mins += o.mins; totals.kcal += o.kcal; }
+    return { goal: g, dayStreak: ds.cur, bestDayStreak: ds.best, weekStreak: ws.cur, bestWeekStreak: ws.best, thisWeek: tw, last14, totals, lastActive, daysSince: lastActive ? daysBetween(lastActive, today) : null };
+  }
+  // One row per plan week up to `upTo`: active days, time, calories, and how many of the week's sessions got done.
+  function activityWeeks(state, upTo, today) {
+    const days = dayIndex(state), idx = setIndex(state), start = state.plan.startDate, out = [];
+    for (let w = 1; w <= upTo; w++) {
+      const [a, b] = weekRange(start, w);
+      const r = { week: w, days: 0, workouts: 0, mins: 0, kcal: 0, sets: 0, planned: 0, done: 0 };
+      for (let d = a; d <= b; d = addDays(d, 1)) { const o = days.get(d); if (o) { r.days++; r.workouts += o.workouts; r.mins += o.mins; r.kcal += o.kcal; r.sets += o.sets; } }
+      for (const p of weekPlan(state, w, today, idx)) { r.planned++; if (p.done) r.done++; }
+      out.push(r);
+    }
+    return out;
+  }
+  // What the person did since a date, by activity. A strength day with sets but no time logged still counts as a session.
+  function activityMix(state, since, today) {
+    const map = new Map();
+    const add = (type, label, mins, kcal) => {
+      const key = type === 'other' && label ? 'other:' + label.toLowerCase() : type;
+      let o = map.get(key);
+      if (!o) { o = { type, name: type === 'other' && label ? label : ACTIVITIES[type].name, sessions: 0, mins: 0, kcal: 0 }; map.set(key, o); }
+      o.sessions++; o.mins += mins; o.kcal += kcal;
+    };
+    const strengthDays = new Set();
+    for (const w of state.workouts) if (w.date >= since && w.date <= today) { add(w.type, w.label && w.type === 'other' ? w.label : '', w.mins, w.kcal); if (w.type === 'strength') strengthDays.add(w.date); }
+    for (const [d] of setIndex(state)) if (d >= since && d <= today && !strengthDays.has(d)) add('strength', '', 0, 0);
+    return Array.from(map.values()).sort((a, b) => b.mins - a.mins || b.sessions - a.sessions);
+  }
+  // The compact, note-free summary the coach sees.
+  function activityDigest(state, today, goal) {
+    const sum = activitySummary(state, today, goal), week = weekOf(state.plan.startDate, today), since = addDays(today, -27);
+    const wks = activityWeeks(state, Math.max(1, week), today).slice(-4);
+    const recent = state.workouts.filter((w) => w.date <= today).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.seq - a.seq)).slice(0, 10)
+      .map((w) => ({ date: w.date, activity: workoutName(w), mins: w.mins, kcal: w.kcal, effort: w.effort, session: w.session || undefined }));
+    const moves = Object.keys(state.moves).filter((d) => d >= addDays(today, -14) && d <= addDays(today, 7)).sort().map((d) => ({ date: d, session: state.moves[d] }));
+    return {
+      goalActiveDaysPerWeek: sum.goal, dayStreak: sum.dayStreak, weekStreak: sum.weekStreak, bestWeekStreak: sum.bestWeekStreak, daysSinceLastActive: sum.daysSince,
+      thisWeek: { activeDays: sum.thisWeek.days, mins: sum.thisWeek.mins, activeKcal: sum.thisWeek.kcal, sessions: weekPlan(state, week, today).map((p) => ({ session: p.name, date: p.date, status: p.status, movedFromPlan: p.moved })) },
+      last4Weeks: wks.map((r) => ({ week: r.week, activeDays: r.days, mins: r.mins, activeKcal: r.kcal, plannedSessions: r.planned, doneSessions: r.done })),
+      mix28d: activityMix(state, since, today).map((m) => ({ activity: m.name, sessions: m.sessions, mins: m.mins, activeKcal: m.kcal })),
+      recent, sessionMoves: moves,
+    };
+  }
+
   const Engine = {
     MEALS, macroKcal, normalizeFood, parseJsonLoose, dayTotals,
     KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, CLIP_TAGS, cleanClip, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
@@ -663,6 +1003,9 @@
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,
     weightAround, measAround, snapshotAt, checkIns, goalDir, changeTone,
     liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES,
+    LIFT_MUSCLES, LIFT_EQUIP, LIFT_CLS, defaultGain, cleanLift, newLiftId, slug, exId,
+    validISO, hasLift, changeSession, relocateSession, ACTIVITIES, EFFORTS, metFor, estimateKcal, cleanWorkout, workoutName, bodyKg, defaultActiveGoal, sessionFor, moveSession, setIndex, sessionDoneIn, weekPlan,
+    dayIndex, dayStreaks, weekStreaks, activitySummary, activityWeeks, activityMix, activityDigest,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   else root.Engine = Engine;

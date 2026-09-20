@@ -35,7 +35,7 @@
     U.clear(chatEl);
     if (!msgs.length) {
       U.put(chatEl, h('div', { class: 'msg ai' }, 'Ask me how your week is going, whether your calories look right, or tell me something like "shoulders feel beat" or "I weighed 70.6 kg this morning". I can suggest changes, but nothing changes until you tap Apply.'),
-        h('div', { class: 'suggest' }, ...['How is my week going?', 'Am I eating enough protein?', 'Should I change my calories?', 'My chest press felt too heavy'].map((q) => h('button', { type: 'button', class: 'pill', onclick: () => send(q) }, q))));
+        h('div', { class: 'suggest' }, ...['How is my week going?', 'Am I eating enough protein?', 'Should I change my calories?', 'My chest press felt too heavy', 'How consistent has my activity been?'].map((q) => h('button', { type: 'button', class: 'pill', onclick: () => send(q) }, q))));
     }
     for (const m of msgs) {
       chatEl.appendChild(h('div', { class: 'msg ' + m.role }, m.text));
@@ -88,7 +88,7 @@
     inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
     syncComposer();
     U.put(page, chatEl,
-      h('div', { class: 'notice' }, 'Sends your numbers (no photos, no name) to ' + hostOf(cfg) + '. Changes need your tap.'),
+      h('div', { class: 'notice' }, 'Sends your numbers and a workout summary (no photos, no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.'),
       h('div', { class: 'composer' }, inputEl, sendBtn));
     page.afterMount = drawChat;
     return page;
@@ -196,7 +196,7 @@
         b.disabled = false;
       } }),
       UI.card(h('div', { class: 'ct' }, 'What leaves your phone'),
-        h('div', { class: 'muted' }, 'Only requests you trigger, sent straight from this device to ' + hostOf(cfg) + ' with your key: a summary of your numbers for the coach, or the text you type when you ask for a food estimate. Not your name, not your photos. The key is never written into backups, logs or the repository.'),
+        h('div', { class: 'muted' }, 'Only requests you trigger, sent straight from this device to ' + hostOf(cfg) + ' with your key: a summary of your numbers and workouts (activity types, minutes, estimated calories, streaks; never your notes) for the coach, or the text you type when you ask for a food estimate. Not your name, not your photos. The key is never written into backups, logs or the repository.'),
         h('div', { class: 'muted small' }, 'The coach cannot change anything by itself. It can suggest, and you tap Apply. Every change has an Undo.'))));
   };
 })(self);

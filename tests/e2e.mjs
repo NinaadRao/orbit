@@ -92,6 +92,7 @@ async function onboard(page, opts) {
   await page.getByLabel('Incline DB press weight').fill('35');
   await page.getByLabel('Incline DB press reps').fill('8');
   await page.getByLabel('Pull-ups reps').fill('5');
+  if (o.onLifts) await o.onLifts(page);
   await page.getByRole('button', { name: 'Next: see my plan' }).click();
   await page.getByRole('button', { name: 'Start week 1' }).click();
   await page.waitForSelector('text=Week 1 of 26');
@@ -245,7 +246,9 @@ async function main() {
     await page.getByLabel('Search foods').fill('zzzz');
     ok(await page.getByRole('button', { name: 'Add my own food list' }).isVisible(), 'the add button is offered');
     ok((await page.locator('body').innerText()).includes('CC-BY-4.0'), 'the TempoLife attribution is on the Find screen');
-    ok(!/Indian Food Composition/i.test(await page.locator('body').innerText()), 'the app no longer claims to ship IFCT');
+    const findText = await page.locator('body').innerText();
+    ok(/IFCT 2017/.test(findText) && /README explains how to get/.test(findText), 'IFCT is recommended as a list you load yourself');
+    ok(!/(includes|bundled|built in|data from) (the )?(IFCT|Indian Food)/i.test(findText), 'the app does not claim to ship IFCT');
     await page.getByLabel('Food list file').setInputFiles(file);
     await page.getByText('Use this food list?').waitFor();
     ok((await page.locator('.sheet').last().innerText()).includes('6 foods can be used'), 'counts are shown before anything is stored');
@@ -256,7 +259,7 @@ async function main() {
     await page.getByLabel('Search foods').fill('bajra');
     const row = page.locator('.result', { hasText: 'Example millet flour' });
     await row.waitFor();
-    ok((await row.innerText()).includes('My list'), 'the source says My list');
+    ok((await row.innerText()).includes('my-tables'), 'the source names the list it came from');
     await row.click();
     await page.getByLabel('Amount').fill('50');
     await page.getByRole('button', { name: 'Log it' }).click();
@@ -428,7 +431,7 @@ async function main() {
 
   await step('no screen or sheet shows stray "null", "undefined" or "NaN"', async () => {
     const bad = /\b(null|undefined|NaN)\b/;
-    for (const h of ['#/today', '#/lifts', '#/fuel', '#/progress', '#/photos', '#/coach', '#/coach/setup', '#/settings', '#/settings/plan']) {
+    for (const h of ['#/today', '#/lifts', '#/activity', '#/fuel', '#/progress', '#/photos', '#/coach', '#/coach/setup', '#/settings', '#/settings/plan']) {
       await route(page, h);
       const t = await page.locator('#screen').innerText();
       ok(!bad.test(t), h + ' shows: ' + (t.match(bad) || [])[0]);
@@ -477,13 +480,279 @@ async function main() {
     await route(page, '#/lifts');
     const before = await page.evaluate(() => Object.keys(Store.getState().plan.lifts).length);
     await page.getByRole('button', { name: 'Add a lift' }).click();
-    await page.locator('#sheets select').selectOption('curl');
+    await page.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption('curl');
     await page.locator('#sheets').getByLabel(/Weight you can do/).fill('25');
     await page.locator('#sheets').getByLabel('Reps', { exact: true }).fill('10');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     await page.waitForTimeout(300);
     const st = await page.evaluate(() => { const p = Store.getState().plan; return { n: Object.keys(p.lifts).length, placed: p.workouts.some((w) => w.ex.some((e) => e.lift === 'curl')), t: Engine.liftTarget(p.lifts.curl, 1, { deloadWeeks: p.deloadWeeks }).kg / Engine.KG_PER_LB }; });
     eq(st.n, before + 1); ok(st.placed, 'on a workout day'); ok(st.t > 0, 'has a target');
+  });
+
+  await step('lifts: the picker offers every catalog lift and your own, with no cap of 13', async () => {
+    await route(page, '#/lifts');
+    // your own lift, placed on a session by muscle
+    await page.getByRole('button', { name: 'Add a lift' }).click();
+    const opts = await page.locator('#sheets').getByLabel('Lift', { exact: true }).locator('option').count();
+    ok(opts >= 30, 'the picker lists the catalog, got ' + opts);
+    await page.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption('__custom');
+    await page.locator('#sheets').getByLabel('Name', { exact: true }).fill('Trap bar deadlift');
+    await page.locator('#sheets').getByLabel('Muscle', { exact: true }).selectOption('back');
+    await page.locator('#sheets').getByLabel('Equipment', { exact: true }).selectOption('barbell');
+    await page.locator('#sheets').getByLabel('Type of lift', { exact: true }).selectOption('heavy');
+    await page.locator('#sheets').getByLabel(/Weight you can do/).fill('135');
+    await page.locator('#sheets').getByLabel('Reps', { exact: true }).fill('5');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.waitForTimeout(300);
+    let st = await page.evaluate(() => { const p = Store.getState().plan; const l = p.lifts.c_trap_bar_deadlift_1; return { l: l && { name: l.name, equip: l.equip, cls: l.cls, n: l.blockKg.length, kg: Engine.liftTarget(l, 1, { deloadWeeks: p.deloadWeeks }).kg }, placed: p.workouts.filter((w) => w.ex.some((e) => e.lift === 'c_trap_bar_deadlift_1')).map((w) => w.focus) }; });
+    ok(st.l && st.l.name === 'Trap bar deadlift' && st.l.n === 5 && st.l.kg > 0, 'custom lift built with a progression');
+    eq(st.l.cls, 'heavy'); eq(st.placed.length, 1); ok(st.placed[0].includes('back'), 'placed on a back day');
+    await page.waitForSelector('.liftcard:has-text("Trap bar deadlift")');
+    // then well past 13 tracked lifts, all from the catalog
+    for (const id of ['deadlift', 'rdl', 'overhead_press', 'barbell_row', 'hip_thrust', 'hack_squat', 'machine_press', 'hammer_curl', 'ez_curl', 'lateral_raise', 'face_pull', 'calf_raise']) {
+      await page.getByRole('button', { name: 'Add a lift' }).click();
+      await page.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption(id);
+      await page.locator('#sheets').getByLabel(/Weight you can do/).fill('60');
+      await page.locator('#sheets').getByLabel('Reps', { exact: true }).fill('8');
+      await page.getByRole('button', { name: 'Add', exact: true }).click();
+      await page.waitForTimeout(120);
+    }
+    st = await page.evaluate(() => Object.keys(Store.getState().plan.lifts).length);
+    ok(st >= 17, 'more than 13 lifts tracked, got ' + st);
+    ok(await page.locator('.liftcard').count() >= 17, 'all of them listed');
+    eq(await page.evaluate(() => Engine.validateEvents(Store.getEvents(), 1e6)), null, 'the log still validates');
+  });
+
+  await step('lifts: a lift can be placed on a chosen session, or on none', async () => {
+    await route(page, '#/lifts');
+    await page.getByRole('button', { name: 'Add a lift' }).click();
+    await page.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption('goblet_squat');
+    await page.locator('#sheets').getByLabel(/Weight you can do/).fill('50');
+    await page.locator('#sheets').getByLabel('Reps', { exact: true }).fill('10');
+    await page.locator('#sheets').getByLabel('Goes on').selectOption('-');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.waitForTimeout(250);
+    const st = await page.evaluate(() => { const p = Store.getState().plan; return { tracked: !!p.lifts.goblet_squat, inSession: p.workouts.some((w) => w.ex.some((e) => e.lift === 'goblet_squat')) }; });
+    ok(st.tracked && !st.inSession, 'tracked but in no session');
+  });
+
+  await step('lifts: stop tracking keeps the history and the exercise', async () => {
+    await route(page, '#/lifts/c_trap_bar_deadlift_1');
+    await page.getByRole('button', { name: 'Stop tracking this lift' }).click();
+    await page.locator('#sheets').getByRole('button', { name: 'Stop tracking', exact: true }).click();
+    await page.waitForFunction(() => !Store.getState().plan.lifts.c_trap_bar_deadlift_1);
+    const st = await page.evaluate(() => Store.getState().plan.workouts.flatMap((w) => w.ex).filter((e) => e.n === 'Trap bar deadlift').map((e) => e.lift));
+    eq(st, [null], 'kept as a plain exercise');
+    ok((await page.evaluate(() => location.hash)) === '#/lifts', 'back on the list');
+  });
+
+  // ----- activity -----
+  await step('activity: swimming with an estimated burn, tennis with your own number', async () => {
+    await route(page, '#/activity');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    const sh = page.locator('#sheets');
+    await sh.getByLabel('Activity', { exact: true }).selectOption('swimming');
+    await sh.getByLabel('How long').fill('45');
+    const want = await page.evaluate(() => { const st = Store.getState(), t = Engine.isoDate(new Date()); return Engine.estimateKcal('swimming', 'moderate', 45, Engine.bodyKg(st, t)); });
+    ok(want > 300 && want < 420, 'about (7 - 1) x 82 kg x 0.75 h: ' + want);
+    const est = await sh.innerText();
+    ok(est.includes('Estimated ~' + want + ' kcal'), 'estimate shown; sheet said: ' + est.split('\n').filter((l) => /stimat|Add how long/.test(l)).join(' / '));
+    await sh.getByLabel('Note (optional)').fill('SECRET-NOTE-XYZ');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => Store.getState().workouts.length === 1);
+    await route(page, '#/activity');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    await sh.getByLabel('Activity', { exact: true }).selectOption('tennis');
+    await sh.getByLabel('How long').fill('60');
+    await sh.getByRole('radio', { name: 'Hard' }).click();
+    await sh.getByLabel('Calories burnt').fill('550');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => Store.getState().workouts.length === 2);
+    const w = await page.evaluate(() => Store.getState().workouts.map((x) => ({ type: x.type, mins: x.mins, kcal: x.kcal, manual: x.manual, effort: x.effort })));
+    eq(w[0].kcal, want); eq(Object.assign({}, w[0], { kcal: 0 }), { type: 'swimming', mins: 45, kcal: 0, manual: false, effort: 'moderate' });
+    eq(w[1], { type: 'tennis', mins: 60, kcal: 550, manual: true, effort: 'hard' });
+  });
+
+  await step('activity: your own sport, a past day, and no future dates', async () => {
+    await route(page, '#/activity');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    const sh = page.locator('#sheets');
+    await sh.getByLabel('Activity', { exact: true }).selectOption('other');
+    await sh.getByLabel('What was it?').fill('Kabaddi');
+    await sh.getByLabel('How long').fill('30');
+    const y = await page.evaluate(() => Engine.addDays(Engine.isoDate(new Date()), -1));
+    await sh.getByLabel('Date').fill(y);
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => Store.getState().workouts.length === 3);
+    const k = await page.evaluate(() => Store.getState().workouts.find((x) => x.label === 'Kabaddi'));
+    ok(k && k.type === 'other' && k.kcal > 0, 'saved with an estimate');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    await sh.getByLabel('Activity', { exact: true }).selectOption('yoga');
+    await sh.getByLabel('How long').fill('20');
+    const tomorrow = await page.evaluate(() => Engine.addDays(Engine.isoDate(new Date()), 1));
+    await sh.getByLabel('Date').fill(tomorrow);
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    ok(/today or an earlier day/i.test(await page.locator('#toast').innerText()), 'future date refused');
+    eq(await page.evaluate(() => Store.getState().workouts.length), 3);
+    await sh.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  await step('activity: strength with sets and load counts towards the lift targets and the weekly plan', async () => {
+    await route(page, '#/activity');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    const sh = page.locator('#sheets');
+    await sh.getByLabel('Activity', { exact: true }).selectOption('strength');
+    const dflt = await sh.getByLabel('Which workout').inputValue();
+    ok(dflt.length > 0, 'defaults to the session on for the day: ' + dflt);
+    // pick the session with the most tracked lifts, so the sets show up in lift status
+    const best = await page.evaluate(() => Store.getState().plan.workouts.map((w) => ({ n: w.name, k: w.ex.filter((e) => e.lift).length })).sort((a, b) => b.k - a.k)[0].n);
+    await sh.getByLabel('Which workout').selectOption(best);
+    await sh.getByRole('button', { name: 'Fill with the plan' }).click();
+    await sh.getByLabel('How long').fill('55');
+    const before = await cnt(page, 'set_logged');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    // the workout is written first, then its sets: the toast appears once everything is saved
+    await page.getByText(/^Logged ~\d/).first().waitFor();
+    const r = await page.evaluate(() => {
+      const st = Store.getState(), plan = st.plan, t = Engine.isoDate(new Date());
+      const w = st.workouts.find((x) => x.type === 'strength');
+      const mine = st.sets.filter((x) => x.wo === w.id);
+      const tracked = Object.keys(plan.lifts).find((id) => mine.some((x) => x.lift === id));
+      const wk = Engine.weekOf(plan.startDate, t);
+      return { session: w.session, n: mine.length, tracked, logged: tracked ? Engine.liftStatus(st, tracked, wk, t).logged : 0, kcal: w.kcal, done: Engine.weekPlan(st, wk, t).filter((p) => p.name === w.session).map((p) => p.done) };
+    });
+    ok(r.n >= 6, 'sets were written with the workout: ' + r.n);
+    ok(r.tracked && r.logged >= 3, 'tracked lift sets show up in lift status');
+    ok(r.kcal > 150, 'strength calories estimated: ' + r.kcal);
+    ok(r.done.length && r.done.every(Boolean), 'the session is marked done in the weekly plan');
+    eq((await events(page)).filter((e) => e.type === 'set_logged').length, before + r.n);
+  });
+
+  await step('activity: editing keeps the sets, deleting a strength workout removes them', async () => {
+    await route(page, '#/activity');
+    const beforeSets = await page.evaluate(() => Store.getState().sets.length);
+    await page.locator('.listrow:has-text("Strength training")').first().click();
+    const sh = page.locator('#sheets');
+    ok(/sets are saved with this workout/.test(await sh.innerText()), 'linked sets noted');
+    await sh.getByLabel('How long').fill('70');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => { const s = Store.getState().workouts.filter((w) => w.type === 'strength'); return s.length === 1 && s[0].mins === 70; }); // new copy written first, old one voided after
+    eq(await page.evaluate(() => Store.getState().sets.length), beforeSets, 'edit leaves the sets alone');
+    await route(page, '#/activity');
+    await page.locator('.listrow:has-text("Strength training")').first().click();
+    await page.locator('#sheets').getByRole('button', { name: 'Delete with sets' }).click();
+    await page.waitForFunction(() => !Store.getState().workouts.some((w) => w.type === 'strength'));
+    const st = await page.evaluate(() => ({ sets: Store.getState().sets.length, linked: Store.getState().sets.filter((x) => x.wo).length }));
+    eq(st.linked, 0); ok(st.sets < beforeSets, 'the workout\'s sets are gone');
+  });
+
+  await step('activity: streaks count active days and weeks, and show on Today, Progress and Activity', async () => {
+    const sum = await page.evaluate(() => Engine.activitySummary(Store.getState(), Engine.isoDate(new Date()), 3));
+    ok(sum.dayStreak >= 2, 'today and yesterday are active: ' + sum.dayStreak);
+    ok(sum.thisWeek.kcal >= 300 + 550, 'week calories add up');
+    for (const [hash, text] of [['#/today', 'Activity'], ['#/progress', 'Activity'], ['#/activity', 'Weekly log']]) {
+      await route(page, hash);
+      const t = await page.locator('#screen').innerText();
+      ok(t.includes(text) && /day streak/.test(t) && /week streak/.test(t), hash + ' shows the streaks');
+    }
+    await route(page, '#/activity');
+    eq(await page.locator('.dot').count(), 14, 'fourteen days shown');
+    ok(await page.locator('.dot.on').count() >= 2, 'active days lit');
+    await route(page, '#/fuel');
+    ok(/Active today/.test(await page.locator('#screen').innerText()), 'Fuel mentions active calories');
+  });
+
+  await step('today: the suggested session can be moved, swapped or skipped, and it is not a miss', async () => {
+    await route(page, '#/today');
+    const t0 = await page.evaluate(() => { const st = Store.getState(); return { today: Engine.isoDate(new Date()), name: Engine.sessionFor(st.plan, st.moves, Engine.isoDate(new Date())).session.name }; });
+    await page.locator('.card', { hasText: t0.name + ' day' }).getByRole('button', { name: 'Change' }).click();
+    const sh = page.locator('#sheets');
+    ok(/Move .* to another day/.test(await sh.innerText()), 'move options');
+    ok(/suggestion/i.test(await sh.innerText()), 'says it is only a suggestion');
+    await sh.locator('.list').first().locator('.listrow').first().click();
+    await page.waitForFunction((d) => Store.getState().moves[d] !== undefined, t0.today);
+    const mv = await page.evaluate(() => { const st = Store.getState(); return Object.assign({}, st.moves); });
+    ok(Object.keys(mv).length === 2, 'two days changed: ' + JSON.stringify(mv));
+    const after = await page.evaluate(() => { const st = Store.getState(), t = Engine.isoDate(new Date()); const f = Engine.sessionFor(st.plan, st.moves, t); return { session: f.session && f.session.name, moved: f.moved }; });
+    ok(after.moved, 'today differs from the plan now');
+    await route(page, '#/today');
+    if (after.session) ok((await page.locator('#screen').innerText()).includes('moved here'), 'the card says it moved here');
+    else ok((await page.locator('#screen').innerText()).includes('Rest day'), 'a rest day now');
+  });
+
+  await step('today: on a rest day, train anyway pulls a session forward; skipping a session drops it without a miss', async () => {
+    await page.evaluate(() => { const st = Store.getState(), t = Engine.isoDate(new Date()); window.__rest = !Engine.sessionFor(st.plan, st.moves, t).session; });
+    if (!(await page.evaluate(() => window.__rest))) {
+      await route(page, '#/today');
+      await page.getByRole('button', { name: 'Change' }).first().click();
+      await page.locator('#sheets').getByRole('button', { name: /Skip it this week/ }).click();
+      await page.waitForFunction(() => { const st = Store.getState(); return !Engine.sessionFor(st.plan, st.moves, Engine.isoDate(new Date())).session; });
+    }
+    await route(page, '#/today');
+    ok((await page.locator('#screen').innerText()).includes('Rest day'), 'rest day card');
+    await page.getByRole('button', { name: 'Train anyway' }).click();
+    const sh = page.locator('#sheets');
+    ok(/Train today\?/.test(await sh.innerText()), 'sheet asks which session');
+    const name = await sh.locator('.listrow b').first().innerText();
+    ok(/Planned .*cleared|Done this week|Not on this week/.test(await sh.locator('.listrow').first().innerText()), 'each option says what it does to the week: ' + (await sh.locator('.listrow').first().innerText()).replace(/\n/g, ' '));
+    await sh.locator('.listrow').first().click();
+    await page.waitForFunction((n) => { const st = Store.getState(); const s = Engine.sessionFor(st.plan, st.moves, Engine.isoDate(new Date())).session; return s && s.name === n; }, name);
+    await route(page, '#/today');
+    ok((await page.locator('#screen').innerText()).includes(name + ' day'), 'today shows the chosen session');
+  });
+
+  await step('coach: gets an activity summary without notes; a workout proposal needs a tap and undo works', async () => {
+    await page.unroute('https://api.anthropic.com/**');
+    const reqs = [];
+    await page.route('https://api.anthropic.com/**', async (r) => {
+      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
+      const body = JSON.parse(r.request().postData() || '{}'); reqs.push(body);
+      const last = body.messages[body.messages.length - 1];
+      const isResult = Array.isArray(last.content) && last.content.some((c) => c.type === 'tool_result');
+      const out = isResult ? textReply('Queued. Tap Apply.') : toolReply('Logging that.', 'log_workout', { activity: 'badminton', minutes: 40, effort: 'hard' });
+      return r.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/event-stream' }, CORS), body: out });
+    });
+    await route(page, '#/coach');
+    const n0 = await page.evaluate(() => Store.getState().workouts.length);
+    await page.getByLabel('Message').fill('I played badminton for 40 minutes, hard');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.proposal');
+    eq(await page.evaluate(() => Store.getState().workouts.length), n0, 'nothing logged without a tap');
+    const sys = JSON.stringify(reqs[0].system || '') + JSON.stringify(reqs[0].messages);
+    ok(/"activity":\{/.test(sys.replace(/\\"/g, '"')), 'activity block sent');
+    ok(/Swimming/.test(sys) && /Tennis/.test(sys), 'activities named');
+    ok(!/SECRET-NOTE-XYZ/.test(sys), 'workout notes are never sent');
+    ok(/NOT a miss/.test(sys), 'the prompt says moved sessions are not misses');
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+    await page.waitForFunction((n) => Store.getState().workouts.length === n + 1, n0);
+    const w = await page.evaluate(() => Store.getState().workouts.find((x) => x.type === 'badminton'));
+    ok(w && w.mins === 40 && w.effort === 'hard' && w.kcal > 200 && !w.manual, 'estimated: ' + JSON.stringify(w));
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await page.waitForFunction((n) => Store.getState().workouts.length === n, n0);
+  });
+
+  await step('coach: a workout with nonsense values is rejected by the validator', async () => {
+    await page.unroute('https://api.anthropic.com/**');
+    await fakeAI(page, async (body) => {
+      const last = body.messages[body.messages.length - 1];
+      const isResult = Array.isArray(last.content) && last.content.some((c) => c.type === 'tool_result');
+      return { body: isResult ? textReply('That was rejected.') : toolReply('Sure.', 'log_workout', { activity: 'teleporting', minutes: 99999 }) };
+    });
+    const n = await page.locator('.proposal').count();
+    await page.getByLabel('Message').fill('log it');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('text=That was rejected.');
+    eq(await page.locator('.proposal').count(), n, 'no proposal card');
+  });
+
+  await step('backup keeps workouts and moved sessions, and a hostile workout in a file is cleaned', async () => {
+    const n = await page.evaluate(() => Store.getEvents().filter((e) => e.type === 'workout_logged' || e.type === 'session_moved').length);
+    ok(n >= 5, 'workout and move events are in the log that backups are built from: ' + n);
+    const hostile = await page.evaluate(() => {
+      const st = Engine.project([{ seq: 1, type: 'workout_logged', data: { date: '2026-01-01', type: '__proto__', mins: 99999, kcal: 1e12, note: '<img src=x onerror=1>', label: 'x'.repeat(500), id: '../../x' } }]);
+      return st.workouts[0];
+    });
+    eq(hostile.type, 'other'); eq(hostile.mins, 600); eq(hostile.kcal, 5000); eq(hostile.id, ''); eq(hostile.label.length, 40);
   });
 
   // ----- security -----
@@ -1248,6 +1517,37 @@ async function main() {
   await kctx.close();
 
   // ================= file:// =================
+  console.log('\nOnboarding with more lifts');
+  {
+    const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const p2 = await c2.newPage(); p2.setDefaultTimeout(5000);
+    const pr2 = await collect(p2);
+    await p2.goto(base);
+    await step('onboarding: add lifts beyond the first list, from the catalog and your own; all of them are in the plan', async () => {
+      await onboard(p2, { onLifts: async (pg) => {
+        await pg.getByRole('button', { name: 'Add another lift' }).click();
+        await pg.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption('deadlift');
+        await pg.locator('#sheets').getByLabel(/Weight you can do/).fill('140');
+        await pg.locator('#sheets').getByLabel('Reps', { exact: true }).fill('5');
+        await pg.getByRole('button', { name: 'Add', exact: true }).click();
+        await pg.getByRole('button', { name: 'Add another lift' }).click();
+        await pg.locator('#sheets').getByLabel('Lift', { exact: true }).selectOption('__custom');
+        await pg.locator('#sheets').getByLabel('Name', { exact: true }).fill('Sled push');
+        await pg.locator('#sheets').getByLabel('Muscle', { exact: true }).selectOption('legs');
+        await pg.locator('#sheets').getByLabel('Equipment', { exact: true }).selectOption('machine');
+        await pg.locator('#sheets').getByLabel(/Weight you can do/).fill('200');
+        await pg.locator('#sheets').getByLabel('Reps', { exact: true }).fill('10');
+        await pg.getByRole('button', { name: 'Add', exact: true }).click();
+        ok(await pg.getByLabel('Deadlift weight').count() === 1 && await pg.getByLabel('Sled push weight').count() === 1, 'both listed on the lifts step');
+      } });
+      const st = await p2.evaluate(() => { const p = Store.getState().plan; return { ids: Object.keys(p.lifts), sled: p.lifts.c_sled_push_1 && p.lifts.c_sled_push_1.equip, placed: p.workouts.flatMap((w) => w.ex).filter((e) => e.lift === 'deadlift' || e.lift === 'c_sled_push_1').length }; });
+      ok(st.ids.includes('deadlift') && st.ids.includes('c_sled_push_1') && st.ids.length === 5, 'five tracked lifts: ' + st.ids.join(','));
+      eq(st.sled, 'machine'); ok(st.placed >= 2, 'both are on a workout day');
+      eq(pr2, [], 'console problems');
+    });
+    await c2.close();
+  }
+
   console.log('\nApp from file://');
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const fpage = await fctx.newPage();

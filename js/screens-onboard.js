@@ -13,7 +13,7 @@
       meas: { waist: '', chest: '', shoulders: '', hips: '', bicepL: '', bicepR: '', forearmL: '', forearmR: '' },
       goal: null, days: [1, 2, 3, 4, 5], sessionMin: '90', timeOfDay: 'AM', diet: 'Vegetarian', creatine: 'Yes', currentKcal: '', currentProtein: '',
       training: { experience: '1-3 yrs', split: 'Orbit picks', equipment: new Set(['Dumbbells', 'Machines', 'Cables', 'Bodyweight']), dbStep: null, machineStep: null, focus: new Set(['Chest']), injuries: new Set(['Nothing']), repStyle: 'mixed', sets: '3', rest: '90 s', deload: 'planned', logRpe: true, restTimer: true, warmups: false, notes: true },
-      lifts, custom: [], startLighter: false,
+      lifts, extra: [], custom: [], startLighter: false,
     };
   }
   let D = freshDraft();
@@ -37,7 +37,7 @@
     const lu = D.units.lift;
     const st = stepsFor(lu);
     const lifts = [];
-    for (const id of E.DEFAULT_LIFT_ORDER) {
+    for (const id of E.DEFAULT_LIFT_ORDER.concat(D.extra)) {
       const l = D.lifts[id];
       if (!l || !l.on) continue;
       const cat = E.CATALOG[id];
@@ -47,7 +47,7 @@
     }
     for (const c of D.custom) {
       const w = num(c.weight);
-      if (c.name.trim() && (c.equip === 'bw' ? num(c.reps) : w > 0)) lifts.push({ id: 'c_' + c.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 24) + '_' + lifts.length, on: true, name: c.name.trim().slice(0, 40), muscle: c.muscle, equip: c.equip, weight: w, reps: num(c.reps) || null, cls: 'medium', gain: 0.25 });
+      if (c.on !== false && c.name.trim() && (c.equip === 'bw' ? num(c.reps) : w > 0)) lifts.push({ id: E.newLiftId({ lifts: Object.fromEntries(lifts.map((x) => [x.id, 1])) }, c.name), on: true, name: c.name.trim().slice(0, 40), muscle: c.muscle, equip: c.equip, weight: w, reps: num(c.reps) || null, cls: c.cls || 'medium', gain: c.gain != null ? c.gain : 0.25 });
     }
     const splitMap = { 'Orbit picks': 'auto', 'Push / Pull / Legs': 'ppl', 'Upper / Lower': 'ul', 'Body-part days': 'bodypart', 'Full body': 'fullbody' };
     return {
@@ -73,7 +73,7 @@
     return null;
   }
   function validateLifts() {
-    for (const id of E.DEFAULT_LIFT_ORDER) {
+    for (const id of E.DEFAULT_LIFT_ORDER.concat(D.extra)) {
       const l = D.lifts[id];
       if (l.on && E.CATALOG[id].equip !== 'bw' && !num(l.weight) && (l.reps !== '')) return 'Add a weight for ' + E.CATALOG[id].name + ' or untick it.';
     }
@@ -211,15 +211,19 @@
       const rInp = h('input', { class: 'inp', type: 'number', inputmode: 'numeric', value: l.reps, placeholder: cat && cat.def ? String(cat.def[1]) : '', 'aria-label': name + ' reps', oninput: (e) => { l.reps = e.target.value; } });
       return h('div', { class: 'liftrow' + (l.on !== false ? '' : ' off') }, cb, h('div', { class: 'ln' }, name), h('div', { class: 'wbox' }, wInp, bw ? null : h('span', { class: 'unit' }, lu)), h('div', { class: 'rbox' }, rInp));
     };
-    for (const id of E.DEFAULT_LIFT_ORDER) rows.appendChild(rowFor(E.CATALOG[id].name, D.lifts[id], E.CATALOG[id], false));
+    for (const id of E.DEFAULT_LIFT_ORDER.concat(D.extra)) rows.appendChild(rowFor(E.CATALOG[id].name, D.lifts[id], E.CATALOG[id], false));
     D.custom.forEach((c) => rows.appendChild(rowFor(c.name || 'Your lift', c, null, true)));
-    const addBtn = h('button', { type: 'button', class: 'dashed', onclick: () => addCustom() }, U.icon('plus', 18), 'Add your own lift');
-    function addCustom() {
-      const name = UI.field({ label: 'Name', value: '', maxlength: 40 });
-      const muscle = h('select', { class: 'inp', 'aria-label': 'Muscle' }, ...['chest', 'back', 'shoulders', 'arms', 'legs', 'core'].map((m) => h('option', { value: m }, m)));
-      const equip = h('select', { class: 'inp', 'aria-label': 'Equipment' }, ...[['db', 'Dumbbells'], ['machine', 'Machine or cable'], ['barbell', 'Barbell'], ['bw', 'Bodyweight']].map((x) => h('option', { value: x[0] }, x[1])));
-      U.sheet('Add your own lift', h('div', { class: 'stack' }, name, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Muscle'), muscle), h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Equipment'), equip)), [
-        { label: 'Cancel' }, { label: 'Add', kind: 'primary', run: () => { if (!name.input.value.trim()) { U.toast('Give it a name.', 'warn'); return false; } D.custom.push({ name: name.input.value.trim(), muscle: muscle.value, equip: equip.value, weight: '', reps: '', on: true }); root.App.render(); } }]);
+    const addBtn = h('button', { type: 'button', class: 'dashed', onclick: () => addLift() }, U.icon('plus', 18), 'Add another lift');
+    function addLift() {
+      const taken = new Set(E.DEFAULT_LIFT_ORDER.concat(D.extra));
+      const form = root.Screens._.liftForm({ taken, unit: lu });
+      U.sheet('Add another lift', form.body, [{ label: 'Cancel' }, { label: 'Add', kind: 'primary', run: () => {
+        const c = form.read();
+        if (c.error) { U.toast(c.error, 'warn'); return false; }
+        if (c.custom) D.custom.push({ name: c.custom.name, muscle: c.custom.muscle, equip: c.custom.equip, cls: c.custom.cls, gain: c.custom.gain, weight: c.weight == null ? '' : String(c.weight), reps: c.reps == null ? '' : String(c.reps), on: true });
+        else { D.extra.push(c.catalogId); D.lifts[c.catalogId] = { on: true, weight: c.weight == null ? '' : String(c.weight), reps: c.reps == null ? '' : String(c.reps) }; }
+        root.App.render();
+      } }]);
     }
     return UI.page(
       UI.header('What you lift', 'Tick your lifts, add a clean set.', { back: '#/onboard/3' }), UI.stepBar(4, 5),

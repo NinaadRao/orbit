@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node scripts/serve.mjs",
-    "test": "node --test tests/engine.test.js tests/foods.test.js",
+    "test": "node --test tests/engine.test.js tests/foods.test.js tests/activity.test.js",
     "e2e": "node tests/e2e.mjs",
     "check-private": "node scripts/check-private.mjs",
     "hooks": "sh scripts/install-hooks.sh",

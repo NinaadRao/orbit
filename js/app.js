@@ -38,6 +38,7 @@
       [/^#\/onboard\/4$/, () => O.liftsStep()], [/^#\/onboard\/5$/, () => O.planStep()],
       [/^#\/today$/, () => S.today()],
       [/^#\/lifts$/, () => S.lifts()], [/^#\/lifts\/([a-z0-9_]+)$/, (m) => S.liftDetail(m[1])],
+      [/^#\/activity$/, () => S.activity()],
       [/^#\/fuel$/, () => S.fuel()],
       [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()], [/^#\/photos\/trend$/, () => S.photoTrend()], [/^#\/photos\/compare$/, () => S.photoCompare()],
       [/^#\/library$/, () => S.library()],
@@ -62,7 +63,7 @@
     if (!show) return;
     const base = hash.startsWith('#/photos') || hash.startsWith('#/library') || hash.startsWith('#/settings') ? '#/progress' : '#/' + hash.split('/')[1];
     for (const [href, label, ic] of TABS) {
-      const on = href === (hash.startsWith('#/settings') || hash.startsWith('#/profile') ? '#/today' : base);
+      const on = href === (hash.startsWith('#/settings') || hash.startsWith('#/profile') || hash.startsWith('#/activity') ? '#/today' : base);
       bar.appendChild(h('a', { href, class: on ? 'on' : '', 'aria-current': on ? 'page' : null }, U.icon(ic, 22), h('span', null, label)));
     }
   }

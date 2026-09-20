@@ -1,17 +1,23 @@
 # Orbit
 
-A private, local-first tracker for lifts, food, body weight, measurements and progress photos, built around a 26-week plan (build, recomp or cut). No account, no server, no analytics. Your data lives in your browser and leaves only when you make a backup file. It installs on an iPhone, an Android phone or a computer and works offline.
+A private, local-first tracker for lifts, workouts and sport, food, body weight, measurements and progress photos, built around a 26-week plan (build, recomp or cut). No account, no server, no analytics. Your data lives in your browser and leaves only when you make a backup file. It installs on an iPhone, an Android phone or a computer and works offline.
 
 <p align="center">
-  <img src="docs/img/today.png" width="190" alt="Today: the plan, this week and today's workout">
-  <img src="docs/img/lifts.png" width="190" alt="Lifts: weekly targets with Hit, Partial and Todo">
+  <img src="docs/img/today.png" width="190" alt="Today: the suggested workout, which you can change or move">
+  <img src="docs/img/activity.png" width="190" alt="Activity: week and day streaks, the last 14 days, and this week's sessions">
+  <img src="docs/img/lifts.png" width="190" alt="Lifts: weekly targets with Hit, Partial and Todo, for as many lifts as you track">
   <img src="docs/img/fuel-find.png" width="190" alt="Fuel: search the food database with a Veg, Veg + egg or Non-veg filter">
-  <img src="docs/img/photo-trend.png" width="190" alt="Photo trend: scrub through weekly check-ins with the numbers of each day under the photo">
 </p>
 
 <details>
 <summary>More screenshots</summary>
 
+<p align="center">
+  <img src="docs/img/activity-log.png" width="190" alt="Log a workout: strength sets, reps and load for the session you did">
+  <img src="docs/img/activity-move.png" width="190" alt="Change today's plan: move the suggested workout, swap it or do another session">
+  <img src="docs/img/lift-add.png" width="190" alt="Add a lift: one of about 40, or your own">
+  <img src="docs/img/photo-trend.png" width="190" alt="Photo trend: scrub through weekly check-ins with the numbers of each day under the photo">
+</p>
 <p align="center">
   <img src="docs/img/progress.png" width="190" alt="Progress: weight trend and measurements against goals">
   <img src="docs/img/checkin.png" width="190" alt="Weekly photo check-in: pick a check-in by its date, then add the five angles">
@@ -39,11 +45,18 @@ A private, local-first tracker for lifts, food, body weight, measurements and pr
 
 **Train**
 - Log sets with effort and a rest timer. Each lift shows Hit, Partial or Todo against its weekly target.
-- Today shows the day's workout. Missed weeks show as Behind, not as an error, and you can catch up or skip.
+- Track as many lifts as you like: about 40 are built in, and you can add your own (name, muscle, equipment, starting weight) and choose which workout it goes on. Stop tracking one any time; its history stays.
+- Today shows the day's workout as a suggestion. Move it to another day, swap it with another session, train something else, or skip it for the week. Weekly targets do not depend on the weekday, and a moved session is never counted as missed.
+
+**Activity**
+- Log any workout by hand: swimming, football, tennis, badminton, pickleball, hot yoga, running, cycling and about twenty more, or your own. Pick the time and how hard it was.
+- Strength training records which workout you did and the sets, reps and load. Those sets count towards your lift targets and the weekly log automatically.
+- Active calories are estimated from the activity, time, effort and your weight (MET values from the Compendium of Physical Activities), or you can type the number from your watch. Your calorie target already allows for training, so there is nothing to eat back.
+- A week streak (weeks that reach your active-days goal) and a day streak, a 14-day strip, a weekly log and trends. Progress and the coach use the same numbers.
 
 **Fuel**
 - Search about 7,200 foods (USDA data) with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI, type raw ingredients, or enter macros by hand.
-- Add your own food list from a CSV or JSON file, such as regional tables you have the right to use. It stays on your device.
+- Add your own food list from a CSV or JSON file. For Indian foods, the IFCT 2017 tables are the best source, and [how to get them](#food-data) takes a few minutes. The list stays on your device.
 - AI results always show an editable confirmation card. Nothing is saved until you tap "Looks right".
 
 **Body and photos**
@@ -56,7 +69,7 @@ A private, local-first tracker for lifts, food, body weight, measurements and pr
 - Ask your coach about form on a set, and stitch clips and check-in photos into one shareable MP4.
 
 **Coach (optional)**
-- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). It can suggest changes; you tap Apply; every change has Undo. Nothing else in the app needs AI.
+- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). It sees a summary of your lifts, food, weight and activity (never photos or notes) and can suggest changes, log a workout or move a session; you tap Apply; every change has Undo. Nothing else in the app needs AI.
 
 **Backup and privacy**
 - One encrypted backup file saved on your own device, replaced each time. Optional passcode.
@@ -89,6 +102,16 @@ Then open Orbit from its home screen icon, answer the setup questions (about fou
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it fits together and why, and the file layout.
 - [SECURITY.md](SECURITY.md): what is and is not protected.
 - [data/SOURCES.md](data/SOURCES.md): where the food data comes from and the terms it comes with.
+
+## Food data
+
+Orbit bundles about 7,200 foods from USDA FoodData Central. It does **not** bundle the Indian Food Composition Tables 2017 (IFCT), because their publisher, the National Institute of Nutrition (ICMR) in Hyderabad, allows personal use with acknowledgement but not electronic redistribution without written permission. **If you eat Indian food, loading IFCT as your own list is recommended.** It adds 542 foods (dals, millets, vegetables, paneer, eggs, meat and fish) with the diet tag and everyday names filled in. It takes a few minutes and you keep the file to yourself:
+
+1. **Get the table.** In a terminal: `npm pack @ifct2017/compositions@2.0.9`, then `tar xzf ifct2017-compositions-2.0.9.tgz`. The table is `package/index.csv`. That package is a community packaging of the published tables; the data itself belongs to the Institute. You can also use the official IFCT 2017 book and site.
+2. **Convert it.** From this folder: `node scripts/ifct-to-import.mjs package/index.csv --out ~/Documents/orbit-private/ifct.orbitfoods.json`. The script refuses to write inside the Orbit folder, and `*.orbitfoods.json` is ignored by git and blocked by the privacy check.
+3. **Load it.** In Orbit: Fuel, **Add food**, **Find**, **Add my own food list**, choose the file, then **Use this list**. Those foods show the list name as their source and follow the Veg / Egg / Non-veg filter. Choose the file again on a new phone; it is not in backups.
+
+Please keep to the Institute's terms: personal use, cite *Indian Food Composition Tables 2017, National Institute of Nutrition (ICMR), Hyderabad*, and do not publish or share the converted file. IFCT lists raw foods and available carbohydrate, so weigh raw food against a raw entry. Other tables work too: any CSV or JSON in the [documented format](docs/USER_GUIDE.md#your-own-food-list) can be loaded.
 
 ## Privacy in short
 

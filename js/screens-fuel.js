@@ -74,11 +74,14 @@
       h('div', { class: 'grow', style: { textAlign: 'center' } }, h('div', { class: 'd' }, date === t ? 'Today' : U.longDate(date)), h('div', { class: 'muted small' }, U.longDate(date))),
       h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Next day', disabled: date >= t, onclick: () => { viewDate = E.addDays(date, 1); root.App.render(); } }, U.icon('chev', 20)));
     const remaining = plan.kcal - tot.kcal;
+    const activeToday = st.workouts.filter((w) => w.date === date).reduce((n, w) => n + w.kcal, 0);
     const macroBar = (label, val, target, kind) => h('div', { class: 'stack' }, h('div', { class: 'kv' }, h('span', null, label), h('b', null, Math.round(val) + ' / ' + target + ' g')), U.bar(target ? (val / target) * 100 : 0, kind));
     const summary = UI.card(
       h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'display big' }, U.withCommas(tot.kcal), h('span', { class: 'muted unitbig' }, ' / ' + U.withCommas(plan.kcal) + ' kcal')), h('div', { class: 'muted small' }, remaining >= 0 ? U.withCommas(remaining) + ' left' : U.withCommas(-remaining) + ' over')), U.chip(E.dayTotals(st, date).n + ' logged', 'line')),
       U.bar(plan.kcal ? (tot.kcal / plan.kcal) * 100 : 0, tot.kcal > plan.kcal * 1.1 ? 'coral' : '', true),
-      macroBar('Protein', tot.protein, plan.protein, 'coral'), macroBar('Carbs', tot.carbs, plan.carbs, ''), macroBar('Fat', tot.fat, plan.fat, 'cool'));
+      macroBar('Protein', tot.protein, plan.protein, 'coral'), macroBar('Carbs', tot.carbs, plan.carbs, ''), macroBar('Fat', tot.fat, plan.fat, 'cool'),
+      activeToday ? h('a', { class: 'kv', href: '#/activity' }, h('span', null, 'Active today'), h('b', null, '~' + U.withCommas(activeToday) + ' kcal')) : null,
+      activeToday ? h('div', { class: 'muted small' }, 'Your target already allows for training, so there is no need to eat this back.') : null);
 
     const day = st.foods.filter((f) => f.date === date);
     const sections = [];
@@ -141,7 +144,7 @@
     // ----- Find -----
     const DIET_ITEMS = [['all', 'All'], ['veg', 'Veg'], ['egg', 'Veg + egg'], ['nonveg', 'Non-veg']];
     const dietChip = (f) => (f.recent ? null : U.chip(Foods.DIET_LABEL[f.diet], Foods.DIET_TONE[f.diet]));
-    const srcNote = (f) => (f.recent ? 'from your log' : f.approx ? 'approximate' : Foods.SOURCE_LABEL[f.src]);
+    const srcNote = (f) => (f.recent ? 'from your log' : f.approx ? 'approximate' : f.src === 1 ? (Foods.userName() || Foods.SOURCE_LABEL[1]) : Foods.SOURCE_LABEL[f.src]);
     function drawFind() {
       const st = Store.getState(), foods = st.foods, set = Store.getSettings();
       let diet = Foods.DIETS.includes(set.foodDiet) ? set.foodDiet : Foods.dietFor(st.profile && st.profile.diet);
@@ -182,7 +185,7 @@
         const n = Foods.userCount();
         if (n) U.put(myList, h('div', { class: 'kv' }, h('span', null, 'My list: ' + Foods.userName()), h('b', null, U.withCommas(n) + ' foods')),
           h('div', { class: 'row' }, UI.btn('Replace', { kind: 'quiet', onClick: () => pickListFile() }), UI.btn('Remove', { kind: 'quiet', onClick: () => removeListSheet(afterListChange) })));
-        else U.put(myList, h('div', { class: 'muted small' }, 'Want foods that are not here, such as your own regional tables? Add a list from a file. It stays on this device.'),
+        else U.put(myList, h('div', { class: 'muted small' }, 'Want more Indian foods or your own tables? Add a list from a file. IFCT 2017 (the Indian Food Composition Tables) works well for this; the README explains how to get it. The list stays on this device.'),
           UI.btn('Add my own food list', { kind: 'quiet', icon: 'file', onClick: () => pickListFile() }));
       };
       const afterListChange = () => { drawMyList(); showResults(); };

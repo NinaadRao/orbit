@@ -22,6 +22,7 @@
     reminder: 'weekly', checkinDay: 5, foodDiet: 'auto', encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
     coach: { provider: 'anthropic', model: '', baseUrl: '', keyMode: 'session' },
     restTimer: true, logRpe: true, logWarmups: false, logNotes: true,
+    activeGoal: 0, // active days per week that keep a streak going; 0 means "use the number of training days in the profile"
     onboardedAt: null,
   };
 

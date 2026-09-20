@@ -97,6 +97,8 @@
     if (liftRows.length) cards.push(UI.card(h('div', { class: 'ct' }, 'Lifts: best set so far'), ...liftRows));
 
     const ci = E.checkinStatus(st, set.checkinDay, U.today());
+    cards.push(Screens.activityCard(st, set));
+
     const weeksDone = E.PHOTO_WEEKS.filter((w) => E.anglesTaken(st, w) >= E.ANGLES.length).length;
     const ciLine = ci.status === 'done' ? 'This week is done. Next: ' + U.longDate(E.checkinDate(plan.startDate, Math.min(E.WEEKS, ci.week + 1), set.checkinDay)) : ci.status === 'upcoming' ? 'Next check-in: ' + U.longDate(ci.date) : 'This week: ' + ci.taken + ' of ' + ci.of + ' angles';
     cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Progress photos'), h('div', { class: 'muted small' }, weeksDone + ' weekly check-in' + (weeksDone === 1 ? '' : 's') + ' complete · ' + ciLine)), UI.btn('Open', { href: '#/photos', block: false, kind: 'quiet' }))));

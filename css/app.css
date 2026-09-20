@@ -395,3 +395,30 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .reelpick .tick svg { stroke: currentColor; }
 .reelpick .libtile.sel { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc); }
 .reelpick .libtile.sel .tick { background: var(--acc); border-color: var(--acc); color: var(--chalk); }
+
+/* Activity: streaks, the 14-day strip, the strength builder, weekly log */
+.row.space { justify-content: space-between; align-items: center; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--surf2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center; min-width: 0; }
+.stat .display { color: var(--acc); }
+.statl { font-size: 12.5px; font-weight: 500; }
+.dots { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
+.dcol { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.dcol small { font-size: 10px; color: var(--ink2); }
+.dot { width: 100%; max-width: 20px; aspect-ratio: 1; border-radius: 6px; background: var(--track); border: 1px solid var(--line); }
+.dot.on { background: var(--acc); border-color: var(--acc); }
+.dot.now { outline: 2px solid var(--ink2); outline-offset: 1px; }
+.wkrow, .mixrow { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.wkrow:last-child, .mixrow:last-child { border-bottom: 0; }
+.st-done { color: var(--acc); }
+.st-missed { color: var(--ink2); }
+.exbuild { display: flex; flex-direction: column; }
+.exb { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.exb:last-child { border-bottom: 0; }
+.exbn { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.exbn small { margin-left: auto; font-size: 11.5px; font-weight: 400; }
+.exbi { display: flex; align-items: center; gap: 6px; }
+.exbi .x { color: var(--ink2); font-size: 13px; }
+.exbi .unit { color: var(--ink2); font-size: 13px; }
+.inp.sm { min-height: 40px; padding: 0 8px; text-align: center; flex: 1; min-width: 0; font-size: 15px; }
+.iconbtn.tiny { width: 26px; height: 26px; border-radius: 8px; }

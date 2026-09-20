@@ -17,17 +17,21 @@
     { name: 'log_weight', description: 'Log a body weight. The user must approve.', schema: { type: 'object', properties: { value: { type: 'number' }, unit: { type: 'string', enum: ['kg', 'lb'] }, date: { type: 'string', description: 'YYYY-MM-DD, default today' } }, required: ['value', 'unit'] } },
     { name: 'log_measurement', description: 'Log a body measurement. Sites: waist, chest, shoulders, hips, bicepL, bicepR, forearmL, forearmR. The user must approve.', schema: { type: 'object', properties: { site: { type: 'string' }, value: { type: 'number' }, unit: { type: 'string', enum: ['in', 'cm'] }, date: { type: 'string' } }, required: ['site', 'value', 'unit'] } },
     { name: 'log_food', description: 'Log one food entry. The user must approve.', schema: { type: 'object', properties: { name: { type: 'string' }, kcal: { type: 'number' }, protein: { type: 'number' }, carbs: { type: 'number' }, fat: { type: 'number' }, meal: { type: 'string', enum: ['Breakfast', 'Pre-workout', 'Post-workout', 'Lunch', 'Snack', 'Dinner'] }, date: { type: 'string' } }, required: ['name', 'kcal'] } },
+    { name: 'log_workout', description: 'Log a workout or sport session (not individual sets). The app estimates calories from the activity, time and effort unless you pass kcal. The user must approve.', schema: { type: 'object', properties: { activity: { type: 'string', enum: Object.keys(E.ACTIVITIES) }, label: { type: 'string', description: 'Only for activity "other": what it was' }, minutes: { type: 'integer' }, effort: { type: 'string', enum: ['easy', 'moderate', 'hard'] }, kcal: { type: 'number', description: 'Only if the user told you the calories burnt' }, session: { type: 'string', description: 'For strength: the plan session it was, e.g. Push' }, date: { type: 'string' } }, required: ['activity', 'minutes'] } },
+    { name: 'propose_move_session', description: 'Propose moving a planned session to another day (within the next 13 days). If that day already has a session the two swap. The plan\'s weekdays are only a suggestion, so this changes nothing else. The user must approve.', schema: { type: 'object', properties: { session: { type: 'string', description: 'Session name from the plan, e.g. Legs' }, to_date: { type: 'string', description: 'YYYY-MM-DD' }, reason: { type: 'string' } }, required: ['session', 'to_date'] } },
     { name: 'log_set', description: 'Log one working set of a lift. The user must approve.', schema: { type: 'object', properties: { lift: { type: 'string' }, weight: { type: 'number' }, unit: { type: 'string', enum: ['kg', 'lb'] }, reps: { type: 'integer' }, date: { type: 'string' } }, required: ['lift', 'weight', 'unit', 'reps'] } },
   ];
 
   function resolveLift(plan, q) {
     if (!q) return null;
     const s = String(q).toLowerCase().trim();
-    if (plan.lifts[s]) return plan.lifts[s];
+    if (E.hasLift(plan, s)) return plan.lifts[s];
     return Object.values(plan.lifts).find((l) => l.name.toLowerCase() === s || (l.short || '').toLowerCase() === s)
       || Object.values(plan.lifts).find((l) => l.name.toLowerCase().includes(s) || s.includes(l.name.toLowerCase()));
   }
-  function cleanDate(d) { return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= U.today() && d >= E.addDays(U.today(), -400) ? d : U.today(); }
+  function cleanDate(d) { return E.validISO(d) && d <= U.today() && d >= E.addDays(U.today(), -400) ? d : U.today(); }
+  function cleanFuture(d) { return E.validISO(d) && d >= U.today() && d <= E.addDays(U.today(), 13) ? d : null; }
+  const newWorkoutId = () => 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   function str(x, n) { return String(x == null ? '' : x).replace(/[\u0000-\u001f]/g, ' ').slice(0, n || 200); }
 
   function buildContext(state, settings) {
@@ -67,6 +71,7 @@
       lifts,
       nutrition7d: { daysLogged: dk.length, avgKcal: dk.length ? Math.round(dk.reduce((t, x) => t + x.kcal, 0) / dk.length) : null, avgProtein: dk.length ? Math.round(dk.reduce((t, x) => t + x.protein, 0) / dk.length) : null },
       monthlyReview: { message: rev.message, suggestedKcalChange: rev.kcalDelta },
+      activity: E.activityDigest(state, today, settings.activeGoal || E.defaultActiveGoal(prof)),
       recentPlanChanges: plan.history.slice(-5).map((h) => ({ ts: h.ts, by: h.src, reason: str(h.reason, 120) })),
     };
   }
@@ -79,7 +84,9 @@
       '- Keep changes small and reasoned: calories by at most 300 per step, lift weights by at most 10 percent per step. Prefer to hold when signals are mixed.',
       '- Be concise (a few sentences), specific and kind. Use the user\'s display units (' + settings.bodyUnit + ' for body weight, ' + settings.liftUnit + ' for lifts, ' + settings.lenUnit + ' for measurements). Convert from the kg/cm in the data.',
       '- You are not a doctor. For pain, injury, dizziness or disordered eating concerns, suggest a qualified professional.',
-      '- You cannot see progress photos.',
+      '- The plan suggests a session per weekday, but people move sessions around. A session that was moved, swapped or done on another day is NOT a miss. Judge consistency from activity.thisWeek.sessions (status) and active days against goalActiveDaysPerWeek, and never propose lift or calorie changes because of a weekday that was skipped.',
+      '- activity covers everything the person did: strength, sports, swimming, yoga and so on. Use it for streaks, balance across activities, recovery and week-to-week trends. activeKcal values are MET-based estimates above resting; calorie targets already allow for training, so do not tell them to eat those back unless their weight and lifts point that way.',
+      '- You cannot see progress photos or workout notes.',
       'USER DATA:',
       JSON.stringify(ctx),
     ].join('\n');
@@ -160,6 +167,40 @@
         const d = { date, name: str(a.name, 80), kcal: Math.round(kcal), protein: Math.max(0, Math.round(Number(a.protein) || 0)), carbs: Math.max(0, Math.round(Number(a.carbs) || 0)), fat: Math.max(0, Math.round(Number(a.fat) || 0)), meal: ['Breakfast', 'Pre-workout', 'Post-workout', 'Lunch', 'Snack', 'Dinner'].includes(a.meal) ? a.meal : 'Snack' };
         out.push(makeProposal('log', 'Log food', [[d.name, d.kcal + ' kcal, ' + d.protein + ' g protein'], ['Meal', d.meal + ', ' + date]], '', () => Store.append('food_logged', d, 'coach')));
         return { ok: true, text: 'Queued for the user to confirm.' };
+      }
+      case 'log_workout': {
+        const type = E.ACTIVITIES && Object.prototype.hasOwnProperty.call(E.ACTIVITIES, a.activity) ? a.activity : null;
+        if (!type) return fail('unknown activity');
+        const mins = Math.round(Number(a.minutes));
+        if (!(mins >= 1 && mins <= 600)) return fail('minutes must be between 1 and 600');
+        const date = cleanDate(a.date);
+        const effort = E.EFFORTS.includes(a.effort) ? a.effort : 'moderate';
+        const given = Number(a.kcal);
+        const manual = given > 0 && given <= 5000;
+        const kcal = manual ? Math.round(given) : E.estimateKcal(type, effort, mins, E.bodyKg(state, date));
+        const planned = type === 'strength' ? plan.workouts.find((w) => w.name.toLowerCase() === String(a.session || '').toLowerCase().trim()) : null;
+        const d = { id: newWorkoutId(), date, type, mins, effort, kcal, manual, label: type === 'other' ? str(a.label, 40) : '', session: planned ? planned.name : '' };
+        const chk = E.cleanWorkout(d);
+        if (!chk.ok) return fail(chk.errors[0]);
+        out.push(makeProposal('log', 'Log a workout', [[E.workoutName(chk.value), mins + ' min, ' + effort], ['Calories', '~' + kcal + ' kcal' + (manual ? ' (from you)' : ' (estimate)')], ['Date', date]], '', () => Store.append('workout_logged', chk.value, 'coach')));
+        return { ok: true, text: 'Queued for the user to confirm.' };
+      }
+      case 'propose_move_session': {
+        const sess = plan.workouts.find((w) => w.name.toLowerCase() === String(a.session || '').toLowerCase().trim());
+        if (!sess) return fail('unknown session. Sessions: ' + plan.workouts.map((w) => w.name).join(', '));
+        const to = cleanFuture(a.to_date);
+        if (!to) return fail('to_date must be a real date within the next 13 days');
+        const pre = E.relocateSession(state, sess.name, to, U.today());
+        if (!pre.events.length) return fail(sess.name + ' is already on that day');
+        const rows = [[sess.name, (pre.from ? U.shortDate(pre.from) + ' to ' : 'Added on ') + U.shortDate(to)]];
+        if (pre.displaced) rows.push([pre.displaced, pre.from ? 'moves to ' + U.shortDate(pre.from) : 'moves to a free day this week']);
+        if (pre.dropped) rows.push([pre.dropped, 'comes off this week\'s plan']);
+        // Worked out again at Apply, from the log as it is then, so it can never act on stale state.
+        out.push(makeProposal('plan', 'Move ' + sess.name, rows, a.reason, async () => {
+          const r = E.relocateSession(Store.getState(), sess.name, to, U.today());
+          for (const m of r.events) await Store.append('session_moved', m, 'coach');
+        }));
+        return { ok: true, text: 'Queued. The user has to tap Apply.' };
       }
       case 'log_set': {
         const l = resolveLift(plan, a.lift);

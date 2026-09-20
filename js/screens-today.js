@@ -5,7 +5,7 @@
   const { h, s } = U;
   const Screens = root.Screens = root.Screens || {};
 
-  const slug = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'x';
+  const slug = E.slug;
   const cap = (t) => t ? t[0].toUpperCase() + t.slice(1) : '';
   const numOrNull = (v) => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
   Screens._ = Object.assign(Screens._ || {}, { slug, cap, numOrNull });
@@ -61,8 +61,9 @@
       if (!noWeight && !(w >= 0 && w <= 2000)) { U.toast('Enter the weight you used.', 'warn'); return false; }
       const kg = noWeight ? null : E.clean(U.unitToKg(w, lu));
       if (kg != null && kg > 700) { U.toast('That weight looks too high. Check the unit.', 'warn'); return false; }
-      const plan = Store.getState().plan, date = opts.date || U.today();
+      const plan = Store.getState().plan, date = ex ? ex.date : opts.date || U.today();
       const data = { date, week: E.weekOf(plan.startDate, date), lift: opts.liftId, kg, reps };
+      if (ex && ex.wo) data.wo = ex.wo; // an edited set stays part of the workout it was logged with
       if (opts.label && !plan.lifts[opts.liftId]) data.name = String(opts.label).slice(0, 60);
       if (rpe) data.rpe = Number(rpe);
       if (warm) data.warmup = true;
@@ -176,7 +177,8 @@
     }
 
     // Workout
-    const wo = plan.workouts.find((w) => w.weekday === E.weekdayOf(t));
+    const f = E.sessionFor(plan, st.moves, t);
+    const wo = f.session;
     const todaySets = st.sets.filter((x) => x.date === t);
     if (wo) {
       const list = h('div', null);
@@ -208,11 +210,19 @@
           ex.flag ? h('div', { class: 'flag' }, ex.flag) : null,
           setChips(mine, opts, set.liftUnit)));
       }
-      cards.push(UI.card(h('div', { class: 'todayhead' }, h('div', { class: 'grow' }, h('div', { class: 'ct' }, wo.name + ' day'), h('div', { class: 'muted small' }, doneEx + ' of ' + wo.ex.length + ' exercises done')), U.chip(set.restTimer ? 'Rest timer on' : 'Timer off', 'line')), list));
+      const timeDone = st.workouts.some((w) => w.date === t && w.type === 'strength');
+      cards.push(UI.card(
+        h('div', { class: 'todayhead' }, h('div', { class: 'grow' }, h('div', { class: 'ct' }, wo.name + ' day'), h('div', { class: 'muted small' }, doneEx + ' of ' + wo.ex.length + ' exercises done · ' + (f.moved ? 'moved here' : 'suggested for today'))),
+          h('button', { class: 'btn quiet small', type: 'button', onclick: () => Screens.rescheduleSheet(t) }, 'Change')),
+        h('div', { class: 'row' }, U.chip(set.restTimer ? 'Rest timer on' : 'Timer off', 'line'), h('span', { class: 'muted small' }, 'Just a suggestion. Move it if your week changes.')),
+        list,
+        todaySets.some((x) => !x.warmup) && !timeDone ? h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.workoutSheet({ type: 'strength', date: t, session: wo.name }) }, 'Add how long it took, to count the calories') : null));
     } else {
-      const nextIdx = [1, 2, 3, 4, 5, 6, 7].map((d) => plan.workouts.find((w) => w.weekday === (E.weekdayOf(t) + d) % 7)).find(Boolean);
-      cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, 'A light walk counts. ' + (nextIdx ? 'Next up: ' + nextIdx.name + ' on ' + U.DOW[nextIdx.weekday] + '.' : '')), UI.btn('See this week\'s lifts', { kind: 'quiet', href: '#/lifts' })));
+      const nextIdx = [1, 2, 3, 4, 5, 6, 7].map((d) => E.sessionFor(plan, st.moves, E.addDays(t, d))).map((x) => x.session).find(Boolean);
+      cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, (f.planned ? f.planned.name + ' was moved off today. ' : '') + 'A light walk counts. ' + (nextIdx ? 'Next up: ' + nextIdx.name + '.' : '')),
+        UI.row(UI.btn('Train anyway', { kind: 'quiet', onClick: () => Screens.rescheduleSheet(t) }), UI.btn('Lifts', { kind: 'quiet', href: '#/lifts' }))));
     }
+    cards.push(Screens.activityCard(st, set));
 
     // Food summary
     const tot = E.dayTotals(st, t);
@@ -255,20 +265,68 @@
       UI.btn('Add a lift', { kind: 'quiet', icon: 'plus', onClick: addLiftSheet })));
   };
 
+  // ---------- choosing a lift: one Orbit knows, or one you make up ----------
+  const CUSTOM = '__custom';
+  const EQUIP_LABEL = { db: 'Dumbbells', machine: 'Machine or cable', barbell: 'Barbell', bw: 'Bodyweight' };
+  const CLS_LABEL = { heavy: 'Heavy compound (about 6 to 10 reps)', medium: 'Medium (about 8 to 12 reps)', high: 'High-rep isolation (about 12 to 16 reps)' };
+  // The form body. o: { taken: Set of ids already tracked, unit, sessions?: [names] }. read() returns { error } or the choice.
+  function liftForm(o) {
+    const free = Object.keys(E.CATALOG).filter((id) => !o.taken.has(id));
+    const sel = h('select', { class: 'inp', 'aria-label': 'Lift' });
+    for (const m of E.LIFT_MUSCLES) {
+      const ids = free.filter((id) => E.CATALOG[id].muscle === m);
+      if (ids.length) sel.appendChild(h('optgroup', { label: cap(m) }, ...ids.map((id) => h('option', { value: id }, E.CATALOG[id].name))));
+    }
+    sel.appendChild(h('option', { value: CUSTOM }, 'Something else: your own lift'));
+    const nameF = UI.field({ label: 'Name', maxlength: 40, placeholder: 'e.g. Trap bar deadlift' });
+    const mus = h('select', { class: 'inp', 'aria-label': 'Muscle' }, ...E.LIFT_MUSCLES.map((m) => h('option', { value: m }, cap(m))));
+    const eq = h('select', { class: 'inp', 'aria-label': 'Equipment' }, ...E.LIFT_EQUIP.map((x) => h('option', { value: x }, EQUIP_LABEL[x])));
+    const cls = h('select', { class: 'inp', 'aria-label': 'Type of lift' }, ...E.LIFT_CLS.map((x) => h('option', { value: x }, CLS_LABEL[x])));
+    cls.value = 'medium';
+    const customBox = h('div', { class: 'stack hidden' }, nameF,
+      h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Muscle'), mus), h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Equipment'), eq),
+      h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Type'), cls));
+    const w = UI.field({ label: 'Weight you can do for a solid set', unit: o.unit, type: 'number', flex: 1 });
+    const r = UI.field({ label: 'Reps', type: 'number', inputmode: 'numeric', flex: 1 });
+    const wRow = UI.row(w, r);
+    let place = null;
+    if (o.sessions) {
+      place = h('select', { class: 'inp', 'aria-label': 'Goes on' }, h('option', { value: '' }, 'Best fit for the muscle'), ...o.sessions.map((n) => h('option', { value: n }, n)), h('option', { value: '-' }, 'None, just track it'));
+    }
+    const isBw = () => (sel.value === CUSTOM ? eq.value : E.CATALOG[sel.value].equip) === 'bw';
+    const sync = () => { customBox.classList.toggle('hidden', sel.value !== CUSTOM); w.classList.toggle('hidden', isBw()); r.querySelector('.lab').textContent = isBw() ? 'Reps you can do' : 'Reps'; };
+    sel.addEventListener('change', sync); eq.addEventListener('change', sync); sync();
+    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Lift'), sel), customBox, wRow,
+      place ? h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Goes on'), place) : null,
+      h('div', { class: 'muted small' }, 'Orbit builds the same block progression for it, starting from where the plan is this week. For bodyweight lifts just enter reps.'));
+    const read = () => {
+      const reps = numOrNull(r.input.value), wt = numOrNull(w.input.value), custom = sel.value === CUSTOM;
+      let spec = null;
+      if (custom) {
+        const name = nameF.input.value.trim().replace(/\s+/g, ' ');
+        if (!name) return { error: 'Give the lift a name.' };
+        spec = { name: name.slice(0, 40), muscle: mus.value, equip: eq.value, cls: cls.value };
+        spec.gain = E.defaultGain(spec.cls, spec.equip);
+      }
+      if (isBw()) { if (!(reps > 0 && reps <= 100)) return { error: 'Add your reps.' }; }
+      else if (!(wt > 0 && wt <= 2000)) return { error: 'Add a weight.' };
+      return { catalogId: custom ? null : sel.value, custom: spec, weight: isBw() ? null : wt, reps: reps > 0 ? reps : null, place: place ? place.value : '' };
+    };
+    return { body, read };
+  }
+  Screens._.liftForm = liftForm;
+
   function addLiftSheet() {
     const st = Store.getState(), plan = st.plan, set = Store.getSettings(), prof = st.profile;
-    const free = Object.keys(E.CATALOG).filter((id) => !plan.lifts[id]);
-    if (!free.length) return U.toast('Every lift Orbit knows is already tracked.');
-    const sel = h('select', { class: 'inp', 'aria-label': 'Lift' }, ...free.map((id) => h('option', { value: id }, E.CATALOG[id].name)));
-    const w = UI.field({ label: 'Weight you can do for a solid set', unit: set.liftUnit, type: 'number', flex: 1 });
-    const r = UI.field({ label: 'Reps', type: 'number', inputmode: 'numeric', flex: 1 });
-    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Lift'), sel), UI.row(w, r), h('div', { class: 'muted small' }, 'Orbit builds the same block progression for it, starting from where the plan is this week. For pull-ups just enter reps.'));
-    U.sheet('Add a lift', body, [{ label: 'Cancel' }, { label: 'Add', kind: 'primary', run: () => {
-      const id = sel.value, cat = E.CATALOG[id], reps = numOrNull(r.input.value), wt = numOrNull(w.input.value);
-      if (cat.equip !== 'bw' && !(wt > 0)) { U.toast('Add a weight.', 'warn'); return false; }
-      if (cat.equip === 'bw' && !(reps > 0)) { U.toast('Add your reps.', 'warn'); return false; }
+    const form = liftForm({ taken: new Set(Object.keys(plan.lifts)), unit: set.liftUnit, sessions: plan.workouts.map((x) => x.name) });
+    U.sheet('Add a lift', form.body, [{ label: 'Cancel' }, { label: 'Add', kind: 'primary', run: () => {
+      const c = form.read();
+      if (c.error) { U.toast(c.error, 'warn'); return false; }
+      const id = c.custom ? E.newLiftId(plan, c.custom.name) : c.catalogId;
       const t = prof.training || {};
-      const built = E.buildLiftPlan([{ id, on: true, weight: wt, reps }], { dbStep: t.dbStep, machineStep: t.machineStep, sets: t.sets, repStyle: t.repStyle, lighter: false }, (prof.units && prof.units.lift) || set.liftUnit);
+      const sameUnit = !(prof.units && prof.units.lift) || prof.units.lift === set.liftUnit; // steps were chosen in the profile's unit
+      const input = Object.assign({ id, on: true, weight: c.weight, reps: c.reps }, c.custom || {});
+      const built = E.buildLiftPlan([input], { dbStep: sameUnit ? t.dbStep : null, machineStep: sameUnit ? t.machineStep : null, sets: t.sets, repStyle: t.repStyle, lighter: false }, set.liftUnit); // the weight was typed in this unit
       const lift = built[id];
       if (!lift) { U.toast('Could not build that lift.', 'warn'); return false; }
       const wk = E.clamp(E.weekOf(plan.startDate, U.today()), 1, E.WEEKS);
@@ -276,14 +334,16 @@
         const now = E.liftTarget(lift, wk, { deloadWeeks: plan.deloadWeeks }).kg;
         if (now > 0) lift.adjust.push({ fromWeek: wk, factor: E.clean(lift.blockKg[0] / now) });
       }
-      Store.append('plan_revised', { reason: 'Added ' + lift.name, changes: { addLifts: { [id]: lift } } }, 'user').then(() => { U.toast(lift.name + ' added.'); root.App.render(); });
+      const changes = { addLifts: { [id]: lift } };
+      if (c.place) changes.placeLifts = { [id]: c.place };
+      Store.append('plan_revised', { reason: 'Added ' + lift.name, changes }, 'user').then(() => { U.toast(lift.name + ' added.'); root.App.render(); });
     } }]);
   }
 
   // ---------- one lift ----------
   Screens.liftDetail = function (id) {
     const state = Store.getState(), plan = state.plan, set = Store.getSettings(), t = U.today();
-    const lift = plan.lifts[id];
+    const lift = E.hasLift(plan, id) ? plan.lifts[id] : null;
     if (!lift) return UI.page(UI.header('Lift', 'Not found', { back: '#/lifts' }), UI.scroller(UI.empty('That lift is not in your plan.')));
     const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
     const tgs = [], top = [];
@@ -313,10 +373,14 @@
         Store.append('plan_revised', { reason: 'Adjusted ' + lift.name + ' by ' + pct.input.value + '%', changes: { liftAdjust: v.value } }, 'user').then(() => { U.toast('Updated.'); root.App.render(); });
       } }]);
     };
+    const stop = () => U.confirmSheet('Stop tracking ' + lift.name + '?', 'It leaves your Lifts list and the weekly targets. Every set you logged stays in your data and backups, and the exercise stays in its workout as a plain exercise you can still log. You can add it back any time.', 'Stop tracking', () => {
+      Store.append('plan_revised', { reason: 'Stopped tracking ' + lift.name, changes: { removeLift: id } }, 'user').then(() => { U.toast('Stopped tracking ' + lift.name + '.'); root.App.go('#/lifts'); });
+    });
     return UI.page(UI.header(lift.name, cap(lift.muscle) + (lift.bw ? ' · bodyweight' : ' · steps of ' + lift.step + ' ' + lift.unit), { back: '#/lifts' }), UI.scroller(
       UI.card(h('div', { class: 'ct' }, 'Target vs what you lifted'), chart, h('div', { class: 'muted small' }, 'Dashed: target. Dots: your top set each week.')),
       UI.card(h('div', { class: 'ct' }, 'Recent sets'), h('div', { class: 'list' }, ...hist)),
       lift.bw ? null : UI.btn('Adjust weights', { kind: 'quiet', onClick: adjust }),
+      UI.btn('Stop tracking this lift', { kind: 'quiet', onClick: stop }),
       UI.card(h('div', { class: 'ct' }, 'All 26 weeks'), ...rows)));
   };
 
