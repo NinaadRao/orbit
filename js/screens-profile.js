@@ -87,6 +87,7 @@
         kv('Training days', days), kv('Sessions', (plan.workouts || []).map((w) => w.name).join(' · ')),
         kv('Session length', pr.sessionMin ? pr.sessionMin + ' min' + (pr.timeOfDay ? ', ' + String(pr.timeOfDay).toLowerCase() : '') : null),
         UI.btn('Plan settings', { href: '#/settings/plan', kind: 'quiet' })),
+      UI.card(h('div', { class: 'ct' }, 'Diet plan'), ...Screens.dietSummaryRows(), Screens.dietCardLinks()),
       UI.card(h('div', { class: 'ct' }, 'Weekly check-in'), dayPills,
         h('div', { class: 'muted small' }, 'Progress photos are due once a week, on this day. Today reminds you until all five angles are saved, and flags any week you missed.')),
       UI.card(h('div', { class: 'ct' }, 'Privacy, backup and units'), h('div', { class: 'muted small' }, 'Units, app lock, backups and restore live here.'), UI.btn('Open settings', { href: '#/settings', kind: 'quiet' }))));

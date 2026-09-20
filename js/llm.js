@@ -63,6 +63,14 @@
       if (signal) signal.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
     });
   }
+  // True when the provider says the key itself is the problem (missing, wrong, revoked or expired), so the person can be asked for a new one.
+  // Google reports an expired key as a 400, so the wording is checked too.
+  function isAuthFailure(status, raw) {
+    if (status === 401) return true;
+    const t = String(raw || '');
+    if (/API_KEY_INVALID|api key (expired|not valid)|invalid[_ ]api[_ -]?key|incorrect api key|invalid x-api-key|authentication_error|key (has been )?(expired|revoked|disabled)|reported as leaked/i.test(t)) return true;
+    return status === 403 && /permission[_ ]denied|api key|forbidden/i.test(t);
+  }
   async function fetchWithRetry(url, init, signal) {
     let last;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -76,10 +84,11 @@
         continue;
       }
       if (resp.ok) return resp;
-      let msg = '';
-      try { const j = await resp.json(); msg = (j.error && (j.error.message || j.error)) || j.message || ''; } catch (e) { /* ignore */ }
+      let msg = '', raw = '';
+      try { const j = await resp.json(); raw = JSON.stringify(j).slice(0, 2000); msg = (j.error && (j.error.message || j.error)) || j.message || ''; } catch (e) { /* ignore */ }
       const err = new Error(resp.status + ': ' + (typeof msg === 'string' ? msg : JSON.stringify(msg)).slice(0, 300));
       err.status = resp.status;
+      err.auth = isAuthFailure(resp.status, raw);
       if ((resp.status === 429 || resp.status >= 500) && attempt < 2) { last = err; await sleep(600 * Math.pow(2, attempt) + Math.random() * 300, signal); continue; }
       throw err;
     }
@@ -247,9 +256,15 @@
     if (PROVIDERS[cfg.provider].needsKey && !cfg.apiKey) throw new Error('Add your API key first.');
     if (!cfg.model) throw new Error('Type a model name first.');
     const h = hooks || {};
-    if (cfg.provider === 'anthropic') return streamAnthropic(cfg, req, h);
-    if (cfg.provider === 'google') return streamGoogle(cfg, req, h);
-    return streamOpenAI(cfg, req, h);
+    try {
+      if (cfg.provider === 'anthropic') return await streamAnthropic(cfg, req, h);
+      if (cfg.provider === 'google') return await streamGoogle(cfg, req, h);
+      return await streamOpenAI(cfg, req, h);
+    } catch (e) {
+      // The app listens here so that a rejected key opens "paste a new key" wherever the request came from.
+      if (e && e.auth && LLM.onAuthError) { try { LLM.onAuthError(e, cfg); } catch (x) { /* never mask the real error */ } }
+      throw e;
+    }
   }
   async function ping(cfg) {
     const ctl = new AbortController();
@@ -260,5 +275,6 @@
     } finally { clearTimeout(t); }
   }
 
-  root.LLM = { PROVIDERS, chat, ping, originOf, cleanBase, endpointOf, toGemini };
+  const LLM = { PROVIDERS, chat, ping, originOf, cleanBase, endpointOf, toGemini, isAuthFailure, onAuthError: null };
+  root.LLM = LLM;
 })(self);

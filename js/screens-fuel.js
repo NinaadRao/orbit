@@ -98,7 +98,7 @@
     }
     const hint = !root.App.aiReady() ? h('div', { class: 'muted small' }, 'Tip: add your own AI key in Coach settings and you can just describe a meal or list raw ingredients. You will always see the numbers before anything is saved.') : null;
     return UI.page(UI.header('Fuel', 'Log what you ate. Approximate is fine, consistent is better.'),
-      UI.scroller(nav, summary, UI.btn('Add food', { icon: 'plus', onClick: () => openAdd(date) }),
+      UI.scroller(nav, summary, UI.btn('Add food', { icon: 'plus', onClick: () => openAdd(date) }), date === t ? Screens.eatNextCard() : null,
         ...(sections.length ? sections : [UI.empty(date === t ? 'Nothing logged yet today.' : 'Nothing logged this day.')]), hint));
   };
 
@@ -240,7 +240,7 @@
       if (!root.App.aiReady()) {
         const cfg = root.App.llmConfig();
         U.put(body, UI.card(h('div', { class: 'ct' }, 'Bring your own AI'), h('div', { class: 'muted' }, 'This uses your own key with the provider you choose. The key stays on this device and the text you type goes only to that provider. No key? Manual entry works fine.'),
-          UI.btn('Add a key for this session', { onClick: () => root.Screens.keySheet(() => draw()) }),
+          UI.btn('Add your key', { onClick: () => root.Screens.keySheet(() => draw()) }),
           UI.btn('Coach settings', { kind: 'quiet', href: '#/coach/setup', onClick: () => { if (close) close(); } }),
           UI.btn('Enter macros myself', { kind: 'quiet', onClick: () => { tab = 'manual'; draw(); } })));
         void cfg;

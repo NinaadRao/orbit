@@ -439,7 +439,7 @@
   function project(events) {
     const voided = new Set();
     for (const e of events) if (e.type === 'event_voided') voided.add(e.data.target);
-    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], workouts: [], moves: Object.create(null), revisions: [] };
+    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], workouts: [], moves: Object.create(null), revisions: [], dietPrefs: null };
     for (const e of events) {
       if (voided.has(e.seq) || e.type === 'event_voided') continue;
       const d = e.data || {};
@@ -447,6 +447,7 @@
       switch (e.type) {
         case 'profile_created': s.profile = clone(d.profile); s.plan = clone(d.plan); break;
         case 'profile_edited': { if (s.profile) { const r = cleanProfileEdit(d && d.fields); if (r.ok) Object.assign(s.profile, r.value); } break; }
+        case 'diet_prefs_set': { const r = cleanDietPrefs(d && d.prefs); if (r.ok) s.dietPrefs = r.value; break; }
         case 'plan_revised': if (s.plan) applyRevision(s.plan, d, e); s.revisions.push({ seq: e.seq, ts: e.ts, src: e.src, reason: d.reason, changes: d.changes }); break;
         case 'weight_logged': s.weights.push({ seq: e.seq, date: d.date, kg: d.kg }); break;
         case 'measurement_logged': s.meas.push({ seq: e.seq, date: d.date, site: d.site, cm: d.cm }); break;
@@ -676,7 +677,7 @@
   }
 
   // ---------- backup / import validation ----------
-  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'profile_edited', 'event_voided'];
+  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'profile_edited', 'diet_prefs_set', 'event_voided'];
   const BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function hasBadKeys(o, depth) {
     if (o === null || typeof o !== 'object') return false;
@@ -700,6 +701,45 @@
       else { const n = Number(f.bodyFatPct); if (Number.isFinite(n) && n >= 3 && n <= 60) out.bodyFatPct = Math.round(n * 10) / 10; else errors.push('Body fat should be between 3 and 60 percent, or empty.'); }
     }
     if (has('diet')) { if (PROFILE_DIETS.includes(f.diet)) out.diet = f.diet; else errors.push('Pick a diet style from the list.'); }
+    if (errors.length) return { ok: false, errors };
+    return { ok: true, value: out };
+  }
+  // Eating preferences for the suggested diet plan. Like every other event, whatever is read back is rebuilt from a whitelist.
+  // style null means "follow the diet chosen in the profile".
+  const DIET_STYLES = ['vegan', 'veg', 'egg', 'pesc', 'any'];
+  const DIET_CUISINES = ['indian', 'western', 'mixed'];
+  const DIET_AVOID = ['dairy', 'eggs', 'nuts', 'gluten', 'soy'];
+  const DIET_SLOTS = ['breakfast', 'morning', 'lunch', 'evening', 'dinner'];
+  function styleFromProfile(d) {
+    const t = String(d || '').toLowerCase();
+    return /vegan/.test(t) ? 'vegan' : /egg/.test(t) ? 'egg' : /pesc/.test(t) ? 'pesc' : /veg/.test(t) ? 'veg' : 'any';
+  }
+  function defaultDietPrefs() { return { style: null, cuisine: 'mixed', meals: 4, avoid: [], dislikes: [], quick: false, seed: 0, swaps: {} }; }
+  function cleanDietPrefs(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || hasBadKeys(raw, 0)) return { ok: false, errors: ['That is not a set of eating preferences.'] };
+    const out = defaultDietPrefs(), errors = [], has = (k) => Object.prototype.hasOwnProperty.call(raw, k);
+    if (has('style')) { if (raw.style === null || DIET_STYLES.includes(raw.style)) out.style = raw.style; else errors.push('Pick an eating style from the list.'); }
+    if (has('cuisine')) { if (DIET_CUISINES.includes(raw.cuisine)) out.cuisine = raw.cuisine; else errors.push('Pick a cuisine from the list.'); }
+    if (has('meals')) { const n = Number(raw.meals); if (n === 3 || n === 4 || n === 5) out.meals = n; else errors.push('Meals a day should be 3, 4 or 5.'); }
+    if (has('avoid')) { if (Array.isArray(raw.avoid)) out.avoid = DIET_AVOID.filter((x) => raw.avoid.includes(x)); else errors.push('Foods to avoid should be a list.'); }
+    if (has('dislikes')) {
+      const list = Array.isArray(raw.dislikes) ? raw.dislikes : String(raw.dislikes == null ? '' : raw.dislikes).split(',');
+      const seen = new Set();
+      for (const x of list.slice(0, 20)) {
+        const w = String(x == null ? '' : x).toLowerCase().replace(/[^a-z\- ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20);
+        if (w.length >= 2 && !seen.has(w) && seen.size < 8) { seen.add(w); }
+      }
+      out.dislikes = Array.from(seen);
+    }
+    if (has('quick')) out.quick = raw.quick === true;
+    if (has('seed')) { const n = Number(raw.seed); if (Number.isInteger(n) && n >= 0 && n <= 9999) out.seed = n; else errors.push('Bad shuffle number.'); }
+    if (has('swaps') && raw.swaps && typeof raw.swaps === 'object' && !Array.isArray(raw.swaps)) {
+      let n = 0;
+      for (const k of Object.keys(raw.swaps)) {
+        const m = /^([0-6]):([a-z]+)$/.exec(k), v = Number(raw.swaps[k]);
+        if (m && DIET_SLOTS.includes(m[2]) && Number.isInteger(v) && v >= 1 && v <= 60 && n < 80) { out.swaps[k] = v; n++; }
+      }
+    }
     if (errors.length) return { ok: false, errors };
     return { ok: true, value: out };
   }
@@ -1021,7 +1061,7 @@
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,
     weightAround, measAround, snapshotAt, checkIns, goalDir, changeTone,
-    liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES, cleanProfileEdit, PROFILE_DIETS,
+    liftStatus, reviewMonth, checkpoint, validateEvents, hasBadKeys, EVENT_TYPES, cleanProfileEdit, PROFILE_DIETS, DIET_STYLES, DIET_CUISINES, DIET_AVOID, DIET_SLOTS, styleFromProfile, defaultDietPrefs, cleanDietPrefs,
     LIFT_MUSCLES, LIFT_EQUIP, LIFT_CLS, defaultGain, cleanLift, newLiftId, slug, exId,
     validISO, hasLift, changeSession, relocateSession, ACTIVITIES, EFFORTS, metFor, estimateKcal, cleanWorkout, workoutName, bodyKg, defaultActiveGoal, sessionFor, moveSession, setIndex, sessionDoneIn, weekPlan,
     dayIndex, dayStreaks, weekStreaks, activitySummary, activityWeeks, activityMix, activityDigest,

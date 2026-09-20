@@ -94,6 +94,7 @@ async function onboard(page, opts) {
   await page.getByLabel('Pull-ups reps').fill('5');
   if (o.onLifts) await o.onLifts(page);
   await page.getByRole('button', { name: 'Next: see my plan' }).click();
+  if (o.onPlan) await o.onPlan(page);
   await page.getByRole('button', { name: 'Start week 1' }).click();
   await page.waitForSelector('text=Week 1 of 26');
 }
@@ -292,7 +293,7 @@ async function main() {
     await page.getByRole('tab', { name: 'Describe' }).click();
     await page.waitForSelector('text=Bring your own AI');
     eq(ai.length, 0);
-    await page.getByRole('button', { name: 'Add a key for this session' }).click();
+    await page.getByRole('button', { name: 'Add your key' }).click();
     await page.getByLabel('API key').fill('sk-ant-test-0000000000');
     await page.getByRole('button', { name: 'Use key' }).click();
     await page.waitForSelector('textarea[aria-label="What you ate"]');
@@ -352,7 +353,7 @@ async function main() {
     await page.getByRole('button', { name: 'Close' }).click();
   });
 
-  await step('Fuel: a provider outage surfaces a readable error', async () => {
+  await step('Fuel: a rejected key shows the provider\'s message and asks for a new key, which is kept on this device', async () => {
     await page.unroute('https://api.anthropic.com/**');
     await fakeAI(page, async () => ({ status: 401, error: 'invalid x-api-key' }));
     await page.getByRole('button', { name: 'Add food' }).click();
@@ -360,6 +361,13 @@ async function main() {
     await page.getByLabel('What you ate').fill('toast');
     await page.getByRole('button', { name: 'Estimate nutrition' }).click();
     await page.waitForSelector('text=invalid x-api-key');
+    await page.getByText('Your AI key needs updating').waitFor();
+    eq(await page.evaluate(() => App.hasKey()), false, 'the rejected key is dropped');
+    await page.getByLabel('New API key').fill('sk-ant-renewed-0000000000');
+    await page.getByRole('button', { name: 'Save key' }).click();
+    await page.waitForFunction(() => App.hasKey());
+    eq(await page.evaluate(() => [App.keyState.source, App.keyState.bad]), ['device', null]);
+    eq(await page.evaluate(() => App.hasRemembered('anthropic')), true);
     await page.getByRole('button', { name: 'Close' }).click();
   });
 
@@ -424,8 +432,8 @@ async function main() {
     await page.keyboard.press('Enter');
     await page.waitForSelector('.msg.ai:has-text("fine")');
     const r = reqs[reqs.length - 1];
-    ok(r.headers()['x-api-key'] === 'sk-ant-test-0000000000', 'key sent as header');
-    ok(!(r.postData() || '').includes('sk-ant-test'), 'key must not be in the body');
+    ok(r.headers()['x-api-key'] === 'sk-ant-renewed-0000000000', 'key sent as header');
+    ok(!(r.postData() || '').includes('sk-ant-renewed'), 'key must not be in the body');
     ok(/USER DATA/.test(r.postData()), 'context is included');
   });
 
@@ -1373,7 +1381,7 @@ async function main() {
     await route(lpage, '#/library');
     await videoTile().click();
     await lpage.locator('#sheets').getByRole('button', { name: 'Ask the coach about form' }).click();
-    await lpage.locator('#sheets').getByRole('button', { name: 'Add a key for this session' }).waitFor();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Add your key' }).waitFor();
     eq(lai.length, 0);
     await closeAll();
   });
@@ -1567,6 +1575,160 @@ async function main() {
     eq(kproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
   });
   await kctx.close();
+
+
+  // ================= diet plan, eat next, and the remembered key =================
+  console.log('\nDiet plan and the remembered key');
+  const dctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const dpage = await dctx.newPage(); dpage.setDefaultTimeout(8000);
+  const dproblems = await collect(dpage);
+  await dpage.goto(base);
+  await step('onboarding: the diet plan card sits right after the macros, previews a day, and what you pick is saved', async () => {
+    await onboard(dpage, { goal: 'Build', onPlan: async (pg) => {
+      await pg.getByText('A sample day').waitFor();
+      const at = await pg.evaluate(() => { const c = Array.from(document.querySelectorAll('.scroll > .card')); return [c.findIndex((x) => x.querySelector('.macrobar')), c.findIndex((x) => x.querySelector('.ct') && x.querySelector('.ct').textContent === 'Diet plan')]; });
+      ok(at[0] >= 0 && at[1] === at[0] + 1, 'diet plan card follows the macros card: ' + at);
+      const card = pg.locator('section.card', { hasText: 'A sample day' });
+      ok(/Same as my profile \(Vegetarian\)/.test(await card.innerText()), 'follows the profile by default');
+      await card.getByRole('button', { name: 'Vegan', exact: true }).click();
+      await card.getByRole('radio', { name: 'Indian', exact: true }).click();
+      await card.getByRole('radio', { name: '3', exact: true }).click();
+      await card.getByRole('button', { name: 'Soy', exact: true }).click();
+      const txt = await card.locator('.dietpreview').innerText();
+      ok(/Lunch/.test(txt) && !/Evening snack/.test(txt), 'three meals in the preview');
+      ok(/Day total [\d,]+ kcal/.test(txt), 'shows the day total');
+      ok(!/paneer|curd|milk|egg|chicken|fish|whey|tofu|soy/i.test(txt), 'a vegan plan without soy shows none of those foods: ' + txt.replace(/\n/g, ' | ').slice(0, 300));
+    } });
+    const dp = await dpage.evaluate(() => Store.getState().dietPrefs);
+    eq([dp.style, dp.cuisine, dp.meals, dp.avoid], ['vegan', 'indian', 3, ['soy']]);
+  });
+
+  await step('diet plan screen: meals fit the targets, follow the choices, can be swapped and logged', async () => {
+    await route(dpage, '#/diet');
+    await dpage.getByText('A week of meals that fit your targets.').waitFor();
+    const cards = dpage.locator('section.card', { has: dpage.locator('.dietname') });
+    eq(await cards.count(), 3);
+    const meat = /paneer|curd|milk|egg|chicken|fish|prawn|tuna|whey|ghee|tofu|soy/i;
+    for (let i = 0; i < 3; i++) ok(!meat.test(await cards.nth(i).innerText()), 'card ' + i + ' has a food that was ruled out');
+    const glance = await dpage.locator('section.card', { hasText: 'at a glance' }).innerText();
+    const kcal = Number((/Calories\s*([\d,]+) \//.exec(glance) || [])[1].replace(',', '')), target = await dpage.evaluate(() => Store.getState().plan.kcal);
+    ok(Math.abs(kcal - target) <= target * 0.12, 'day lands near the target: ' + kcal + ' vs ' + target);
+    // swap the lunch meal
+    const lunch = cards.filter({ hasText: 'Lunch' }).first();
+    const was = await lunch.locator('.dietname').innerText();
+    const ev0 = await cnt(dpage, 'diet_prefs_set');
+    await lunch.getByRole('button', { name: 'Swap' }).click();
+    await dpage.waitForFunction((n) => Store.getEvents().filter((e) => e.type === 'diet_prefs_set').length === n + 1, ev0);
+    await dpage.waitForTimeout(200);
+    const now = await dpage.locator('section.card', { has: dpage.locator('.dietname') }).filter({ hasText: 'Lunch' }).first().locator('.dietname').innerText();
+    ok(now !== was, 'lunch changed: ' + was + ' -> ' + now);
+    // log breakfast
+    const before = await dpage.evaluate(() => Store.getState().foods.length);
+    const bf = dpage.locator('section.card', { has: dpage.locator('.dietname') }).filter({ hasText: 'Breakfast' }).first();
+    const lines = await bf.locator('.kv').count();
+    await bf.getByRole('button', { name: /^Log (this meal|for today)$/ }).click();
+    await dpage.waitForFunction((n) => Store.getState().foods.length > n, before);
+    await dpage.waitForTimeout(400);
+    const foods = await dpage.evaluate(() => Store.getState().foods.slice(-8).map((f) => ({ meal: f.meal, date: f.date, serving: f.serving, kcal: f.kcal })));
+    const added = foods.slice(-lines);
+    ok(added.length === lines && added.every((f) => f.meal === 'Breakfast' && f.date === new Date().toLocaleDateString('en-CA') && f.serving && f.kcal >= 0), 'one entry per ingredient, as breakfast for today: ' + JSON.stringify(added));
+  });
+
+  await step('Fuel: "What should I eat next?" gives portions for what is left, and they shrink after a big meal', async () => {
+    await route(dpage, '#/fuel');
+    const card = dpage.locator('section.card', { hasText: 'What should I eat next?' });
+    await card.waitFor();
+    await card.getByRole('button', { name: 'Lunch', exact: true }).click();
+    const card2 = dpage.locator('section.card', { hasText: 'What should I eat next?' });
+    const aim = async () => Number((/Aim for about ([\d,]+) kcal/.exec(await card2.innerText()) || [])[1].replace(',', ''));
+    const a = await aim();
+    ok(await card2.getByRole('button', { name: 'Log this' }).count() >= 1, 'has suggestions');
+    ok(!/paneer|curd|milk|egg|chicken|fish|prawn|tuna|whey|ghee|tofu|soy/i.test(await card2.locator('.sugg').first().innerText()), 'suggestions follow the diet');
+    await dpage.evaluate(async () => { await Store.append('food_logged', { date: U.today(), meal: 'Snack', name: 'Big test feast', kcal: 1100, protein: 30, carbs: 150, fat: 40 }); });
+    await route(dpage, '#/fuel');
+    await dpage.locator('section.card', { hasText: 'What should I eat next?' }).getByRole('button', { name: 'Lunch', exact: true }).click();
+    const b = Number((/Aim for about ([\d,]+) kcal/.exec(await dpage.locator('section.card', { hasText: 'What should I eat next?' }).innerText()) || [])[1].replace(',', ''));
+    ok(b < a, 'lunch target drops after eating more: ' + a + ' -> ' + b);
+    // log a suggestion
+    const n0 = await dpage.evaluate(() => Store.getState().foods.length);
+    await dpage.locator('section.card', { hasText: 'What should I eat next?' }).getByRole('button', { name: 'Log this' }).first().click();
+    await dpage.waitForFunction((n) => Store.getState().foods.length > n, n0);
+  });
+
+  await step('Plan settings and Profile show the diet plan and the preferences can be changed', async () => {
+    await route(dpage, '#/settings/plan');
+    const order = await dpage.evaluate(() => Array.from(document.querySelectorAll('.scroll > .card .ct')).map((x) => x.textContent));
+    ok(order.indexOf('Diet plan') === order.findIndex((x) => /^Daily targets/.test(x)) + 1, 'diet plan comes after the daily targets: ' + order.join(' | '));
+    await route(dpage, '#/profile');
+    const card = dpage.locator('section.card', { has: dpage.locator('.ct', { hasText: /^Diet plan$/ }) });
+    ok(/Vegan/.test(await card.innerText()) && /Indian/.test(await card.innerText()), 'summary shows the choices');
+    await card.getByRole('button', { name: 'Diet preferences' }).click();
+    await dpage.locator('#sheets').getByRole('radio', { name: 'Western', exact: true }).click();
+    await dpage.locator('#sheets').getByLabel('Foods you dislike').fill('Mushroom, brinjal');
+    await dpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+    await dpage.waitForFunction(() => Store.getState().dietPrefs.cuisine === 'western');
+    eq(await dpage.evaluate(() => Store.getState().dietPrefs.dislikes), ['mushroom', 'brinjal']);
+    eq(await dpage.evaluate(() => Store.getState().dietPrefs.swaps && Object.keys(Store.getState().dietPrefs.swaps).length > 0), true, 'the swap is kept');
+    // and it survives a backup round trip
+    const back = await dpage.evaluate(async () => { const r = await Store.readImport(await Store.buildBackup({ media: false }), ''); return Engine.project(r.payload.events).dietPrefs; });
+    eq([back.cuisine, back.style], ['western', 'vegan']);
+  });
+
+  await step('AI tips for the day: only text goes out, only on a tap, and nothing in the plan or log changes', async () => {
+    const seen = await fakeAI(dpage, async () => ({ body: textReply('Prep the dal the night before.\n\nSwap rice for millets on rest days.') }));
+    await dpage.evaluate(() => App.setKey('sk-ant-test-0000000000', 'typed'));
+    await route(dpage, '#/diet');
+    await dpage.getByRole('button', { name: 'Ask for tips on this day' }).waitFor();
+    eq(seen.length, 0, 'nothing sent before the tap');
+    const evBefore = (await events(dpage)).length;
+    await dpage.getByRole('button', { name: 'Ask for tips on this day' }).click();
+    await dpage.getByText('Prep the dal the night before.').waitFor();
+    eq(seen.length, 1);
+    const sent = JSON.stringify(seen[0].messages);
+    ok(/Eating style: Vegan/.test(sent) && /kcal/.test(sent), 'meals and preferences are sent');
+    ok(!/waist|weightKg|sk-ant|birth|name/i.test(sent.replace(/Foods you dislike|name/g, '')), 'no profile data in the request');
+    eq((await events(dpage)).length, evBefore, 'no events were written');
+    await dpage.unroute('https://api.anthropic.com/**');
+  });
+
+  await step('the key saved on this device is sealed with a non-exportable key, survives a reload, and is never in a backup', async () => {
+    await dpage.evaluate(async () => { await App.saveKey('sk-ant-remember-000000', true); });
+    const rec = await dpage.evaluate(async () => { const r = await Store.getMeta('keydev_anthropic'); return { extractable: r.key.extractable, type: r.key.type, alg: r.key.algorithm.name, plain: JSON.stringify([r.data, r.iv]).includes('remember') }; });
+    eq([rec.extractable, rec.type, rec.alg, rec.plain], [false, 'secret', 'AES-GCM', false]);
+    const backup = await dpage.evaluate(() => Store.buildBackup({ media: false }));
+    ok(!backup.includes('sk-ant-remember') && !backup.includes('keydev_'), 'key not in a backup');
+    await dpage.reload();
+    await dpage.waitForFunction(() => window.App && App.hasKey());
+    eq(await dpage.evaluate(() => [App.keyState.value, App.keyState.source]), ['sk-ant-remember-000000', 'device']);
+  });
+
+  await step('a key the provider rejects brings up the update sheet, and the new key replaces the saved one', async () => {
+    await fakeAI(dpage, async () => ({ status: 400, error: 'API key expired. Please renew the API key.' }));
+    await route(dpage, '#/diet');
+    await dpage.getByRole('button', { name: 'Ask for tips on this day' }).click();
+    await dpage.getByText('Your AI key needs updating').waitFor();
+    eq(await dpage.evaluate(() => App.hasKey()), false);
+    await route(dpage, '#/coach/setup');
+    ok(await dpage.getByText('Key rejected: update it').count() >= 1, 'setup shows the key was rejected');
+    await route(dpage, '#/diet');
+    await dpage.getByLabel('New API key').fill('sk-ant-fresh-0000000000');
+    await dpage.getByRole('button', { name: 'Save key' }).click();
+    await dpage.waitForFunction(() => App.hasKey() && App.keyState.value === 'sk-ant-fresh-0000000000');
+    eq(await dpage.evaluate(async () => Crypt.deviceUnseal(await Store.getMeta('keydev_anthropic'))), 'sk-ant-fresh-0000000000');
+    await dpage.unroute('https://api.anthropic.com/**');
+  });
+
+  await step('forgetting the saved key removes it from this device for good', async () => {
+    await route(dpage, '#/coach/setup');
+    await dpage.getByRole('button', { name: 'Forget the saved key' }).click();
+    await dpage.waitForFunction(() => !App.hasKey());
+    eq(await dpage.evaluate(() => App.hasRemembered('anthropic')), false);
+    await dpage.reload();
+    await dpage.waitForSelector('#screen');
+    eq(await dpage.evaluate(() => App.hasKey()), false, 'still gone after a reload');
+    eq(dproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
+  });
+  await dctx.close();
 
   // ================= file:// =================
   console.log('\nOnboarding with more lifts');

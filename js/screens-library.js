@@ -121,8 +121,8 @@
 
   async function formCheck(c) {
     if (!root.App.aiReady()) {
-      U.sheet('Coach form check', h('div', { class: 'stack' }, h('div', { class: 'muted' }, 'This uses your own AI key with the provider you chose. Add a key for this session, or set up the coach first.'),
-        UI.btn('Add a key for this session', { onClick: () => { setTimeout(() => Screens.keySheet(() => formCheck(c)), 0); } }), UI.btn('Coach settings', { kind: 'quiet', href: '#/coach/setup' })), [{ label: 'Close' }]);
+      U.sheet('Coach form check', h('div', { class: 'stack' }, h('div', { class: 'muted' }, 'This uses your own AI key with the provider you chose. Add your key, or set up the coach first.'),
+        UI.btn('Add your key', { onClick: () => { setTimeout(() => Screens.keySheet(() => formCheck(c)), 0); } }), UI.btn('Coach settings', { kind: 'quiet', href: '#/coach/setup' })), [{ label: 'Close' }]);
       return;
     }
     let got;

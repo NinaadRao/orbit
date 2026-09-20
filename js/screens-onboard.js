@@ -13,7 +13,7 @@
       meas: { waist: '', chest: '', shoulders: '', hips: '', bicepL: '', bicepR: '', forearmL: '', forearmR: '' },
       goal: null, days: [1, 2, 3, 4, 5], sessionMin: '90', timeOfDay: 'AM', diet: 'Vegetarian', creatine: 'Yes', currentKcal: '', currentProtein: '',
       training: { experience: '1-3 yrs', split: 'Orbit picks', equipment: new Set(['Dumbbells', 'Machines', 'Cables', 'Bodyweight']), dbStep: null, machineStep: null, focus: new Set(['Chest']), injuries: new Set(['Nothing']), repStyle: 'mixed', sets: '3', rest: '90 s', deload: 'planned', logRpe: true, restTimer: true, warmups: false, notes: true },
-      lifts, extra: [], custom: [], startLighter: false,
+      lifts, extra: [], custom: [], startLighter: false, dietPrefs: E.defaultDietPrefs(),
     };
   }
   let D = freshDraft();
@@ -86,6 +86,8 @@
     if (prev) throw new Error('A profile already exists on this device.');
     const start = answers.startDate;
     await Store.append('profile_created', { profile: answers, plan });
+    const dp = E.cleanDietPrefs(D.dietPrefs);
+    if (dp.ok) await Store.append('diet_prefs_set', { prefs: dp.value }, 'user');
     await Store.append('weight_logged', { date: start, kg: answers.weightKg });
     for (const [site, cm] of Object.entries(answers.measurements || {})) await Store.append('measurement_logged', { date: start, site, cm });
     const t = answers.training || {};
@@ -253,6 +255,7 @@
       UI.scroller(
         UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'muted small' }, 'Daily target · ' + plan.goal[0].toUpperCase() + plan.goal.slice(1)), h('div', { class: 'display big' }, U.withCommas(plan.kcal), h('span', { class: 'muted unitbig' }, ' kcal'))), U.chip('Maintenance about ' + U.withCommas(plan.maintenance), 'line')), macroBar,
           h('div', { class: 'macro-legend' }, h('span', null, h('b', null, plan.protein + ' g'), ' protein'), h('span', null, h('b', null, plan.carbs + ' g'), ' carbs'), h('span', null, h('b', null, plan.fat + ' g'), ' fat'))),
+        root.Screens.dietOnboardCard(D.dietPrefs, plan, a.diet),
         UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Progress photos are a weekly check-in on the day you choose in Profile. It starts on Friday.')),
         targets.length ? UI.card(h('div', { class: 'ct' }, 'Six-month targets'), ...targets) : null,
         UI.card(h('div', { class: 'ct' }, 'Your week'), ...sched),

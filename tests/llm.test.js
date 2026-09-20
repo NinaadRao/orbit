@@ -54,3 +54,28 @@ test('a call with no saved signature gets the skip value on Gemini 3, and nothin
   assert.equal(LLM.toGemini(msgs, 'gemini-2.5-flash')[0].parts[0].thoughtSignature, undefined);
   assert.equal(LLM.toGemini(msgs, 'gemini-3-pro-preview')[0].parts[0].thoughtSignature, 'skip_thought_signature_validator');
 });
+
+// A rejected key should be recognised so the app can ask for a new one, without mistaking rate limits or outages for it.
+test('isAuthFailure spots expired, wrong and revoked keys but not rate limits or outages', () => {
+  const A = LLM.isAuthFailure;
+  assert.equal(A(401, ''), true);
+  assert.equal(A(400, '{"error":{"message":"API key expired. Please renew the API key.","status":"INVALID_ARGUMENT"}}'), true, 'Google reports an expired key as a 400');
+  assert.equal(A(400, '{"error":{"details":[{"reason":"API_KEY_INVALID"}]}}'), true);
+  assert.equal(A(403, '{"error":{"status":"PERMISSION_DENIED","message":"Your API key was reported as leaked."}}'), true);
+  assert.equal(A(400, '{"error":{"code":"invalid_api_key","message":"Incorrect API key provided"}}'), true);
+  assert.equal(A(403, 'Forbidden'), true);
+  assert.equal(A(429, 'Rate limit reached'), false);
+  assert.equal(A(500, 'Internal error'), false);
+  assert.equal(A(400, 'Your prompt is too long'), false);
+});
+
+test('chat tells the app when the provider rejects the key, then still throws', async () => {
+  const realFetch = globalThis.fetch, realHook = LLM.onAuthError;
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'invalid x-api-key', type: 'authentication_error' } }), { status: 401, headers: { 'content-type': 'application/json' } });
+  const seen = [];
+  LLM.onAuthError = (e, c) => seen.push([e.auth, c.provider]);
+  try {
+    await assert.rejects(() => LLM.chat({ provider: 'anthropic', model: 'claude-sonnet-4-5', apiKey: 'sk-bad' }, { system: 's', messages: ask, maxTokens: 50 }, {}), (e) => e.auth === true);
+    assert.deepEqual(seen, [[true, 'anthropic']]);
+  } finally { globalThis.fetch = realFetch; LLM.onAuthError = realHook; }
+});

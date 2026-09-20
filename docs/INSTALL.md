@@ -89,7 +89,7 @@ Two things worth knowing:
 
 With Option A, update the files in this folder (for example `git pull`); the server serves them as they are. With Option B, run `npm run site` again and upload the new `dist/` to the same project. Either way your data stays where it is, because it is stored under the same address.
 
-Then close Orbit fully (on iPhone, from the app switcher; on Android, swipe it away from recent apps) and open it twice to pick up the new version.
+Orbit fetches the new version in the background. When it is ready, a bar at the bottom says **A new version is ready** with a **Reload** button: tap it. (Orbit also looks for updates each time you come back to it.) If you never see the bar, close Orbit fully (on iPhone, from the app switcher; on Android, swipe it away from recent apps) and open it twice.
 
 **Just want a quick look on the same Wi-Fi?** Run `node scripts/serve.mjs --lan` and open `http://<your-computer-ip>:8080` on the phone. Over plain http the app works, but encrypted backups and offline mode are switched off by the browser, so treat it as a preview only.
 
@@ -97,5 +97,6 @@ Then close Orbit fully (on iPhone, from the app switcher; on Android, swipe it a
 
 - *No "Add to Home Screen" on iPhone*: you are not in Safari, or the page is not https.
 - *No "Install app" on Android*: the page is not https, or you are not in Chrome. Reload once after the first visit.
-- *Old version keeps showing*: close the app fully and open it again, twice.
+- *Old version keeps showing*: tap **Reload** on the update bar if it appears, or close the app fully and open it again, twice.
+- *Orbit keeps asking for my AI key*: the key is remembered on the device, but Safari can clear a website's storage after about a week without use unless it is installed to the Home Screen. Install it (see above). Also check that you did not turn off **Remember it on this device** when you pasted the key, and that Coach settings has **Device** selected.
 - *Backup button says it needs a secure page*: the address is http, not https.

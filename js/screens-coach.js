@@ -79,7 +79,7 @@
     const page = h('div', { class: 'page' }, UI.header('Coach', 'Your model. Your key. Your call.', { right: h('a', { class: 'iconbtn', href: '#/coach/setup', 'aria-label': 'Coach settings' }, U.icon('key', 20)) }));
     if (!ready) {
       U.put(page, UI.scroller(UI.card(h('div', { class: 'ct' }, 'Connect your own AI'), h('div', { class: 'muted' }, 'The coach runs on a model you choose, with a key you own. There is no Orbit server and no shared AI, so it costs the app nothing and your data goes nowhere else.'),
-        UI.btn('Set up the coach', { href: '#/coach/setup' }), UI.btn('Paste a key for this session', { kind: 'quiet', onClick: () => Screens.keySheet(() => root.App.render()) })),
+        UI.btn('Set up the coach', { href: '#/coach/setup' }), UI.btn('Paste your key', { kind: 'quiet', onClick: () => Screens.keySheet(() => root.App.render()) })),
         h('div', { class: 'muted small' }, 'Everything else in Orbit works without it.')));
       return page;
     }
@@ -116,12 +116,16 @@
 
   Screens.keySheet = function (onDone) {
     const cfg = root.App.llmConfig();
-    const k = UI.field({ label: 'API key', type: 'password', autocomplete: 'off', placeholder: 'Paste your key', hint: 'Held in memory until you close the app. Never saved, never in backups.' });
-    U.sheet('Use your key · ' + (LLM.PROVIDERS[cfg.provider] || {}).label, h('div', { class: 'stack' }, k, h('div', { class: 'muted small' }, 'Provider and model come from Coach settings. It is sent only to ' + hostOf(cfg) + '.')), [{ label: 'Cancel' }, { label: 'Use key', kind: 'primary', run: () => {
+    const mode = Store.getSettings().coach.keyMode;
+    let remember = mode === 'device' || mode === 'session';
+    const k = UI.field({ label: 'API key', type: 'password', autocomplete: 'off', placeholder: 'Paste your key' });
+    const body = h('div', { class: 'stack' }, k,
+      UI.toggleRow('Remember it on this device', 'Encrypted here, never in backups. If it expires, Orbit asks for a new one.', remember, (v) => { remember = v; }),
+      h('div', { class: 'muted small' }, 'Provider and model come from Coach settings. The key is sent only to ' + hostOf(cfg) + '.'));
+    U.sheet('Use your key · ' + (LLM.PROVIDERS[cfg.provider] || {}).label, body, [{ label: 'Cancel' }, { label: 'Use key', kind: 'primary', run: () => {
       const v = k.input.value.trim();
       if (!keyOk(v)) { U.toast('That does not look like an API key.', 'warn'); return false; }
-      root.App.setKey(v, 'typed');
-      if (onDone) setTimeout(onDone, 0);
+      root.App.saveKey(v, remember).then(() => { if (remember) U.toast('Key saved on this device.'); if (onDone) setTimeout(onDone, 0); }).catch((e) => U.toast(String(e && e.message ? e.message : e).slice(0, 160), 'warn'));
     } }]);
   };
 
@@ -142,7 +146,8 @@
     const setCoach = (patch) => Store.saveSettings({ coach: Object.assign({}, c, patch) });
     const provPills = UI.pills({ label: 'Provider', items: Object.keys(P).map((k) => P[k].label), values: new Set([P[c.provider].label]), multi: false, onChange: (v) => {
       const label = Array.from(v)[0], id = Object.keys(P).find((k) => P[k].label === label);
-      setCoach({ provider: id, model: '' }).then(() => root.App.render());
+      // Each provider has its own remembered key, so switching brings back the right one (or none).
+      setCoach({ provider: id, model: '' }).then(async () => { root.App.clearKey(); await root.App.loadRemembered(); root.App.render(); });
     } });
     const model = UI.field({ label: 'Model', value: c.model, placeholder: P[c.provider].defaultModel || 'model name', maxlength: 80, hint: 'Leave empty for the default. Model names change; use one from your provider\'s docs.' });
     model.input.addEventListener('change', () => setCoach({ model: model.input.value.trim() }));
@@ -151,9 +156,20 @@
 
     // key area
     const keyBox = h('div', { class: 'stack' });
-    const modeSeg = UI.seg({ label: 'Where should the key live?', options: [{ value: 'session', label: 'Just this session' }, { value: 'vault', label: 'Encrypted here' }, { value: 'file', label: 'From a key file' }], value: c.keyMode, onChange: (v) => { setCoach({ keyMode: v }).then(() => root.App.render()); } });
-    const status = root.App.hasKey() ? U.chip('Key loaded (' + root.App.keyState.source + ')', 'good') : U.chip('No key loaded', 'line');
-    if (c.keyMode === 'session') {
+    const modeSeg = UI.seg({ label: 'Where should the key live?', options: [{ value: 'device', label: 'Device' }, { value: 'vault', label: 'Passphrase' }, { value: 'session', label: 'Session' }, { value: 'file', label: 'File' }], value: c.keyMode, onChange: (v) => { setCoach({ keyMode: v }).then(async () => { if (v === 'device' && !root.App.hasKey()) await root.App.loadRemembered(); root.App.render(); }); } });
+    const bad = root.App.keyState.bad && root.App.keyState.bad.provider === c.provider;
+    const status = bad ? U.chip('Key rejected: update it', 'coral') : root.App.hasKey() ? U.chip('Key loaded (' + ({ device: 'saved on this device', typed: 'this session', vault: 'passphrase', file: 'key file' }[root.App.keyState.source] || root.App.keyState.source) + ')', 'good') : U.chip('No key loaded', 'line');
+    if (c.keyMode === 'device') {
+      const k = UI.field({ label: root.App.hasKey() ? 'Replace the key' : 'API key', type: 'password', placeholder: 'Paste your key', hint: 'Saved encrypted on this device for ' + P[c.provider].label + '. You will not need to enter it again.' });
+      U.put(keyBox, k,
+        UI.btn(root.App.hasKey() ? 'Save the new key' : 'Save key on this device', { onClick: async () => {
+          const v = k.input.value.trim();
+          if (!keyOk(v)) return U.toast('That does not look like an API key.', 'warn');
+          try { await root.App.saveKey(v, true); k.input.value = ''; U.toast('Key saved on this device.'); root.App.render(); } catch (e) { U.toast(String(e && e.message ? e.message : e).slice(0, 160), 'warn'); }
+        } }),
+        h('div', { class: 'muted small' }, 'The key is encrypted with a key the browser will not let out, kept in this browser\'s storage, and left out of backups. It is a convenience, not a vault: anyone who can open Orbit on this unlocked device can use it, so turn on the app lock in Settings if others use your phone. If the provider says it has expired, Orbit asks for a new one straight away.'),
+        UI.btn('Forget the saved key', { kind: 'danger', onClick: async () => { await root.App.forgetRemembered(c.provider); root.App.clearKey(); U.toast('Deleted from this device.'); root.App.render(); } }));
+    } else if (c.keyMode === 'session') {
       const k = UI.field({ label: 'API key', type: 'password', placeholder: 'Paste your key', hint: 'Kept in memory only. Closing the app forgets it.' });
       U.put(keyBox, k, UI.btn('Use this key', { onClick: () => { const v = k.input.value.trim(); if (!keyOk(v)) return U.toast('That does not look like an API key.', 'warn'); root.App.setKey(v, 'typed'); k.input.value = ''; U.toast('Key loaded for this session.'); root.App.render(); } }));
     } else if (c.keyMode === 'vault') {

@@ -20,6 +20,20 @@ How the bigger features work, in more detail than the README. For installing, se
 
 Lifts, then **Add a lift**. About 40 are built in (barbell, dumbbell, machine, cable and bodyweight); pick one, enter a weight and reps you can do for a solid set, and Orbit builds the same week-by-week progression for it. **Something else** lets you add your own: name, muscle, equipment, whether it is a heavy compound, medium or high-rep lift, and where you are now. Choose which workout it goes on, the best fit for the muscle, or none if you only want to track it. There is no limit. On a lift's page, **Stop tracking this lift** removes it from your targets; your logged sets stay in your history and the exercise stays in its workout as a plain one. Onboarding has the same **Add another lift** button.
 
+## Your diet plan
+
+Right after your macros in setup there is a **Diet plan** card. Pick how you eat (or leave it on **Same as my profile**), your cuisine (Indian, Western or Mixed), how many meals a day (3, 4 or 5), foods to leave out (dairy, eggs, nuts, gluten, soy) and any foods you dislike. A sample day shows straight away. You can change all of it later under Profile or Plan settings, **Diet preferences**.
+
+**Open diet plan** (from Profile, Plan settings or Fuel) shows a day at a time with gram portions for every food: countable foods are whole pieces (3 idlis, 2 eggs, 1 scoop). The totals sit close to your calories and macros. **Swap** replaces one meal with another that fits, **Shuffle the week** starts a different rotation, and **Log this meal** adds each food to today's Fuel log as its own entry, which you can edit or delete like any other. Nothing is logged unless you tap.
+
+How it works: Orbit has about 55 everyday foods and about 60 meal ideas. Your choices filter the ideas, then each meal's portions are nudged, one step at a time, until the meal lands near its share of your day. If protein is short, a protein food that suits your diet (whey, Greek yogurt, egg whites, plant protein, and so on) is added. The same preferences always give the same week. This is a suggestion from tables, not medical advice; if you have an allergy or a health condition, check with a professional.
+
+**What should I eat next?** sits on Fuel, under Add food, for today. It works out what is left of your calories and macros after everything you logged, picks the next meal you have not logged (or the one you choose), and offers up to three meals with portions fitted to what is left. If you ate a big breakfast, lunch gets smaller portions. If protein is behind, it suggests a quick top-up. **Log this** adds it to today.
+
+The optional AI buttons ("Ask for tips on this day", "Ask the coach about this") send only the meals and your eating preferences as text to your provider, and only when you tap. They return text tips. They never change the plan and never log anything.
+
+<p align="center"><img src="img/diet-plan.png" width="190" alt="The diet plan for a day"> <img src="img/eat-next.png" width="190" alt="What should I eat next? on Fuel"> <img src="img/diet-onboard.png" width="190" alt="The diet plan card in setup"></p>
+
 ## Your profile
 
 Open Profile from the person icon on Today. It starts with the Orbit logo and the tagline, *Track the change. Not the vibes.*, the same as the welcome screen. **Edit** (or **Add name**) at the top and **Edit profile** under Basics open the same sheet: name, sex, age, height, body fat and diet style. Only what you change is saved, as one change you can undo, and it is kept in backups. The name is never sent to a coach. Weight is not edited here: it comes from your weigh-ins. Changing age, height or sex does not change your calorie and protein targets; those are in Plan settings (**Plan settings**, then **Edit targets** or **Change goal**).
@@ -93,9 +107,14 @@ Where the key can live:
 
 | Mode | What happens |
 | --- | --- |
-| Just this session (default) | Held in memory. Closing the app forgets it. |
-| Encrypted here | Stored encrypted with a passphrase (AES-256) on this device. |
+| This device (default) | Enter it once. It is encrypted with a key the browser keeps and will not export, and loads by itself each time you open Orbit. Nothing to type again. |
+| Passphrase | Stored encrypted with a passphrase (AES-256) on this device. You type the passphrase to unlock it. |
+| Session | Held in memory. Closing the app forgets it. |
 | From a key file | Read into memory from a file you pick. Never copied or stored. |
+
+**When a key expires.** If the provider turns a key down (expired, revoked or mistyped), Orbit says so, drops that key, and opens a sheet asking for a new one. Paste it, leave **Remember it on this device** on, and tap Save key; the new one replaces the old. Coach settings then shows "Key rejected: update it" until you do. **Forget the saved key** in Coach settings deletes it from the device. Each provider keeps its own saved key.
+
+**Be clear about what "This device" is.** It stops you retyping the key and keeps it out of backups, exports and the repository, but it is a convenience, not a vault. Anyone who can open Orbit on your unlocked device can use the key, so turn on the app lock in Settings if others use your phone. Use Passphrase if you want to type something each time. Safari can clear a website's storage after about a week without use unless the app is installed to the Home Screen, so install it (see [INSTALL.md](INSTALL.md)) and the key will stay. If it is ever cleared, Orbit simply asks again.
 
 The key is never included in backups, never written to logs and never put in the repository. Model names change over time; the default is a starting point, so use one from your provider's docs.
 

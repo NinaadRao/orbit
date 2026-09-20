@@ -36,6 +36,21 @@
       throw new Error('Wrong passphrase, or the file is damaged.');
     }
   }
+  // Device-bound sealing, for "remember my key on this device". A random AES-256 key is made that the browser will not let
+  // anyone export, and it is kept in IndexedDB beside the ciphertext. This keeps the text out of casual view (backups, a copied
+  // file, a glance at storage) but it is not a passphrase: whoever can open Orbit on this unlocked device can use the key.
+  async function deviceSeal(text) {
+    if (!hasCrypto()) throw new Error('Saving a key needs a secure (https or localhost) page.');
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text));
+    return { v: 1, key, iv: U.b64(iv), data: U.b64(ct), at: new Date().toISOString() };
+  }
+  async function deviceUnseal(rec) {
+    if (!rec || rec.v !== 1 || !rec.key || typeof rec.iv !== 'string' || typeof rec.data !== 'string') throw new Error('No saved key.');
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: U.unb64(rec.iv) }, rec.key, U.unb64(rec.data));
+    return dec.decode(pt);
+  }
   async function hashPin(pin, saltB64) {
     const salt = saltB64 ? U.unb64(saltB64) : crypto.getRandomValues(new Uint8Array(16));
     const base = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
@@ -49,5 +64,5 @@
     for (let i = 0; i < r.hash.length; i++) d |= r.hash.charCodeAt(i) ^ rec.hash.charCodeAt(i);
     return d === 0;
   }
-  root.Crypt = { hasCrypto, encryptText, decryptText, isEnvelope, hashPin, verifyPin };
+  root.Crypt = { hasCrypto, encryptText, decryptText, isEnvelope, deviceSeal, deviceUnseal, hashPin, verifyPin };
 })(self);

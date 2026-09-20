@@ -6,11 +6,61 @@
 
   const TABS = [['#/today', 'Today', 'home'], ['#/lifts', 'Lifts', 'dumbbell'], ['#/fuel', 'Fuel', 'fork'], ['#/progress', 'Progress', 'chart'], ['#/coach', 'Coach', 'chat']];
 
-  // ---------- the API key lives here, in memory only (unless the user chose the encrypted vault) ----------
-  const keyState = { value: '', source: '' }; // source: 'typed' | 'file' | 'vault'
-  function setKey(v, source) { keyState.value = String(v || '').trim(); keyState.source = keyState.value ? source : ''; }
+  // ---------- the API key ----------
+  // It is held in memory. With "remember on this device" (the default) it is also kept, sealed, in this browser's storage
+  // (never in backups) and loaded when the app opens. If the provider later rejects it, the person is asked for a new one.
+  const keyState = { value: '', source: '', bad: null }; // source: 'typed' | 'file' | 'vault' | 'device'
+  function setKey(v, source) { keyState.value = String(v || '').trim(); keyState.source = keyState.value ? source : ''; if (keyState.value) keyState.bad = null; }
   function clearKey() { keyState.value = ''; keyState.source = ''; }
   function hasKey() { return !!keyState.value; }
+  const providerId = () => Store.getSettings().coach.provider;
+  const deviceSlot = (provider) => 'keydev_' + String(provider || providerId()).replace(/[^a-z0-9_]/g, '');
+  // Reads the sealed key for the current provider, if this device has one and the mode asks for it.
+  async function loadRemembered() {
+    if (Store.getSettings().coach.keyMode !== 'device') return false;
+    try {
+      const rec = await Store.getMeta(deviceSlot());
+      if (!rec) return false;
+      setKey(await Crypt.deviceUnseal(rec), 'device');
+      return hasKey();
+    } catch (e) { return false; } // unreadable (storage cleared, key lost): the person is simply asked again
+  }
+  async function hasRemembered(provider) { try { return !!(await Store.getMeta(deviceSlot(provider))); } catch (e) { return false; } }
+  async function forgetRemembered(provider) { try { await Store.delMeta(deviceSlot(provider)); } catch (e) { /* none */ } }
+  // Uses a key the person just typed. With remember on, it is sealed onto this device and the mode becomes "device".
+  async function saveKey(v, remember) {
+    const key = String(v || '').trim();
+    if (remember) {
+      const c = Store.getSettings().coach;
+      await Store.setMeta(deviceSlot(), await Crypt.deviceSeal(key));
+      if (c.keyMode !== 'device') await Store.saveSettings({ coach: Object.assign({}, c, { keyMode: 'device' }) });
+      setKey(key, 'device');
+    } else setKey(key, 'typed');
+  }
+
+  // Called by LLM.chat when the provider says the key is missing, wrong, revoked or expired.
+  let asking = false;
+  function keyRejected(err, cfg) {
+    keyState.bad = { at: Date.now(), provider: cfg && cfg.provider };
+    clearKey();
+    if (asking) return;
+    asking = true;
+    const label = (LLM.PROVIDERS[cfg && cfg.provider] || {}).label || 'The provider';
+    const k = root.UI.field({ label: 'New API key', type: 'password', placeholder: 'Paste your new key', autocomplete: 'off' });
+    let keep = true;
+    const body = h('div', { class: 'stack' },
+      h('div', null, label + ' turned the key down. It has most likely expired, been revoked or been mistyped.'),
+      h('div', { class: 'muted small' }, String(err && err.message ? err.message : '').slice(0, 200)),
+      k,
+      root.UI.toggleRow('Remember it on this device', 'Encrypted here, never in backups.', true, (v) => { keep = v; }),
+      h('div', { class: 'muted small' }, 'Get a new one from your provider\'s console. Orbit only sends it to ' + (function () { try { return new URL(LLM.endpointOf(cfg)).host; } catch (e) { return 'your provider'; } })() + '.'));
+    U.sheet('Your AI key needs updating', body, [{ label: 'Not now' }, { label: 'Save key', kind: 'primary', run: () => {
+      const v = k.input.value.trim();
+      if (!/^[\x21-\x7e]{8,400}$/.test(v)) { U.toast('That does not look like an API key.', 'warn'); return false; }
+      saveKey(v, keep).then(() => { U.toast('New key saved. Try again.'); render(); }).catch((e) => U.toast(String(e && e.message ? e.message : e).slice(0, 160), 'warn'));
+    } }], { onClose: () => { asking = false; } });
+  }
+  LLM.onAuthError = keyRejected;
   function llmConfig() {
     const c = Store.getSettings().coach;
     const p = LLM.PROVIDERS[c.provider] || LLM.PROVIDERS.anthropic;
@@ -40,7 +90,7 @@
       [/^#\/lifts$/, () => S.lifts()], [/^#\/lifts\/([a-z0-9_]+)$/, (m) => S.liftDetail(m[1])],
       [/^#\/activity$/, () => S.activity()],
       [/^#\/fuel$/, () => S.fuel()],
-      [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()], [/^#\/photos\/trend$/, () => S.photoTrend()], [/^#\/photos\/compare$/, () => S.photoCompare()],
+      [/^#\/diet$/, () => S.dietPlan()], [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()], [/^#\/photos\/trend$/, () => S.photoTrend()], [/^#\/photos\/compare$/, () => S.photoCompare()],
       [/^#\/library$/, () => S.library()],
       [/^#\/coach$/, () => S.coach()], [/^#\/coach\/setup$/, () => S.coachSetup()],
       [/^#\/profile$/, () => S.profile()], [/^#\/settings$/, () => S.settings()], [/^#\/settings\/plan$/, () => S.planSettings()],
@@ -61,7 +111,7 @@
     bar.classList.toggle('hidden', !show);
     U.clear(bar);
     if (!show) return;
-    const base = hash.startsWith('#/photos') || hash.startsWith('#/library') || hash.startsWith('#/settings') ? '#/progress' : '#/' + hash.split('/')[1];
+    const base = hash.startsWith('#/diet') ? '#/fuel' : hash.startsWith('#/photos') || hash.startsWith('#/library') || hash.startsWith('#/settings') ? '#/progress' : '#/' + hash.split('/')[1];
     for (const [href, label, ic] of TABS) {
       const on = href === (hash.startsWith('#/settings') || hash.startsWith('#/profile') || hash.startsWith('#/activity') ? '#/today' : base);
       bar.appendChild(h('a', { href, class: on ? 'on' : '', 'aria-current': on ? 'page' : null }, U.icon(ic, 22), h('span', null, label)));
@@ -123,6 +173,13 @@
     if (s && s.lockEnabled && !locked && hiddenAt && Date.now() - hiddenAt > (s.lockMinutes || 2) * 60000) showLock();
   });
 
+  let updateBar = null;
+  function showUpdateBar() {
+    if (updateBar) return;
+    updateBar = h('div', { class: 'updatebar', role: 'status' }, h('span', null, 'A new version of Orbit is ready.'), h('button', { type: 'button', class: 'btn primary', onclick: () => location.reload() }, 'Reload'));
+    document.body.appendChild(updateBar);
+  }
+
   // ---------- service worker (only on https or localhost; a no-op from file://) ----------
   function registerSW() {
     if (!('serviceWorker' in navigator)) return;
@@ -134,7 +191,13 @@
         const p = root.trustedTypes.createPolicy('orbit-sw', { createScriptURL: (u) => { if (u !== 'sw.js') throw new TypeError('Blocked script URL'); return u; } });
         url = p.createScriptURL('sw.js');
       }
-      navigator.serviceWorker.register(url).catch(() => { /* offline support is a bonus */ });
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.register(url).then((reg) => {
+        // An installed app rarely looks for a new version by itself, so check whenever it comes back to the front.
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => { /* offline */ }); });
+      }).catch(() => { /* offline support is a bonus */ });
+      // The old files are already on screen when a new version takes over, so say so instead of leaving the person on the old one.
+      if (hadController) navigator.serviceWorker.addEventListener('controllerchange', showUpdateBar);
     } catch (e) { /* ignore */ }
   }
 
@@ -142,12 +205,13 @@
     let info = { volatile: false };
     try { info = await Store.init(); } catch (e) { info = { volatile: true }; }
     registerSW();
+    await loadRemembered();
     root.Screens.volatile = info.volatile;
     await showLock();
     if (!locked) render();
     if (info.volatile) setTimeout(() => U.toast('Storage is blocked in this browser mode, so nothing will be kept after you close this tab.', 'warn'), 400);
   }
 
-  root.App = { go, render, boot, showLock, setKey, clearKey, hasKey, llmConfig, aiReady, keyState };
+  root.App = { go, render, boot, showLock, setKey, clearKey, hasKey, llmConfig, aiReady, keyState, saveKey, loadRemembered, hasRemembered, forgetRemembered };
   boot();
 })(self);

@@ -33,6 +33,12 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
   <img src="docs/img/coach.png" width="190" alt="Coach: proposed changes need your tap">
 </p>
 <p align="center">
+  <img src="docs/img/diet-plan.png" width="190" alt="Diet plan: a day of meals with gram portions that fit your targets, with Swap and Log this meal">
+  <img src="docs/img/eat-next.png" width="190" alt="Fuel: What should I eat next? Portions for the next meal, fitted to what is left of today">
+  <img src="docs/img/diet-onboard.png" width="190" alt="Setup: the diet plan card right after your macros">
+  <img src="docs/img/key-rejected.png" width="190" alt="The prompt that appears when a provider says your AI key has expired">
+</p>
+<p align="center">
   <img src="docs/img/backup.png" width="190" alt="Privacy and backup: one encrypted file, restore from a file">
 </p>
 </details>
@@ -56,6 +62,10 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 - Active calories are estimated from the activity, time, effort and your weight (MET values from the Compendium of Physical Activities), or you can type the number from your watch. Your calorie target already allows for training, so there is nothing to eat back.
 - A week streak (weeks that reach your active-days goal) and a day streak, a 14-day strip, a weekly log and trends. Progress and the coach use the same numbers.
 
+**Diet plan**
+- Right after your macros, pick how you eat (or follow your profile), your cuisine, 3 to 5 meals a day, foods to leave out and foods you dislike. Orbit builds a week of meals with gram portions that fit your calories and macros. Swap any meal, shuffle the week, or log a meal in one tap. It is built by rules on your device, so it works offline and with no AI key.
+- Fuel's **What should I eat next?** looks at what you have logged today and fits the next meal to what is left, so the portions shrink after a big meal and a protein top-up appears when protein is behind. An optional AI button gives text tips only; it never changes the plan or logs anything.
+
 **Fuel**
 - Search about 7,200 foods (USDA data) with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI, type raw ingredients, or enter macros by hand.
 - Add your own food list from a CSV or JSON file. For Indian foods, the IFCT 2017 tables are the best source, and [how to get them](#food-data) takes a few minutes. The list stays on your device.
@@ -71,7 +81,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 - Ask your coach about form on a set, and stitch clips and check-in photos into one shareable MP4.
 
 **Coach (optional)**
-- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). It sees a summary of your lifts, food, weight and activity (never photos or notes) and can suggest changes, log a workout or move a session; you tap Apply; every change has Undo. Nothing else in the app needs AI.
+- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). Enter the key once: it can be remembered on this device, encrypted with a key the browser will not let out, and if the provider says it has expired Orbit asks for a new one. It sees a summary of your lifts, food, weight and activity (never photos or notes) and can suggest changes, log a workout or move a session; you tap Apply; every change has Undo. Nothing else in the app needs AI.
 
 **Backup and privacy**
 - One encrypted backup file saved on your own device, replaced each time. Optional passcode.
@@ -117,7 +127,7 @@ Please keep to the Institute's terms: personal use, cite *Indian Food Compositio
 
 ## Privacy in short
 
-No account or server. No third-party scripts, fonts or requests. A strict Content Security Policy plus Trusted Types means injected script cannot run and text is never interpreted as HTML. Backups are encrypted with PBKDF2 and AES-256-GCM. An optional passcode gates the screen. Your AI key is never in a backup, a log or the repository. Read [SECURITY.md](SECURITY.md) for what is and is not protected.
+No account or server. No third-party scripts, fonts or requests. A strict Content Security Policy plus Trusted Types means injected script cannot run and text is never interpreted as HTML. Backups are encrypted with PBKDF2 and AES-256-GCM. An optional passcode gates the screen. Your AI key is never in a backup, a log or the repository. Remembering it on this device is a convenience, not a vault; see SECURITY.md. Read [SECURITY.md](SECURITY.md) for what is and is not protected.
 
 ## Keep your data out of git
 

@@ -263,6 +263,7 @@
         h('div', { class: 'kv' }, h('span', null, 'Carbs'), h('b', null, plan.carbs + ' g')), h('div', { class: 'kv' }, h('span', null, 'Fat'), h('b', null, plan.fat + ' g')),
         h('div', { class: 'kv' }, h('span', null, 'Estimated maintenance'), h('b', null, U.withCommas(plan.maintenance))),
         UI.btn('Edit targets', { kind: 'quiet', onClick: editTargets })),
+      UI.card(h('div', { class: 'ct' }, 'Diet plan'), h('div', { class: 'muted small' }, 'A week of meals with gram portions that fit these targets, built on this device from your eating preferences.'), ...Screens.dietSummaryRows(), Screens.dietCardLinks()),
       UI.card(h('div', { class: 'ct' }, 'Change goal'), h('div', { class: 'muted small' }, 'Regenerates calories, macros and measurement targets. Your logs stay.'),
         UI.row(...['build', 'recomp', 'cut'].map((g) => UI.btn(g[0].toUpperCase() + g.slice(1), { kind: g === plan.goal ? 'primary' : 'quiet', onClick: () => { if (g !== plan.goal) Screens.switchGoalSheet(g, 'Switched goal by hand', 'user'); } })))),
       UI.card(h('div', { class: 'ct' }, 'History'), ...(revs.length ? revs.map((r) => h('div', { class: 'kv' }, h('span', null, U.shortDate(r.ts.slice(0, 10)) + ' · ' + r.src), h('b', null, String(r.reason || 'Changed').slice(0, 60), ' ', h('button', { class: 'chip line', type: 'button', onclick: async () => { await Store.voidEvent(r.seq); root.App.render(); } }, 'Undo')))) : [h('div', { class: 'muted' }, 'No changes yet.')]))));

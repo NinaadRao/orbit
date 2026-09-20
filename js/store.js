@@ -20,7 +20,7 @@
   const DEFAULT_SETTINGS = {
     liftUnit: 'lb', bodyUnit: 'kg', lenUnit: 'in', blurPhotos: true, lockEnabled: false, lockMinutes: 2,
     reminder: 'weekly', checkinDay: 5, foodDiet: 'auto', encryptBackups: true, includeMediaInBackup: false, lastBackupAt: null,
-    coach: { provider: 'anthropic', model: '', baseUrl: '', keyMode: 'session' },
+    coach: { provider: 'anthropic', model: '', baseUrl: '', keyMode: 'device' },
     restTimer: true, logRpe: true, logWarmups: false, logNotes: true,
     activeGoal: 0, // active days per week that keep a streak going; 0 means "use the number of training days in the profile"
     onboardedAt: null,
@@ -182,6 +182,8 @@
     }
     if (payload.settings && typeof payload.settings === 'object') {
       const keep = { lastBackupAt: settings.lastBackupAt, lockEnabled: settings.lockEnabled };
+      // Where this device keeps the AI key is a property of the device, not of the backup.
+      keep.coach = Object.assign({}, DEFAULT_SETTINGS.coach, payload.settings.coach, { keyMode: settings.coach.keyMode });
       await saveSettings(Object.assign({}, DEFAULT_SETTINGS, payload.settings, keep));
     }
     state = E.project(events);
