@@ -70,6 +70,7 @@
     });
 
     return UI.page(UI.header('Profile', 'Only on this device.', { back: '#/today' }), UI.scroller(
+      h('div', { class: 'profbrand' }, U.brandMark(), h('div', { class: 'display tagline' }, U.TAGLINE[0], h('br'), U.TAGLINE[1])),
       UI.card(h('div', { class: 'profhead' },
         h('div', { class: 'avatar', 'aria-hidden': 'true' }, initials || U.icon('user', 26)),
         h('div', { class: 'grow' }, h('div', { class: 'display big2' }, name || 'You'), h('div', { class: 'muted' }, cap(plan.goal) + ' · week ' + week + ' of ' + E.WEEKS)),

@@ -124,6 +124,8 @@ select.inp { appearance: none; }
 .app-icon { width: 52px; height: 52px; border-radius: 14px; background: radial-gradient(circle at 80% 0%, rgba(61, 220, 132, 0.28), rgba(61, 220, 132, 0) 55%), var(--paper); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
 .wordmark { font-size: 30px; letter-spacing: 0.14em; }
 .hero { font-size: 50px; line-height: 0.98; margin-top: 8px; }
+.profbrand { display: flex; flex-direction: column; gap: 10px; padding: 10px 2px 4px; }
+.tagline { font-size: 30px; line-height: 1; }
 .lead { font-size: 16px; }
 .feats { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
 .feat { display: flex; gap: 14px; align-items: flex-start; color: var(--acc); }

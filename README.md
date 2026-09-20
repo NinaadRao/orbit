@@ -1,4 +1,6 @@
-# Orbit
+<p align="center"><img src="icons/icon-192.png" width="96" alt="The Orbit logo: a ring with a green arc and a dot circling a white centre"></p>
+<h1 align="center">Orbit</h1>
+<p align="center"><b>Track the change. Not the vibes.</b></p>
 
 A private, local-first tracker for lifts, workouts and sport, food, body weight, measurements and progress photos, built around a 26-week plan (build, recomp or cut). No account, no server, no analytics. Your data lives in your browser and leaves only when you make a backup file. It installs on an iPhone, an Android phone or a computer and works offline.
 
@@ -22,7 +24,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
   <img src="docs/img/progress.png" width="190" alt="Progress: weight trend and measurements against goals">
   <img src="docs/img/checkin.png" width="190" alt="Weekly photo check-in: pick a check-in by its date, then add the five angles">
   <img src="docs/img/photo-compare.png" width="190" alt="Compare: any two check-ins with a slider">
-  <img src="docs/img/profile.png" width="190" alt="Profile: your name and basics (editable), your plan, and the weekly check-in day">
+  <img src="docs/img/profile.png" width="190" alt="Profile: the Orbit logo and tagline, your name and basics (editable), your plan, and the weekly check-in day">
 </p>
 <p align="center">
   <img src="docs/img/fuel-confirm.png" width="190" alt="Fuel: an AI food estimate you check and edit before it is saved">

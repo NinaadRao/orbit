@@ -851,6 +851,15 @@ async function main() {
     await page.evaluate(async () => { await Store.saveSettings({ checkinDay: 5 }); });
   });
 
+  await step('profile: shows the app logo and tagline, like the welcome screen', async () => {
+    await route(page, '#/profile');
+    const box = page.locator('.profbrand');
+    await box.waitFor();
+    const text = await box.innerText();
+    ok(/ORBIT/.test(text) && /Track the change\./.test(text) && /Not the vibes\./.test(text), 'wordmark and tagline are shown');
+    eq(await box.locator('.app-icon svg').count(), 1, 'the logo is drawn');
+  });
+
   await step('profile: name and basics can be edited, bad values are refused, and untouched fields stay exactly as they were', async () => {
     await route(page, '#/profile');
     await page.getByText('Basics', { exact: true }).waitFor();

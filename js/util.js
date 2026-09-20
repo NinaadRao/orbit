@@ -202,5 +202,9 @@
     return svg;
   }
 
-  root.U = { h, s, put, clear, num, withCommas, kgToUnit, unitToKg, fmtWeight, fmtLift, cmToUnit, unitToCm, fmtLen, today, longDate, shortDate, b64, unb64, toast, sheet, confirmSheet, chip, bar, icon, logoSvg, lineChart, PAL, DOW, MON };
+  // The app's name and mark, and its tagline: one place, used on the welcome screen and on Profile.
+  const TAGLINE = ['Track the change.', 'Not the vibes.'];
+  function brandMark() { return h('div', { class: 'brand' }, h('div', { class: 'app-icon' }, logoSvg(36)), h('div', { class: 'display wordmark' }, 'ORBIT')); }
+
+  root.U = { TAGLINE, brandMark, h, s, put, clear, num, withCommas, kgToUnit, unitToKg, fmtWeight, fmtLift, cmToUnit, unitToCm, fmtLen, today, longDate, shortDate, b64, unb64, toast, sheet, confirmSheet, chip, bar, icon, logoSvg, lineChart, PAL, DOW, MON };
 })(self);

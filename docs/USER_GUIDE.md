@@ -22,7 +22,9 @@ Lifts, then **Add a lift**. About 40 are built in (barbell, dumbbell, machine, c
 
 ## Your profile
 
-Open Profile from the person icon on Today. **Edit** (or **Add name**) at the top and **Edit profile** under Basics open the same sheet: name, sex, age, height, body fat and diet style. Only what you change is saved, as one change you can undo, and it is kept in backups. The name is never sent to a coach. Weight is not edited here: it comes from your weigh-ins. Changing age, height or sex does not change your calorie and protein targets; those are in Plan settings (**Plan settings**, then **Edit targets** or **Change goal**).
+Open Profile from the person icon on Today. It starts with the Orbit logo and the tagline, *Track the change. Not the vibes.*, the same as the welcome screen. **Edit** (or **Add name**) at the top and **Edit profile** under Basics open the same sheet: name, sex, age, height, body fat and diet style. Only what you change is saved, as one change you can undo, and it is kept in backups. The name is never sent to a coach. Weight is not edited here: it comes from your weigh-ins. Changing age, height or sex does not change your calorie and protein targets; those are in Plan settings (**Plan settings**, then **Edit targets** or **Change goal**).
+
+<p align="center"><img src="img/profile.png" width="190" alt="Profile with the logo and tagline at the top"> <img src="img/profile-edit.png" width="190" alt="The Edit profile sheet"></p>
 
 ## Your photo trend
 

@@ -100,8 +100,8 @@
     const importInput = h('input', { type: 'file', class: 'hidden', accept: '.orbitbackup,.json,application/json,application/octet-stream', onchange: () => { if (importInput.files[0]) root.Screens.importFile(importInput.files[0]); } });
     const feature = (ic, t, sub) => h('div', { class: 'feat' }, U.icon(ic, 24), h('div', null, h('b', null, t), h('div', { class: 'muted' }, sub)));
     return h('div', { class: 'page welcome' },
-      h('div', { class: 'brand' }, h('div', { class: 'app-icon' }, U.logoSvg(36)), h('div', { class: 'display wordmark' }, 'ORBIT')),
-      h('div', { class: 'display hero' }, 'Track the change.', h('br'), 'Not the vibes.'),
+      U.brandMark(),
+      h('div', { class: 'display hero' }, U.TAGLINE[0], h('br'), U.TAGLINE[1]),
       h('p', { class: 'muted lead' }, 'Orbit is what you do every day: circle back, log it, go again. Bulk, cut or recomp, it keeps the receipts.'),
       h('div', { class: 'feats' },
         feature('lock', 'Lives on this phone.', 'No account, no cloud, no server. There is nothing to sign up for.'),
