@@ -6,7 +6,7 @@
   Security posture in one tag: only files from this folder may run or load; no inline script or style; no eval;
   DOM strings must go through Trusted Types (this app never uses innerHTML); the only network destinations are
   the AI providers you can choose in the coach settings, and localhost for local models.
-  To use another AI endpoint (OpenRouter, a home server), add its origin to connect-src below. See README.
+  To use another AI endpoint (OpenRouter, a home server), add its origin to connect-src below. See docs/USER_GUIDE.md, section 'The AI features and your key'.
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self'; connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'">
 <meta name="referrer" content="no-referrer">

@@ -5,9 +5,19 @@
 | Part | Rows | Source | Licence |
 |---|---|---|---|
 | USDA | 7,225 | U.S. Department of Agriculture, FoodData Central, **SR Legacy** (Standard Reference, April 2018 release, the last one). Taken from the `usda_sr_legacy` rows of `tempo-food-db` 1.0.0 by TempoLife (Probyte OÜ). | The USDA values are public domain. The TempoLife compilation is CC-BY-4.0. Attribution: "Food nutrition data from TempoLife (tempolife.app), CC-BY-4.0." |
-| India | 542 | **Indian Food Composition Tables 2017** (IFCT 2017), National Institute of Nutrition, Hyderabad (ICMR). Taken from `@ifct2017/compositions` 2.0.9 by Subhajit Sahu. | The npm package is MIT-licensed. The measurements belong to the National Institute of Nutrition; cite them if you republish. |
+| India | 542 | **Indian Food Composition Tables 2017** (IFCT 2017), National Institute of Nutrition, Hyderabad (ICMR). Taken from `@ifct2017/compositions` 2.0.9 by Subhajit Sahu. | The npm package's MIT licence is the packager's and cannot grant rights to the Institute's data. The book is copyright the National Institute of Nutrition (ICMR); see "Permission to keep and share this data" below. |
 
 Rows in `tempo-food-db` with no public source (562 curated rows, mostly Estonian dishes) are **not** used, because their values cannot be checked. Baby foods and infant formula are dropped.
+
+## Permission to keep and share this data
+
+This is what the sources themselves say. It is not legal advice.
+
+- **USDA rows: free to use.** FoodData Central data is public domain, published under CC0 1.0, and no permission is needed. USDA asks users to acknowledge it: "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central. fdc.nal.usda.gov."
+- **TempoLife compilation: keep the attribution above** (CC-BY-4.0). It only covers their arrangement of the USDA rows, but the attribution costs nothing.
+- **IFCT 2017 rows: personal use only, unless you get permission.** The book is copyright the National Institute of Nutrition, Hyderabad. It says the data may be reproduced for personal use with full acknowledgement of the source, and that no part may be stored or reproduced in any electronic format to create a product without the Institute's prior written permission. Keeping the file in your own private repository for your own app fits the personal-use wording. **Making the repository public, or putting the app on a public address (README Option B, or anything you hand to other people), goes beyond it.** Before doing that, either write to the National Institute of Nutrition for permission, or rebuild `data/foods.json` without the India rows.
+- The `@ifct2017/compositions` npm package is MIT-licensed at the version used here (the main ifct2017 repository moved to AGPL-3.0 in April 2025). That licence covers the packager's code. It does not replace the Institute's permission.
+- The measurements themselves are facts, and copyright over bare facts is narrow in many countries, but the Institute's book states its terms, so treat them as binding unless a lawyer tells you otherwise.
 
 ## How the numbers are prepared
 

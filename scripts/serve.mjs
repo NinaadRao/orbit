@@ -4,7 +4,7 @@
 //   node scripts/serve.mjs --lan      -> also reachable from your phone on the same Wi-Fi (see note)
 // Note: browsers only allow encryption and offline mode on https or localhost. Over plain http on your LAN
 // the app works, but encrypted backups and the offline cache do not. For a phone, host the folder over https
-// (see README) or use a tunnel that gives you an https address.
+// (see docs/INSTALL.md) or use a tunnel that gives you an https address.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';

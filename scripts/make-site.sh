@@ -9,4 +9,4 @@ cp -R index.html manifest.webmanifest sw.js js css icons fonts dist/
 mkdir dist/data
 cp data/foods.json dist/data/
 echo "Ready: $(pwd)/dist"
-echo "Upload that folder to any https static host (see README, 'On your iPhone')."
+echo "Upload that folder to any https static host (see docs/INSTALL.md)."

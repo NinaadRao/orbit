@@ -47,6 +47,26 @@ A short tour of how Orbit is put together and why. It is written so you can expl
 
 **One backup file, replaced each time.** A backup always uses the same name (`orbit-backup.orbitbackup`). A browser cannot delete files it did not just create, so replacing the old copy depends on where you save: in Chrome or Edge on a computer you can pick a folder once (the folder handle is kept in the local meta store), and each backup then overwrites that file and removes older `orbit-*.orbitbackup` files there, after the new one is fully written and touching nothing else in the folder. The iPhone and iPad Files sheet offers Replace for a same-named file, and Safari on a Mac downloads a numbered copy.
 
+## Files
+
+```
+index.html            page, security policy
+js/engine.js          pure plan, progression and validation logic (also runs in Node)
+js/store.js           IndexedDB event log, media, backup and restore
+js/crypto.js          passphrase encryption and passcode hashing
+js/llm.js             provider adapters (Anthropic, OpenAI-compatible, Gemini)
+js/coach.js           coach tools, proposals and safety limits
+js/foods.js           food database search (data/foods.json) and the starter list
+js/library.js         workout photos and videos: previews, links to originals, frames for form checks
+js/reel.js            stitches clips and photos into one MP4 on a canvas
+js/foodai.js          AI nutrition estimates (suggest only)
+js/mediaexport.js     comparison image and time-lapse video, drawn on a canvas on your device
+data/foods.json       the food database (built by scripts/build-foods.mjs; sources in data/SOURCES.md)
+js/screens-*.js       screens
+tests/                unit and end-to-end tests
+docs/ARCHITECTURE.md  how it fits together and why
+```
+
 ## Failure modes considered
 
 | Failure | Behaviour |
