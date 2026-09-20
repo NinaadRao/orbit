@@ -10,7 +10,7 @@
  *
  * The Indian Food Composition Tables 2017 are NOT bundled: their publisher does not allow electronic redistribution without
  * written permission. buildFromIfct() below is used only by scripts/ifct-to-import.mjs, which turns a copy that YOU obtained
- * into a file you can load into your own Orbit (Fuel, Find, "Add my own food list"). See data/SOURCES.md.
+ * into a file you can load into your own Regoal (Fuel, Find, "Add my own food list"). See data/SOURCES.md.
  *
  * Each food is stored per 100 g as [name, diet, kcal, protein, carbs, fat, fibre, source, aliases]
  *   diet: 0 vegetarian, 1 contains egg (or very likely does), 2 meat, poultry, fish, shellfish or gelatin, 3 ingredients unclear (restaurant, canned soup, ready meal)
@@ -162,7 +162,7 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const arg = (k) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : null; };
   const uf = arg('usda'), out = arg('out') || path.join(here, '..', 'data', 'foods.json');
-  if (process.argv.includes('--ifct')) { console.error('The IFCT tables are not bundled. Use scripts/ifct-to-import.mjs to make a file for your own Orbit.'); process.exit(2); }
+  if (process.argv.includes('--ifct')) { console.error('The IFCT tables are not bundled. Use scripts/ifct-to-import.mjs to make a file for your own Regoal.'); process.exit(2); }
   if (!uf) { console.error('Usage: node scripts/build-foods.mjs --usda <tempolife-foods.json> [--out data/foods.json]'); process.exit(2); }
   const usda = buildFromUsda(JSON.parse(fs.readFileSync(uf, 'utf8')));
   const db = assemble(usda);

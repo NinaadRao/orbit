@@ -97,7 +97,7 @@
     const inp = UI.field({ label: todays.length ? 'Weigh again' : 'Morning weight', unit: set.bodyUnit, type: 'number', flex: 1, placeholder: last ? U.fmtWeight(last.kg, set.bodyUnit) : '' });
     return UI.card(
       h('div', { class: 'ct' }, 'Weigh-in'),
-      todays.length ? h('div', { class: 'muted' }, 'Logged today: ' + todays.map((w) => U.fmtWeight(w.kg, set.bodyUnit) + ' ' + set.bodyUnit).join(', ')) : h('div', { class: 'muted small' }, 'Same time, same conditions. Orbit uses a 7-day average so one bad morning does not matter.'),
+      todays.length ? h('div', { class: 'muted' }, 'Logged today: ' + todays.map((w) => U.fmtWeight(w.kg, set.bodyUnit) + ' ' + set.bodyUnit).join(', ')) : h('div', { class: 'muted small' }, 'Same time, same conditions. Regoal uses a 7-day average so one bad morning does not matter.'),
       UI.row(inp, UI.btn('Log', { block: false, onClick: async () => {
         const v = numOrNull(inp.input.value);
         const kg = v == null ? null : U.unitToKg(v, set.bodyUnit);
@@ -129,10 +129,10 @@
     const st = Store.getState(), plan = st.plan, set = Store.getSettings();
     const t = U.today();
     const rawWeek = E.weekOf(plan.startDate, t);
-    const week = E.clamp(rawWeek, 1, E.WEEKS);
+    const week = E.clamp(rawWeek, 1, E.planWeeks(plan));
     const deload = plan.deloadWeeks.includes(week);
-    const ci = rawWeek <= E.WEEKS ? E.checkinStatus(st, set.checkinDay, t) : null;
-    const pct = Math.min(100, Math.max(0, ((E.daysBetween(plan.startDate, t) + 1) / (E.WEEKS * 7)) * 100));
+    const ci = rawWeek <= E.planWeeks(plan) ? E.checkinStatus(st, set.checkinDay, t) : null;
+    const pct = Math.min(100, Math.max(0, ((E.daysBetween(plan.startDate, t) + 1) / (E.planWeeks(plan) * 7)) * 100));
     const C = 2 * Math.PI * 34;
     const ring = h('div', { class: 'ring', role: 'img', 'aria-label': 'Plan progress ' + Math.round(pct) + ' percent' },
       s('svg', { viewBox: '0 0 84 84' }, s('circle', { cx: 42, cy: 42, r: 34, fill: 'none', stroke: U.PAL.track, 'stroke-width': 8 }),
@@ -141,11 +141,11 @@
     const cards = [];
 
     cards.push(UI.card(h('div', { class: 'todayhead' }, ring, h('div', { class: 'grow' },
-      h('div', { class: 'display big2' }, 'Week ' + week + ' of ' + E.WEEKS),
+      h('div', { class: 'display big2' }, 'Week ' + week + ' of ' + E.planWeeks(plan)),
       h('div', { class: 'muted' }, cap(plan.goal) + ' · ' + U.withCommas(plan.kcal) + ' kcal · ' + plan.protein + ' g protein'),
       h('div', { class: 'row' }, deload ? U.chip('Deload week: 2 easier sets', 'good') : null, ci ? U.chip(ci.status === 'done' ? 'Check-in done' : ci.status === 'due' ? 'Check-in today' : 'Check-in ' + U.DOW[set.checkinDay], ci.status === 'done' ? 'good' : 'acc') : null)))));
 
-    if (rawWeek > E.WEEKS) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'You finished all 26 weeks'), h('div', { class: 'muted' }, 'Take your final photos and measurements, then compare against week 1 in Progress. Your logs stay here as long as you keep the app.'), UI.btn('See progress', { href: '#/progress' })));
+    if (rawWeek > E.planWeeks(plan)) cards.push(UI.cardX('good', h('div', { class: 'ct' }, 'You finished all ' + E.planWeeks(plan) + ' weeks'), h('div', { class: 'muted' }, 'Take your final photos and measurements, then compare against week 1 in Progress. Your logs stay here as long as you keep the app.'), UI.row(UI.btn('Extend the plan', { onClick: Screens.planLengthSheet }), UI.btn('See progress', { kind: 'quiet', href: '#/progress' }))));
 
     const cp = E.checkpoint(st, t);
     if (cp) cards.push(UI.cardX('acc', h('div', { class: 'ct' }, 'Checkpoint · week ' + cp.week), h('div', null, cp.text), UI.row(UI.btn('Review goal', { kind: 'primary', onClick: () => switchGoalSheet(cp.goal, cp.text, 'checkpoint') }))));
@@ -189,7 +189,7 @@
         const mine = todaySets.filter((x) => x.lift === id);
         let targetTxt, defaultKg = null, defaultReps = null, bw = false;
         if (lift) {
-          const tg = E.liftTarget(lift, week, { deloadWeeks: plan.deloadWeeks });
+          const tg = E.liftTarget(lift, week, E.targetOpts(plan));
           bw = !!lift.bw;
           targetTxt = tg.sets + ' x ' + tg.reps + (tg.kg == null ? ' reps' : ' @ ' + U.fmtLift(tg.kg, set.liftUnit));
           defaultKg = tg.kg; defaultReps = tg.reps;
@@ -222,6 +222,8 @@
       cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, (f.planned ? f.planned.name + ' was moved off today. ' : '') + 'A light walk counts. ' + (nextIdx ? 'Next up: ' + nextIdx.name + '.' : '')),
         UI.row(UI.btn('Train anyway', { kind: 'quiet', onClick: () => Screens.rescheduleSheet(t) }), UI.btn('Lifts', { kind: 'quiet', href: '#/lifts' }))));
     }
+    const gc = Screens.goalsTodayCard ? Screens.goalsTodayCard() : null;
+    if (gc) cards.push(gc);
     cards.push(Screens.activityCard(st, set));
 
     // Food summary
@@ -240,9 +242,10 @@
   // ---------- Lifts ----------
   let viewWeek = null;
   function statusChip(st) { return h('span', { class: 'status-' + st }, st); }
-  Screens.lifts = function () {
+  // The lifts of the plan by week, as the body of the strength goal on the Goals tab.
+  Screens.liftsBody = function () {
     const state = Store.getState(), plan = state.plan, set = Store.getSettings(), t = U.today();
-    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
+    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.planWeeks(plan));
     const w = viewWeek == null ? cur : viewWeek;
     const rows = Object.values(plan.lifts).map((l) => {
       const ls = E.liftStatus(state, l.id, w, t);
@@ -255,17 +258,18 @@
     const nav = h('div', { class: 'daynav' },
       h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Previous week', disabled: w <= 1, onclick: () => { viewWeek = w - 1; root.App.render(); } }, U.icon('back', 20)),
       h('div', { class: 'grow', style: { textAlign: 'center' } }, h('div', { class: 'd' }, 'Week ' + w), h('div', { class: 'muted small' }, U.shortDate(E.weekRange(plan.startDate, w)[0]) + ' to ' + U.shortDate(E.weekRange(plan.startDate, w)[1]) + (w === cur ? ' · this week' : ''))),
-      h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Next week', disabled: w >= E.WEEKS, onclick: () => { viewWeek = w + 1; root.App.render(); } }, U.icon('chev', 20)));
+      h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Next week', disabled: w >= E.planWeeks(plan), onclick: () => { viewWeek = w + 1; root.App.render(); } }, U.icon('chev', 20)));
     const hit = Object.values(plan.lifts).filter((l) => E.liftStatus(state, l.id, cur, t).status === 'Hit').length;
-    return UI.page(UI.header('Lifts', 'Targets by week. Miss one, carry on.'), UI.scroller(
+    return [
       nav,
       w !== cur ? h('button', { class: 'linkbtn', type: 'button', onclick: () => { viewWeek = null; root.App.render(); } }, 'Jump to this week') : null,
       UI.card(...(rows.length ? rows : [UI.empty('No tracked lifts yet. Add one below.')])),
       h('div', { class: 'muted small' }, hit + ' of ' + rows.length + ' lifts hit this week' + (plan.deloadWeeks.includes(w) ? '. Week ' + w + ' is a deload: 2 sets at last block\'s weight.' : '.')),
-      UI.btn('Add a lift', { kind: 'quiet', icon: 'plus', onClick: addLiftSheet })));
+      UI.btn('Add a lift', { kind: 'quiet', icon: 'plus', onClick: addLiftSheet })];
   };
+  Screens.lifts = function () { return Screens.goals('plan'); };
 
-  // ---------- choosing a lift: one Orbit knows, or one you make up ----------
+  // ---------- choosing a lift: one Regoal knows, or one you make up ----------
   const CUSTOM = '__custom';
   const EQUIP_LABEL = { db: 'Dumbbells', machine: 'Machine or cable', barbell: 'Barbell', bw: 'Bodyweight' };
   const CLS_LABEL = { heavy: 'Heavy compound (about 6 to 10 reps)', medium: 'Medium (about 8 to 12 reps)', high: 'High-rep isolation (about 12 to 16 reps)' };
@@ -298,7 +302,7 @@
     sel.addEventListener('change', sync); eq.addEventListener('change', sync); sync();
     const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Lift'), sel), customBox, wRow,
       place ? h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Goes on'), place) : null,
-      h('div', { class: 'muted small' }, 'Orbit builds the same block progression for it, starting from where the plan is this week. For bodyweight lifts just enter reps.'));
+      h('div', { class: 'muted small' }, 'Regoal builds the same block progression for it, starting from where the plan is this week. For bodyweight lifts just enter reps.'));
     const read = () => {
       const reps = numOrNull(r.input.value), wt = numOrNull(w.input.value), custom = sel.value === CUSTOM;
       let spec = null;
@@ -329,9 +333,9 @@
       const built = E.buildLiftPlan([input], { dbStep: sameUnit ? t.dbStep : null, machineStep: sameUnit ? t.machineStep : null, sets: t.sets, repStyle: t.repStyle, lighter: false }, set.liftUnit); // the weight was typed in this unit
       const lift = built[id];
       if (!lift) { U.toast('Could not build that lift.', 'warn'); return false; }
-      const wk = E.clamp(E.weekOf(plan.startDate, U.today()), 1, E.WEEKS);
+      const wk = E.clamp(E.weekOf(plan.startDate, U.today()), 1, E.planWeeks(plan));
       if (!lift.bw && wk > 1) {
-        const now = E.liftTarget(lift, wk, { deloadWeeks: plan.deloadWeeks }).kg;
+        const now = E.liftTarget(lift, wk, E.targetOpts(plan)).kg;
         if (now > 0) lift.adjust.push({ fromWeek: wk, factor: E.clean(lift.blockKg[0] / now) });
       }
       const changes = { addLifts: { [id]: lift } };
@@ -345,16 +349,16 @@
     const state = Store.getState(), plan = state.plan, set = Store.getSettings(), t = U.today();
     const lift = E.hasLift(plan, id) ? plan.lifts[id] : null;
     if (!lift) return UI.page(UI.header('Lift', 'Not found', { back: '#/lifts' }), UI.scroller(UI.empty('That lift is not in your plan.')));
-    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
+    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.planWeeks(plan));
     const tgs = [], top = [];
-    for (let w = 1; w <= E.WEEKS; w++) {
+    for (let w = 1; w <= E.planWeeks(plan); w++) {
       const ls = E.liftStatus(state, id, w, t);
       tgs.push({ x: w, y: ls.target.kg == null ? ls.target.reps : U.kgToUnit(ls.target.kg, set.liftUnit) });
       top.push({ x: w, y: ls.logged ? (lift.bw ? ls.topReps : ls.topKg == null ? null : U.kgToUnit(ls.topKg, set.liftUnit)) : null });
     }
     const chart = U.lineChart({ label: lift.name + ' target and logged top set by week', xs: tgs.map((p) => p.x), series: [{ pts: tgs, color: U.PAL.acc, dash: '5 4', width: 2 }, { pts: top, color: U.PAL.cool, dots: true, line: false }], xLabel: (x) => 'Wk ' + x, fmtY: (y) => U.num(y, 0) });
     const rows = [];
-    for (let w = 1; w <= E.WEEKS; w++) {
+    for (let w = 1; w <= E.planWeeks(plan); w++) {
       const ls = E.liftStatus(state, id, w, t), tg = ls.target;
       const cls = w === cur ? ' cur' : '';
       rows.push(h('div', { class: 'kv' + cls },
@@ -381,7 +385,7 @@
       UI.card(h('div', { class: 'ct' }, 'Recent sets'), h('div', { class: 'list' }, ...hist)),
       lift.bw ? null : UI.btn('Adjust weights', { kind: 'quiet', onClick: adjust }),
       UI.btn('Stop tracking this lift', { kind: 'quiet', onClick: stop }),
-      UI.card(h('div', { class: 'ct' }, 'All 26 weeks'), ...rows)));
+      UI.card(h('div', { class: 'ct' }, 'All ' + E.planWeeks(plan) + ' weeks'), ...rows)));
   };
 
   root.Screens.setSheet = setSheet;

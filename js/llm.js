@@ -1,6 +1,6 @@
 /*
  * Bring-your-own-key LLM adapters. The browser talks straight to the provider you chose.
- * There is no Orbit server in the middle and nothing is sent anywhere else.
+ * There is no Regoal server in the middle and nothing is sent anywhere else.
  *
  * Internal message format (Anthropic-like):
  *   { role: 'user'|'assistant', content: [ {type:'text',text}

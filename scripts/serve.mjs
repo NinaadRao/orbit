@@ -1,4 +1,4 @@
-// Tiny static file server for running Orbit locally. No dependencies.
+// Tiny static file server for running Regoal locally. No dependencies.
 //   node scripts/serve.mjs            -> http://localhost:8080  (this computer only)
 //   PORT=9000 node scripts/serve.mjs  -> another port
 //   node scripts/serve.mjs --lan      -> also reachable from your phone on the same Wi-Fi (see note)
@@ -27,6 +27,6 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
   fs.createReadStream(file).pipe(res);
 }).listen(PORT, HOST, () => {
-  console.log('Orbit is running at http://localhost:' + PORT + (HOST === '0.0.0.0' ? '  (and on your local network)' : ''));
+  console.log('Regoal is running at http://localhost:' + PORT + (HOST === '0.0.0.0' ? '  (and on your local network)' : ''));
   console.log('Press Ctrl+C to stop. Your data lives in your browser, not in this folder.');
 });

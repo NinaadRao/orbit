@@ -160,7 +160,7 @@
   // o: { frames: [{blob, title, numbers}], shape: 'story'|'square'|'original', secondsPer, labels, numbers, onProgress(0..1, text), signal }
   async function renderTimelapse(o) {
     const mime = pickVideoMime();
-    if (!mime) throw new Error('This browser cannot save video as MP4. Open Orbit in Safari or Chrome, or save a comparison image instead.');
+    if (!mime) throw new Error('This browser cannot save video as MP4. Open Regoal in Safari or Chrome, or save a comparison image instead.');
     if (!o.frames || o.frames.length < 2) throw new Error('A time-lapse needs photos from at least two check-ins.');
     await fontsReady();
     const say = (p, t) => { if (o.onProgress) o.onProgress(p, t); };

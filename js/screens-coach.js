@@ -78,9 +78,9 @@
     chatEl = h('div', { class: 'chat', 'aria-live': 'polite' });
     const page = h('div', { class: 'page' }, UI.header('Coach', 'Your model. Your key. Your call.', { right: h('a', { class: 'iconbtn', href: '#/coach/setup', 'aria-label': 'Coach settings' }, U.icon('key', 20)) }));
     if (!ready) {
-      U.put(page, UI.scroller(UI.card(h('div', { class: 'ct' }, 'Connect your own AI'), h('div', { class: 'muted' }, 'The coach runs on a model you choose, with a key you own. There is no Orbit server and no shared AI, so it costs the app nothing and your data goes nowhere else.'),
+      U.put(page, UI.scroller(UI.card(h('div', { class: 'ct' }, 'Connect your own AI'), h('div', { class: 'muted' }, 'The coach runs on a model you choose, with a key you own. There is no Regoal server and no shared AI, so it costs the app nothing and your data goes nowhere else.'),
         UI.btn('Set up the coach', { href: '#/coach/setup' }), UI.btn('Paste your key', { kind: 'quiet', onClick: () => Screens.keySheet(() => root.App.render()) })),
-        h('div', { class: 'muted small' }, 'Everything else in Orbit works without it.')));
+        h('div', { class: 'muted small' }, 'Everything else in Regoal works without it.')));
       return page;
     }
     inputEl = h('textarea', { class: 'inp', rows: 1, maxlength: 2000, placeholder: 'Ask or tell the coach something', 'aria-label': 'Message' });
@@ -120,7 +120,7 @@
     let remember = mode === 'device' || mode === 'session';
     const k = UI.field({ label: 'API key', type: 'password', autocomplete: 'off', placeholder: 'Paste your key' });
     const body = h('div', { class: 'stack' }, k,
-      UI.toggleRow('Remember it on this device', 'Encrypted here, never in backups. If it expires, Orbit asks for a new one.', remember, (v) => { remember = v; }),
+      UI.toggleRow('Remember it on this device', 'Encrypted here, never in backups. If it expires, Regoal asks for a new one.', remember, (v) => { remember = v; }),
       h('div', { class: 'muted small' }, 'Provider and model come from Coach settings. The key is sent only to ' + hostOf(cfg) + '.'));
     U.sheet('Use your key · ' + (LLM.PROVIDERS[cfg.provider] || {}).label, body, [{ label: 'Cancel' }, { label: 'Use key', kind: 'primary', run: () => {
       const v = k.input.value.trim();
@@ -136,8 +136,8 @@
     let origin = '';
     try { origin = new URL(LLM.cleanBase(cfg.baseUrl)).origin; } catch (e) { return h('div', { class: 'warnbox' }, e.message); }
     const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    if (local || CSP_ORIGINS.includes(origin)) return h('div', { class: 'muted small' }, 'Allowed by Orbit\'s security policy.');
-    return h('div', { class: 'warnbox' }, origin + ' is not allowed yet. Orbit only talks to origins listed in index.html (connect-src). Add that origin there once, reload, and it will work. This keeps a rogue script from sending your data elsewhere.');
+    if (local || CSP_ORIGINS.includes(origin)) return h('div', { class: 'muted small' }, 'Allowed by Regoal\'s security policy.');
+    return h('div', { class: 'warnbox' }, origin + ' is not allowed yet. Regoal only talks to origins listed in index.html (connect-src). Add that origin there once, reload, and it will work. This keeps a rogue script from sending your data elsewhere.');
   }
 
   Screens.coachSetup = function () {
@@ -167,7 +167,7 @@
           if (!keyOk(v)) return U.toast('That does not look like an API key.', 'warn');
           try { await root.App.saveKey(v, true); k.input.value = ''; U.toast('Key saved on this device.'); root.App.render(); } catch (e) { U.toast(String(e && e.message ? e.message : e).slice(0, 160), 'warn'); }
         } }),
-        h('div', { class: 'muted small' }, 'The key is encrypted with a key the browser will not let out, kept in this browser\'s storage, and left out of backups. It is a convenience, not a vault: anyone who can open Orbit on this unlocked device can use it, so turn on the app lock in Settings if others use your phone. If the provider says it has expired, Orbit asks for a new one straight away.'),
+        h('div', { class: 'muted small' }, 'The key is encrypted with a key the browser will not let out, kept in this browser\'s storage, and left out of backups. It is a convenience, not a vault: anyone who can open Regoal on this unlocked device can use it, so turn on the app lock in Settings if others use your phone. If the provider says it has expired, Regoal asks for a new one straight away.'),
         UI.btn('Forget the saved key', { kind: 'danger', onClick: async () => { await root.App.forgetRemembered(c.provider); root.App.clearKey(); U.toast('Deleted from this device.'); root.App.render(); } }));
     } else if (c.keyMode === 'session') {
       const k = UI.field({ label: 'API key', type: 'password', placeholder: 'Paste your key', hint: 'Kept in memory only. Closing the app forgets it.' });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Turns a copy of the Indian Food Composition Tables 2017 (IFCT) into a food list you can load into your own Orbit:
+ * Turns a copy of the Indian Food Composition Tables 2017 (IFCT) into a food list you can load into your own Regoal:
  * Fuel, Add food, Find, "Add my own food list".
  *
  *   node scripts/ifct-to-import.mjs <index.csv> --out ~/Documents/orbit-private/ifct.orbitfoods.json
@@ -9,7 +9,7 @@
  *
  * READ THIS FIRST. The tables are copyright the National Institute of Nutrition, Hyderabad (ICMR). Their terms allow personal
  * use with acknowledgement and do not allow storing them electronically to create a product without written permission.
- * Orbit therefore does not ship this data. This script makes a file for YOUR OWN use. Do not commit it, publish it or hand it
+ * Regoal therefore does not ship this data. This script makes a file for YOUR OWN use. Do not commit it, publish it or hand it
  * to other people unless the Institute has given permission. The output path is refused if it is inside this repository,
  * and *.orbitfoods.json is in .gitignore.
  *
@@ -43,12 +43,12 @@ if (isMain) {
   if (!input || !out) { console.error('Usage: node scripts/ifct-to-import.mjs <index.csv> --out <file>.orbitfoods.json\nSee the note at the top of this script about the terms of the IFCT data.'); process.exit(2); }
   const outPath = path.resolve(out.replace(/^~(?=$|\/)/, os.homedir()));
   const rel = path.relative(repo, outPath);
-  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) { console.error('Refusing to write inside the Orbit repository (' + rel + '). Choose a folder outside it, such as your private folder.'); process.exit(2); }
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) { console.error('Refusing to write inside the Regoal repository (' + rel + '). Choose a folder outside it, such as your private folder.'); process.exit(2); }
   const rows = buildFromIfct(fs.readFileSync(input, 'utf8'));
   if (!rows.length) { console.error('No foods found. Is that the IFCT compositions index.csv?'); process.exit(1); }
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(toImport(rows), null, 1) + '\n');
   const by = [0, 0, 0, 0]; for (const r of rows) by[r[1]]++;
   console.log('Wrote ' + outPath + ': ' + rows.length + ' foods (veg ' + by[0] + ', egg ' + by[1] + ', non-veg ' + by[2] + ').');
-  console.log('In Orbit: Fuel, Add food, Find, "Add my own food list", then choose that file. Keep it out of git.');
+  console.log('In Regoal: Fuel, Add food, Find, "Add my own food list", then choose that file. Keep it out of git.');
 }

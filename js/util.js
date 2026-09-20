@@ -153,6 +153,7 @@
       undo: 'M9 14L4 9l5-5 M4 9h10a6 6 0 0 1 0 12h-3',
       pause: 'M8 5v14M16 5v14',
       swap: 'M9 7l-5 5 5 5 M15 7l5 5-5 5',
+      target: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 12h.01',
       flame: 'M12 3c.6 3.5 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2.2-4.2.1 1.6.8 2.6 1.8 2.9C10.6 8.7 10.8 5.6 12 3z',
       film: 'M4 5h16v14H4z M8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4',
     };
@@ -204,7 +205,7 @@
 
   // The app's name and mark, and its tagline: one place, used on the welcome screen and on Profile.
   const TAGLINE = ['Track the change.', 'Not the vibes.'];
-  function brandMark() { return h('div', { class: 'brand' }, h('div', { class: 'app-icon' }, logoSvg(36)), h('div', { class: 'display wordmark' }, 'ORBIT')); }
+  function brandMark() { return h('div', { class: 'brand' }, h('div', { class: 'app-icon' }, logoSvg(36)), h('div', { class: 'display wordmark' }, 'REGOAL')); }
 
   root.U = { TAGLINE, brandMark, h, s, put, clear, num, withCommas, kgToUnit, unitToKg, fmtWeight, fmtLift, cmToUnit, unitToCm, fmtLen, today, longDate, shortDate, b64, unb64, toast, sheet, confirmSheet, chip, bar, icon, logoSvg, lineChart, PAL, DOW, MON };
 })(self);

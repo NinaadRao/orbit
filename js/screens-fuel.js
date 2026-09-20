@@ -167,7 +167,7 @@
         list = list.filter((f) => { const k = f.name.toLowerCase() + f.serving; if (seen.has(k)) return false; seen.add(k); return true; });
         for (const f of list) results.appendChild(h('button', { type: 'button', class: 'result', onclick: () => { pick = f; draw(); } },
           h('div', { class: 'rl' }, h('b', null, f.name), h('small', null, f.serving + ' · ' + macroLine(f) + ' · ' + srcNote(f))), h('div', { class: 'rr' }, dietChip(f), h('b', null, String(Math.round(f.kcal))))));
-        if (text && !list.length && Foods.ready()) results.appendChild(h('div', { class: 'empty' }, diet === 'all' ? 'Not in the list. Tell Orbit what is in it, or type the numbers.' : 'Nothing matches with this filter. Try All, or describe it below.'));
+        if (text && !list.length && Foods.ready()) results.appendChild(h('div', { class: 'empty' }, diet === 'all' ? 'Not in the list. Tell Regoal what is in it, or type the numbers.' : 'Nothing matches with this filter. Try All, or describe it below.'));
         results.classList.toggle('hidden', !list.length && !text);
         if (text && total > shown) more.appendChild(UI.btn('Show more (' + (total - shown) + ' more)', { kind: 'quiet', onClick: () => { shown += 20; showResults(); } }));
         notListed.classList.toggle('hidden', !text);

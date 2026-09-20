@@ -9,4 +9,4 @@ for h in pre-commit pre-push; do
   chmod +x ".git/hooks/$h"
 done
 echo "Installed pre-commit and pre-push privacy checks."
-echo "Optional: list words you never want committed (your name, measurements) in ~/.orbit-private-terms, one per line."
+echo "Optional: list words you never want committed (your name, measurements) in ~/.regoal-private-terms, one per line."

@@ -25,7 +25,7 @@
   }
   function isEnvelope(o) { return !!o && typeof o === 'object' && o.enc === 'aes-gcm' && typeof o.data === 'string' && typeof o.salt === 'string' && typeof o.iv === 'string'; }
   async function decryptText(env, pass) {
-    if (!isEnvelope(env)) throw new Error('Not an encrypted Orbit file.');
+    if (!isEnvelope(env)) throw new Error('Not an encrypted Regoal file.');
     const iter = Number(env.iter);
     if (!Number.isInteger(iter) || iter < 10000 || iter > 5000000) throw new Error('Unsupported file.');
     const key = await deriveKey(pass, U.unb64(env.salt), iter, ['decrypt']);
@@ -38,7 +38,7 @@
   }
   // Device-bound sealing, for "remember my key on this device". A random AES-256 key is made that the browser will not let
   // anyone export, and it is kept in IndexedDB beside the ciphertext. This keeps the text out of casual view (backups, a copied
-  // file, a glance at storage) but it is not a passphrase: whoever can open Orbit on this unlocked device can use the key.
+  // file, a glance at storage) but it is not a passphrase: whoever can open Regoal on this unlocked device can use the key.
   async function deviceSeal(text) {
     if (!hasCrypto()) throw new Error('Saving a key needs a secure (https or localhost) page.');
     const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);

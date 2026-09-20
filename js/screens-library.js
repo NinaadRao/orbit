@@ -1,6 +1,6 @@
 /*
  * Library: workout photos and videos you keep where you took them (see js/library.js).
- * Orbit stores a small preview, the date, a tag and a note. The original stays in Photos or Files; nothing is copied.
+ * Regoal stores a small preview, the date, a tag and a note. The original stays in Photos or Files; nothing is copied.
  * From here you can view the original, ask your coach about form (frames only, with a confirmation first), or make a reel.
  */
 (function (root) {
@@ -23,7 +23,7 @@
     const url = URL.createObjectURL(m.blob); urls.push(url); img.src = url;
   }
 
-  // Saving a change to an entry is a new event that replaces the old one, like the rest of Orbit.
+  // Saving a change to an entry is a new event that replaces the old one, like the rest of Regoal.
   async function updateClip(c, patch) {
     const r = E.cleanClip(Object.assign({}, c, patch));
     if (!r.ok) throw new Error(r.errors[0]);
@@ -58,7 +58,7 @@
     const form = () => {
       U.clear(body);
       U.put(body,
-        h('div', { class: 'muted small' }, 'Nothing is copied. Orbit keeps a small preview, the date and your note. The original stays in ' + (Library.canLink() ? 'its folder on this computer.' : 'Photos or Files.')),
+        h('div', { class: 'muted small' }, 'Nothing is copied. Regoal keeps a small preview, the date and your note. The original stays in ' + (Library.canLink() ? 'its folder on this computer.' : 'Photos or Files.')),
         UI.pills({ label: 'What is it?', items: E.CLIP_TAGS, values: new Set([tag]), multi: false, onChange: (v) => { tag = Array.from(v)[0]; } }),
         liftBox, note,
         over ? h('div', { class: 'warnbox' }, 'Only the first ' + Library.MAX_FILES + ' will be added. Add the rest in another batch.') : null);
@@ -113,7 +113,7 @@
     const holder = h('div', { class: 'resbox' + (hidden ? ' blur' : '') }, media);
     const peek = set.blurPhotos ? h('button', { type: 'button', class: 'chip line peekbtn', onclick: () => { hidden = !hidden; holder.classList.toggle('blur', hidden); peek.textContent = hidden ? 'Show' : 'Blur'; } }, 'Show') : null;
     U.sheet(c.kind === 'video' ? 'Original video' : 'Original photo', h('div', { class: 'stack' }, holder, peek, noplay, warn,
-      h('div', { class: 'muted small' }, got.how === 'link' ? 'Opened from the file on this computer.' : 'You picked it again. Orbit is using it now and is not keeping a copy.')), [{ label: 'Close', kind: 'primary' }], { onClose: () => URL.revokeObjectURL(url) });
+      h('div', { class: 'muted small' }, got.how === 'link' ? 'Opened from the file on this computer.' : 'You picked it again. Regoal is using it now and is not keeping a copy.')), [{ label: 'Close', kind: 'primary' }], { onClose: () => URL.revokeObjectURL(url) });
   }
 
   // ---------- coach form check ----------
@@ -145,7 +145,7 @@
       U.clear(body);
       U.put(body,
         h('div', { class: 'framestrip' + (Store.getSettings().blurPhotos ? ' blur' : '') }, ...urlsF.map((u, i) => h('img', { src: u, alt: 'Frame ' + (i + 1) }))),
-        h('div', { class: 'warnbox privacy', role: 'note' }, U.icon('shield', 20), h('div', null, h('b', null, 'These ' + fr.length + (fr.length === 1 ? ' picture goes' : ' pictures go') + ' to ' + host), ' with your key so the coach can look at your form. Orbit does not save them. They can show your face and your surroundings. Cancel if you would rather not.')),
+        h('div', { class: 'warnbox privacy', role: 'note' }, U.icon('shield', 20), h('div', null, h('b', null, 'These ' + fr.length + (fr.length === 1 ? ' picture goes' : ' pictures go') + ' to ' + host), ' with your key so the coach can look at your form. Regoal does not save them. They can show your face and your surroundings. Cancel if you would rather not.')),
         ex, q, UI.btn('Send ' + fr.length + (fr.length === 1 ? ' picture' : ' pictures'), { icon: 'send', onClick: send }), h('div', { class: 'linkrow' }, h('button', { type: 'button', class: 'linkbtn', onclick: () => closeSheet() }, 'Cancel')));
     };
     async function send() {
@@ -193,14 +193,14 @@
     const body = h('div', { class: 'stack' },
       prev,
       h('div', { class: 'muted small' }, meta),
-      h('div', { class: 'muted small' }, c.name ? c.name + ' stays where it is. Orbit keeps only the preview above.' : 'The original stays where it is. Orbit keeps only the preview above.'),
+      h('div', { class: 'muted small' }, c.name ? c.name + ' stays where it is. Regoal keeps only the preview above.' : 'The original stays where it is. Regoal keeps only the preview above.'),
       UI.btn(c.kind === 'video' ? 'Watch the original' : 'View the original', { icon: 'eye', onClick: () => viewOriginal(c) }),
       UI.btn('Ask the coach about form', { kind: 'quiet', icon: 'chat', onClick: () => formCheck(c) }),
       c.review ? h('div', { class: 'stack' }, h('div', { class: 'lab' }, 'Coach form check'), h('div', { class: 'coachout' }, c.review)) : null,
       UI.pills({ label: 'What is it?', items: E.CLIP_TAGS, values: new Set([tag]), multi: false, onChange: (v) => { tag = Array.from(v)[0]; } }),
       liftBox, note);
     U.sheet('Library item', body, [
-      { label: 'Remove', kind: 'danger', keep: true, run: (close) => { U.confirmSheet('Remove from Orbit?', 'This removes the preview, date and note from Orbit. The photo or video itself is not touched, wherever it is.', 'Remove', async () => { await removeClip(c); close(); root.App.render(); }, true); } },
+      { label: 'Remove', kind: 'danger', keep: true, run: (close) => { U.confirmSheet('Remove from Regoal?', 'This removes the preview, date and note from Regoal. The photo or video itself is not touched, wherever it is.', 'Remove', async () => { await removeClip(c); close(); root.App.render(); }, true); } },
       { label: 'Save', kind: 'primary', run: () => { updateClip(c, { tag, lift, note: note.input.value }).then(() => root.App.render()).catch((e) => U.toast(String(e.message || e), 'warn')); } },
     ]);
   }
@@ -211,8 +211,8 @@
     const st = Store.getState(), set = Store.getSettings();
     const clips = st.clips.slice().sort(dateDesc);
     const shown = filter === 'All' ? clips : clips.filter((c) => c.tag === filter);
-    const usedNote = h('div', { class: 'muted small' }, clips.length ? clips.length + (clips.length === 1 ? ' item' : ' items') + ' in Orbit. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.') : 'Nothing here yet.');
-    Store.allMedia().then((all) => { const b = all.filter((m) => m.kind === 'thumb').reduce((t, m) => t + (m.size || 0), 0); if (clips.length) usedNote.textContent = clips.length + (clips.length === 1 ? ' item' : ' items') + ' · ' + fmtBytes(b) + ' of previews in Orbit. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.'); }).catch(() => {});
+    const usedNote = h('div', { class: 'muted small' }, clips.length ? clips.length + (clips.length === 1 ? ' item' : ' items') + ' in Regoal. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.') : 'Nothing here yet.');
+    Store.allMedia().then((all) => { const b = all.filter((m) => m.kind === 'thumb').reduce((t, m) => t + (m.size || 0), 0); if (clips.length) usedNote.textContent = clips.length + (clips.length === 1 ? ' item' : ' items') + ' · ' + fmtBytes(b) + ' of previews in Regoal. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.'); }).catch(() => {});
     const grid = h('div', { class: 'photogrid libgrid' });
     for (const c of shown) {
       const img = h('img', { alt: '' });
@@ -222,7 +222,7 @@
       fillThumb(img, tile, c);
     }
     const intro = UI.card(h('div', { class: 'ct' }, 'Your workout photos and videos'),
-      h('div', { class: 'muted' }, 'Add gym photos and clips, and sets you want checked for form. Orbit does not copy them: it keeps a small preview, the date and your note, and the original stays where you took it, so your phone storage does not fill up twice.'),
+      h('div', { class: 'muted' }, 'Add gym photos and clips, and sets you want checked for form. Regoal does not copy them: it keeps a small preview, the date and your note, and the original stays where you took it, so your phone storage does not fill up twice.'),
       UI.btn('Add photos or videos', { icon: 'plus', onClick: () => addFlow() }),
       h('div', { class: 'row' }, UI.btn('Make a reel', { kind: 'quiet', icon: 'film', onClick: () => Screens.reelSheet && Screens.reelSheet() })),
       usedNote,

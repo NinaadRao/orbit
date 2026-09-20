@@ -1,5 +1,5 @@
 /*
- * Orbit plan engine. Pure functions only: no DOM, no storage, no network.
+ * Regoal plan engine. Pure functions only: no DOM, no storage, no network.
  * Works as a classic <script> in the browser (window.Engine) and under Node (module.exports).
  */
 (function (root) {
@@ -7,7 +7,9 @@
 
   const KG_PER_LB = 0.45359237;
   const CM_PER_IN = 2.54;
-  const WEEKS = 26;
+  const WEEKS = 26;                       // the default length of a plan; a plan can be 4 to 104 weeks (plan.weeks)
+  const MIN_WEEKS = 4, MAX_WEEKS = 104;
+  const PLAN_LENGTHS = [[4, '1 month'], [9, '2 months'], [13, '3 months'], [26, '6 months'], [39, '9 months'], [52, '12 months']];
   // Every week is a photo check-in week. The weekday it falls on is a setting (Friday by default).
   const PHOTO_WEEKS = Array.from({ length: WEEKS }, (_, i) => i + 1);
   const DELOAD_WEEKS = [7, 14, 21];
@@ -78,12 +80,13 @@
     ['bicepL', 'Bicep L'], ['bicepR', 'Bicep R'], ['forearmL', 'Forearm L'], ['forearmR', 'Forearm R'],
   ];
   function siteKey(site) { return site.replace(/[LR]$/, ''); }
-  function measurementTargets(goal, meas) {
-    const out = {};
+  // Targets are sized for a 6-month plan and scaled to the plan's length (never below a quarter or above double).
+  function measurementTargets(goal, meas, weeks) {
+    const out = {}, k = clamp((weeks || WEEKS) / WEEKS, 0.25, 2);
     const off = MEAS_OFFSETS_IN[goal] || MEAS_OFFSETS_IN.recomp;
     for (const [site] of MEAS_SITES) {
       if (meas && typeof meas[site] === 'number' && meas[site] > 0) {
-        out[site] = { start: meas[site], target: clean(meas[site] + inToCm(off[siteKey(site)] || 0)) };
+        out[site] = { start: meas[site], target: clean(meas[site] + inToCm((off[siteKey(site)] || 0) * k)) };
       }
     }
     return out;
@@ -139,7 +142,18 @@
   function defaultGain(cls, equip) { return equip === 'bw' ? 0 : cls === 'heavy' ? (equip === 'barbell' ? 0.30 : 0.25) : cls === 'high' ? 0.20 : 0.27; }
   const DEFAULT_LIFT_ORDER = ['flat_db_press', 'incline_db_press', 'shoulder_press', 'lat_pulldown', 'db_row', 'curl', 'leg_press', 'leg_curl', 'leg_ext', 'bulgarian', 'pullups', 'barbell_squat'];
 
-  function blockOfWeek(w) { return w <= 3 ? 0 : w <= 9 ? 1 : w <= 15 ? 2 : w <= 21 ? 3 : 4; }
+  // The block (0 to 4) a week falls in. Blocks are laid out for a 26-week plan; other lengths are stretched or squeezed to fit.
+  function blockOfWeek(w, weeks) {
+    const n = weeks && weeks !== WEEKS ? Math.ceil((w - 1) * WEEKS / weeks) + 1 : w;
+    return n <= 3 ? 0 : n <= 9 ? 1 : n <= 15 ? 2 : n <= 21 ? 3 : 4;
+  }
+  // How many weeks a plan runs, whatever a backup or an old plan says.
+  function planWeeks(plan) { const n = Math.round(Number(plan && plan.weeks)); return Number.isFinite(n) ? clamp(n, MIN_WEEKS, MAX_WEEKS) : WEEKS; }
+  // A lighter week every 7th week that still falls inside the plan.
+  function deloadWeeksFor(n) { const out = []; for (let w = 7; w <= n; w += 7) out.push(w); return out; }
+  function photoWeeks(plan) { return Array.from({ length: planWeeks(plan) }, (_, i) => i + 1); }
+  // What liftTarget needs to know about a plan.
+  function targetOpts(plan) { return { deloadWeeks: plan.deloadWeeks, weeks: planWeeks(plan) }; }
 
   // Five block weights, strictly increasing by at least one step.
   function blockWeights(start, gain, step) {
@@ -205,13 +219,13 @@
   function liftTarget(lift, week, opts) {
     const o = opts || {};
     const deloadWeeks = o.deloadWeeks || DELOAD_WEEKS;
-    const w = clamp(week, 1, WEEKS);
-    const b = blockOfWeek(w);
+    const w = clamp(week, 1, o.weeks || MAX_WEEKS);
+    const b = blockOfWeek(w, o.weeks);
     const deload = deloadWeeks.includes(w);
     const baseSets = lift.sets || 3;
     const sets = deload ? Math.max(1, baseSets - 1) : baseSets;
     const shift = REP_STYLE_SHIFT[lift.repStyle || 'mixed'] || 0;
-    let reps = HEAVY_WAVE[w - 1] + (REP_OFFSET[lift.cls] || 0) + shift;
+    let reps = HEAVY_WAVE[(w - 1) % HEAVY_WAVE.length] + (REP_OFFSET[lift.cls] || 0) + shift;
     reps = Math.max(4, reps);
     if (lift.bw) {
       return { id: lift.id, name: lift.name, week: w, sets, reps: lift.startReps + b, kg: null, deload, block: b };
@@ -348,18 +362,20 @@
       dbStep: t.dbStep, machineStep: t.machineStep, sets: t.sets, repStyle: t.repStyle, lighter: a.startLighter,
     }, a.units && a.units.lift);
     const wk = buildWorkouts(a, lifts);
+    const weeks = clamp(Math.round(Number(a.weeks)) || WEEKS, MIN_WEEKS, MAX_WEEKS);
+    const deloadOn = t.deload === 'planned' || t.deload == null;
     return {
-      v: 1, startDate: a.startDate, weeks: WEEKS, goal,
+      v: 1, startDate: a.startDate, weeks, goal,
       kcal: targets.kcal, protein: targets.protein, carbs: targets.carbs, fat: targets.fat, maintenance: targets.maintenance,
-      measTargets: measurementTargets(goal, a.measurements),
+      measTargets: measurementTargets(goal, a.measurements, weeks),
       baseline: { weightKg: a.weightKg, waistCm: a.measurements && a.measurements.waist ? a.measurements.waist : null },
-      deloadWeeks: t.deload === 'planned' || t.deload == null ? DELOAD_WEEKS.slice() : [],
+      deloadOn, deloadWeeks: deloadOn ? deloadWeeksFor(weeks) : [],
       lifts, template: wk.template, workouts: wk.workouts, history: [],
     };
   }
 
   function weeklyTargets(plan, week) {
-    return Object.values(plan.lifts).map((l) => liftTarget(l, week, { deloadWeeks: plan.deloadWeeks }));
+    return Object.values(plan.lifts).map((l) => liftTarget(l, week, targetOpts(plan)));
   }
 
   // ---------- bounds used to validate any change (user, checkpoint or coach) ----------
@@ -385,7 +401,7 @@
     if (!l) return { ok: false, errors: ['Unknown lift.'] };
     const pct = Number(ch.percent);
     if (!Number.isFinite(pct) || Math.abs(pct) > LIMITS.maxLiftPct || pct === 0) return { ok: false, errors: ['Lift changes are limited to 10 percent at a time.'] };
-    const from = clamp(Math.round(Number(ch.fromWeek) || 1), 1, WEEKS);
+    const from = clamp(Math.round(Number(ch.fromWeek) || 1), 1, planWeeks(plan));
     return { ok: true, value: { lift: ch.lift, fromWeek: from, factor: clean(1 + pct / 100) } };
   }
 
@@ -430,8 +446,75 @@
       if (!kg || !units || !(step > 0 && step <= 50)) return null;
       out.step = step; out.blockKg = kg; out.blockUnits = units;
     }
-    if (Array.isArray(raw.adjust)) for (const a of raw.adjust.slice(0, 30)) if (a && Number.isFinite(a.fromWeek) && Number.isFinite(a.factor) && a.factor >= 0.25 && a.factor <= 4) out.adjust.push({ fromWeek: clamp(Math.round(a.fromWeek), 1, WEEKS), factor: clean(a.factor) });
+    if (Array.isArray(raw.adjust)) for (const a of raw.adjust.slice(0, 30)) if (a && Number.isFinite(a.fromWeek) && Number.isFinite(a.factor) && a.factor >= 0.25 && a.factor <= 4) out.adjust.push({ fromWeek: clamp(Math.round(a.fromWeek), 1, MAX_WEEKS), factor: clean(a.factor) });
     return out;
+  }
+
+  // ---------- goals: things to work towards, each with its own start, length and target ----------
+  // An endurance goal is measured from ordinary workouts (distance and time), so nothing is logged twice. A custom goal is a number
+  // the person types in over and over (pull-ups, resting heart rate, a 100 m swim time in seconds). Whatever is read back from
+  // storage, a backup or a form is rebuilt from a whitelist, and one bad field refuses the whole goal.
+  const ENDURANCE_SPORTS = ['running', 'cycling', 'swimming', 'rowing', 'walking', 'hiking'];
+  const GOAL_AIMS = ['distance', 'pace', 'weekly'];
+  const MAX_GOALS = 24;
+  const GOAL_ID = /^g_[a-z0-9]{3,24}$/;
+  const isGoalId = (x) => typeof x === 'string' && GOAL_ID.test(x);
+  function newGoalId() { return 'g_' + Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 6); }
+  // Ranges per measure: distance in km, pace in seconds per km, weekly volume in km.
+  const GOAL_RANGE = { distance: [0.1, 500], pace: [60, 2400], weekly: [0.5, 2000] };
+  function cleanGoal(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || hasBadKeys(raw, 0)) return { ok: false, errors: ['That is not a goal.'] };
+    const errors = [];
+    const id = String(raw.id || '');
+    if (!isGoalId(id)) errors.push('Bad goal id.');
+    const kind = raw.kind === 'endurance' || raw.kind === 'custom' ? raw.kind : null;
+    if (!kind) errors.push('Pick a kind of goal.');
+    const title = cleanStr(raw.title, 40);
+    if (!title) errors.push('Give the goal a name.');
+    const start = String(raw.start || '');
+    if (!validISO(start)) errors.push('Pick a start date.');
+    const weeks = Math.round(Number(raw.weeks));
+    if (!(weeks >= 1 && weeks <= MAX_WEEKS)) errors.push('Length should be from 1 to ' + MAX_WEEKS + ' weeks.');
+    const num = (x) => (x === null || x === undefined || x === '' ? null : Number.isFinite(Number(x)) ? Number(x) : NaN);
+    const out = {
+      id, kind, title, start, weeks, status: raw.status === 'closed' ? 'closed' : 'active',
+      closedOn: validISO(String(raw.closedOn || '')) ? String(raw.closedOn) : null,
+      prev: isGoalId(raw.prev) ? raw.prev : null, note: cleanStr(raw.note, 200),
+      sport: null, aim: null, paceKm: null, unit: '', from: null, target: null,
+    };
+    const from = num(raw.from), target = num(raw.target);
+    if (kind === 'endurance') {
+      if (!ENDURANCE_SPORTS.includes(raw.sport)) errors.push('Pick a sport.'); else out.sport = raw.sport;
+      if (!GOAL_AIMS.includes(raw.aim)) errors.push('Pick what to aim for.'); else out.aim = raw.aim;
+      const r = GOAL_RANGE[out.aim];
+      if (r) {
+        if (!(target >= r[0] && target <= r[1])) errors.push('The target is outside what makes sense for this goal.'); else out.target = clean(target);
+        if (from !== null && !(from >= r[0] && from <= r[1])) errors.push('The starting point is outside what makes sense for this goal.'); else if (from !== null) out.from = clean(from);
+      }
+      if (out.from !== null && out.target !== null) {
+        if (out.aim === 'pace' ? out.from <= out.target : out.from >= out.target) errors.push(out.aim === 'pace' ? 'Your pace today should be slower than the target.' : 'Your starting point should be below the target.');
+      }
+      if (out.aim === 'pace') {
+        const pk = num(raw.paceKm);
+        if (!(pk >= 0.1 && pk <= 100)) errors.push('Say over what distance the pace should hold.'); else out.paceKm = clean(pk);
+        if (out.from === null && from === null) errors.push('Add your pace today so progress has a starting point.');
+      }
+    } else if (kind === 'custom') {
+      out.unit = cleanStr(raw.unit, 12);
+      if (target === null || !(Math.abs(target) <= 1e7)) errors.push('Add a target number.'); else out.target = clean(target);
+      if (from === null || !(Math.abs(from) <= 1e7)) errors.push('Add where you are today.'); else out.from = clean(from);
+      if (out.from !== null && out.target !== null && out.from === out.target) errors.push('The target should differ from where you are today.');
+    }
+    if (errors.length) return { ok: false, errors };
+    return { ok: true, value: out };
+  }
+  function cleanGoalEntry(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, errors: ['That is not a reading.'] };
+    const date = String(raw.date || ''), value = Number(raw.value);
+    if (!isGoalId(raw.goal)) return { ok: false, errors: ['Bad goal.'] };
+    if (!validISO(date)) return { ok: false, errors: ['Bad date.'] };
+    if (raw.value === null || raw.value === '' || !(Math.abs(value) <= 1e7)) return { ok: false, errors: ['Add a number.'] };
+    return { ok: true, value: { goal: raw.goal, date, value: clean(value), note: cleanStr(raw.note, 100) } };
   }
 
   // ---------- state projection from the event log ----------
@@ -439,7 +522,7 @@
   function project(events) {
     const voided = new Set();
     for (const e of events) if (e.type === 'event_voided') voided.add(e.data.target);
-    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], workouts: [], moves: Object.create(null), revisions: [], dietPrefs: null };
+    const s = { profile: null, plan: null, weights: [], meas: [], foods: [], sets: [], photos: [], clips: [], workouts: [], moves: Object.create(null), revisions: [], dietPrefs: null, goals: Object.create(null), goalOrder: [], goalEntries: [] };
     for (const e of events) {
       if (voided.has(e.seq) || e.type === 'event_voided') continue;
       const d = e.data || {};
@@ -447,6 +530,8 @@
       switch (e.type) {
         case 'profile_created': s.profile = clone(d.profile); s.plan = clone(d.plan); break;
         case 'profile_edited': { if (s.profile) { const r = cleanProfileEdit(d && d.fields); if (r.ok) Object.assign(s.profile, r.value); } break; }
+        case 'goal_set': { const r = cleanGoal(d && d.goal); if (r.ok && (s.goals[r.value.id] || s.goalOrder.length < MAX_GOALS)) { if (!s.goals[r.value.id]) s.goalOrder.push(r.value.id); s.goals[r.value.id] = r.value; } break; }
+        case 'goal_entry': { const r = cleanGoalEntry(d); if (r.ok) s.goalEntries.push(Object.assign({ seq: e.seq }, r.value)); break; }
         case 'diet_prefs_set': { const r = cleanDietPrefs(d && d.prefs); if (r.ok) s.dietPrefs = r.value; break; }
         case 'plan_revised': if (s.plan) applyRevision(s.plan, d, e); s.revisions.push({ seq: e.seq, ts: e.ts, src: e.src, reason: d.reason, changes: d.changes }); break;
         case 'weight_logged': s.weights.push({ seq: e.seq, date: d.date, kg: d.kg }); break;
@@ -474,9 +559,15 @@
     for (const k of ['kcal', 'protein', 'carbs', 'fat', 'goal']) if (c[k] != null) { before[k] = plan[k]; plan[k] = c[k]; }
     const has = (id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(plan.lifts, id);
     if (c.liftAdjust && has(c.liftAdjust.lift) && Number.isFinite(c.liftAdjust.factor) && c.liftAdjust.factor >= 0.25 && c.liftAdjust.factor <= 4 && Number.isFinite(c.liftAdjust.fromWeek)) {
-      plan.lifts[c.liftAdjust.lift].adjust.push({ fromWeek: clamp(Math.round(c.liftAdjust.fromWeek), 1, WEEKS), factor: c.liftAdjust.factor });
+      plan.lifts[c.liftAdjust.lift].adjust.push({ fromWeek: clamp(Math.round(c.liftAdjust.fromWeek), 1, planWeeks(plan)), factor: c.liftAdjust.factor });
     }
     if (c.measTargets) plan.measTargets = c.measTargets;
+    // A plan can be made longer or shorter after it starts. Deload weeks follow the new length; every week already done keeps its targets.
+    if (c.weeks != null && Number.isFinite(Number(c.weeks))) {
+      plan.weeks = clamp(Math.round(Number(c.weeks)), MIN_WEEKS, MAX_WEEKS);
+      if (typeof plan.deloadOn !== 'boolean') plan.deloadOn = Array.isArray(plan.deloadWeeks) && plan.deloadWeeks.length > 0;
+      plan.deloadWeeks = plan.deloadOn ? deloadWeeksFor(plan.weeks) : [];
+    }
     // A lift added after onboarding goes on the day that trains that muscle, or on the session the person chose.
     // Whatever arrives here (a person's form, a coach proposal, a backup file) is rebuilt from a whitelist first.
     if (c.addLifts && typeof c.addLifts === 'object') {
@@ -566,7 +657,7 @@
   // Where this week's check-in stands. 'done' needs every angle; earlier weeks left unfinished are listed in `missed`.
   function checkinStatus(state, weekday, today) {
     const start = state.plan.startDate;
-    const week = clamp(weekOf(start, today), 1, WEEKS);
+    const week = clamp(weekOf(start, today), 1, planWeeks(state.plan));
     const date = checkinDate(start, week, weekday);
     const taken = anglesTaken(state, week);
     const status = taken >= ANGLES.length ? 'done' : today > date ? 'overdue' : today === date ? 'due' : 'upcoming';
@@ -576,7 +667,7 @@
   }
   // One entry per check-in week for an angle (up to `upTo` when given), with the photo (if any) and the numbers around its date.
   function checkIns(state, angle, upTo) {
-    return PHOTO_WEEKS.filter((w) => upTo == null || w <= upTo).map((week) => {
+    return photoWeeks(state.plan).filter((w) => upTo == null || w <= upTo).map((week) => {
       const photo = state.photos.find((p) => p.week === week && p.angle === angle) || null;
       return { week, photo, date: photo ? photo.date : null, snap: photo ? snapshotAt(state, photo.date) : null };
     });
@@ -598,7 +689,7 @@
   // Hit / Partial / Behind / Todo for one lift in one week.
   function liftStatus(state, liftId, week, today) {
     const lift = state.plan.lifts[liftId];
-    const tg = liftTarget(lift, week, { deloadWeeks: state.plan.deloadWeeks });
+    const tg = liftTarget(lift, week, targetOpts(state.plan));
     const sets = setsForWeek(state, week).filter((x) => x.lift === liftId);
     const tol = tg.kg ? tg.kg * 0.02 : 0;
     const good = sets.filter((x) => x.reps >= tg.reps && (tg.kg == null || x.kg >= tg.kg - tol));
@@ -616,7 +707,7 @@
   // Rules-based monthly review (every 4 weeks). Never a black box: each branch is one sentence.
   function reviewMonth(state, today) {
     const plan = state.plan;
-    const week = clamp(weekOf(plan.startDate, today), 1, WEEKS);
+    const week = clamp(weekOf(plan.startDate, today), 1, planWeeks(plan));
     const since = addDays(today, -28);
     const ws = avgWeightSeries(state.weights, 7);
     const inWin = ws.filter((p) => p.date >= since);
@@ -670,14 +761,16 @@
     const base = plan.baseline.waistCm;
     if (!waistNow || !base) return null;
     const dIn = cmToIn(waistNow.cm - base);
-    if (plan.goal === 'recomp' && week >= 12 && dIn <= -0.5) return { week: 12, text: 'Checkpoint: waist is down ' + Math.abs(dIn).toFixed(1) + ' in. You can move to a lean bulk (+200 kcal).', goal: 'build' };
-    if (plan.goal === 'build' && week >= 20 && dIn >= 2) return { week: 20, text: 'Checkpoint: waist is up ' + dIn.toFixed(1) + ' in. Consider a 4 to 6 week mini-cut (-300 kcal).', goal: 'cut' };
-    if (plan.goal === 'cut' && week >= 10) return { week: 10, text: 'Checkpoint at week 10: consider switching to recomp at maintenance.', goal: 'recomp' };
+    // The checkpoint weeks are set for a 26-week plan and move with the plan's length.
+    const k = planWeeks(plan) / WEEKS, at = (w) => Math.max(2, Math.round(w * k)), lim = (x) => x * clamp(k, 0.5, 1.5);
+    if (plan.goal === 'recomp' && week >= at(12) && dIn <= -0.5 * clamp(k, 0.5, 1)) return { week: at(12), text: 'Checkpoint: waist is down ' + Math.abs(dIn).toFixed(1) + ' in. You can move to a lean bulk (+200 kcal).', goal: 'build' };
+    if (plan.goal === 'build' && week >= at(20) && dIn >= lim(2)) return { week: at(20), text: 'Checkpoint: waist is up ' + dIn.toFixed(1) + ' in. Consider a 4 to 6 week mini-cut (-300 kcal).', goal: 'cut' };
+    if (plan.goal === 'cut' && week >= at(10)) return { week: at(10), text: 'Checkpoint at week ' + at(10) + ': consider switching to recomp at maintenance.', goal: 'recomp' };
     return null;
   }
 
   // ---------- backup / import validation ----------
-  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'profile_edited', 'diet_prefs_set', 'event_voided'];
+  const EVENT_TYPES = ['profile_created', 'plan_revised', 'weight_logged', 'measurement_logged', 'food_logged', 'set_logged', 'photo_added', 'clip_added', 'workout_logged', 'session_moved', 'profile_edited', 'diet_prefs_set', 'goal_set', 'goal_entry', 'event_voided'];
   const BAD_KEYS = ['__proto__', 'constructor', 'prototype'];
   function hasBadKeys(o, depth) {
     if (o === null || typeof o !== 'object') return false;
@@ -871,6 +964,7 @@
       date, type: isActivity(raw.type) ? raw.type : 'other', label: cleanStr(raw.label, 40),
       mins: clamp(mins, 1, 600), effort: EFFORTS.includes(raw.effort) ? raw.effort : 'moderate',
       kcal, manual: raw.manual === true && kcal > 0, session: cleanStr(raw.session, 40), note: cleanStr(raw.note, 200),
+      km: Number.isFinite(Number(raw.km)) ? Math.round(clamp(Number(raw.km), 0, 1000) * 100) / 100 : 0,
     } };
   }
   const workoutName = (w) => w.label || (isActivity(w.type) ? ACTIVITIES[w.type] : ACTIVITIES.other).name;
@@ -1056,7 +1150,8 @@
 
   const Engine = {
     MEALS, macroKcal, normalizeFood, parseJsonLoose, dayTotals,
-    KG_PER_LB, CM_PER_IN, WEEKS, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, CLIP_TAGS, cleanClip, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
+    ENDURANCE_SPORTS, GOAL_AIMS, GOAL_RANGE, MAX_GOALS, isGoalId, newGoalId, cleanGoal, cleanGoalEntry,
+    KG_PER_LB, CM_PER_IN, WEEKS, MIN_WEEKS, MAX_WEEKS, PLAN_LENGTHS, planWeeks, deloadWeeksFor, photoWeeks, targetOpts, PHOTO_WEEKS, checkinDate, checkinStatus, anglesTaken, CLIP_TAGS, cleanClip, DELOAD_WEEKS, ANGLES, HEAVY_WAVE, CATALOG, DEFAULT_LIFT_ORDER, MEAS_SITES, LIMITS, TEMPLATES, DEFAULT_STEPS,
     clean, roundTo, clamp, lbToKg, kgToLb, inToCm, cmToIn, isoDate, parseISO, addDays, daysBetween, weekOf, weekRange, weekdayOf,
     bmr, maintenance, targetsFor, recommendGoal, measurementTargets, blockOfWeek, blockWeights, e1rm, startWeight, buildLiftPlan, liftTarget,
     buildWorkouts, buildPlan, weeklyTargets, validateMacroChange, validateLiftChange, project, avgWeightSeries, latestMeas, setsForWeek,

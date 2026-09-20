@@ -4,7 +4,7 @@
   const E = root.Engine, U = root.U, Store = root.Store, Crypt = root.Crypt, LLM = root.LLM;
   const { h } = U;
 
-  const TABS = [['#/today', 'Today', 'home'], ['#/lifts', 'Lifts', 'dumbbell'], ['#/fuel', 'Fuel', 'fork'], ['#/progress', 'Progress', 'chart'], ['#/coach', 'Coach', 'chat']];
+  const TABS = [['#/today', 'Today', 'home'], ['#/goals', 'Goals', 'target'], ['#/fuel', 'Fuel', 'fork'], ['#/progress', 'Progress', 'chart'], ['#/coach', 'Coach', 'chat']];
 
   // ---------- the API key ----------
   // It is held in memory. With "remember on this device" (the default) it is also kept, sealed, in this browser's storage
@@ -53,7 +53,7 @@
       h('div', { class: 'muted small' }, String(err && err.message ? err.message : '').slice(0, 200)),
       k,
       root.UI.toggleRow('Remember it on this device', 'Encrypted here, never in backups.', true, (v) => { keep = v; }),
-      h('div', { class: 'muted small' }, 'Get a new one from your provider\'s console. Orbit only sends it to ' + (function () { try { return new URL(LLM.endpointOf(cfg)).host; } catch (e) { return 'your provider'; } })() + '.'));
+      h('div', { class: 'muted small' }, 'Get a new one from your provider\'s console. Regoal only sends it to ' + (function () { try { return new URL(LLM.endpointOf(cfg)).host; } catch (e) { return 'your provider'; } })() + '.'));
     U.sheet('Your AI key needs updating', body, [{ label: 'Not now' }, { label: 'Save key', kind: 'primary', run: () => {
       const v = k.input.value.trim();
       if (!/^[\x21-\x7e]{8,400}$/.test(v)) { U.toast('That does not look like an API key.', 'warn'); return false; }
@@ -87,7 +87,7 @@
       [/^#\/onboard\/1$/, () => O.about()], [/^#\/onboard\/2$/, () => O.goalStep()], [/^#\/onboard\/3$/, () => O.trainingStep()],
       [/^#\/onboard\/4$/, () => O.liftsStep()], [/^#\/onboard\/5$/, () => O.planStep()],
       [/^#\/today$/, () => S.today()],
-      [/^#\/lifts$/, () => S.lifts()], [/^#\/lifts\/([a-z0-9_]+)$/, (m) => S.liftDetail(m[1])],
+      [/^#\/goals$/, () => S.goals(null)], [/^#\/goals\/(plan|g_[a-z0-9]{3,24})$/, (m) => S.goals(m[1])], [/^#\/lifts$/, () => S.goals('plan')], [/^#\/lifts\/([a-z0-9_]+)$/, (m) => S.liftDetail(m[1])],
       [/^#\/activity$/, () => S.activity()],
       [/^#\/fuel$/, () => S.fuel()],
       [/^#\/diet$/, () => S.dietPlan()], [/^#\/progress$/, () => S.progress()], [/^#\/photos$/, () => S.photos()], [/^#\/photos\/trend$/, () => S.photoTrend()], [/^#\/photos\/compare$/, () => S.photoCompare()],
@@ -111,7 +111,7 @@
     bar.classList.toggle('hidden', !show);
     U.clear(bar);
     if (!show) return;
-    const base = hash.startsWith('#/diet') ? '#/fuel' : hash.startsWith('#/photos') || hash.startsWith('#/library') || hash.startsWith('#/settings') ? '#/progress' : '#/' + hash.split('/')[1];
+    const base = hash.startsWith('#/diet') ? '#/fuel' : hash.startsWith('#/lifts') ? '#/goals' : hash.startsWith('#/photos') || hash.startsWith('#/library') || hash.startsWith('#/settings') ? '#/progress' : '#/' + hash.split('/')[1];
     for (const [href, label, ic] of TABS) {
       const on = href === (hash.startsWith('#/settings') || hash.startsWith('#/profile') || hash.startsWith('#/activity') ? '#/today' : base);
       bar.appendChild(h('a', { href, class: on ? 'on' : '', 'aria-current': on ? 'page' : null }, U.icon(ic, 22), h('span', null, label)));
@@ -164,7 +164,7 @@
       if (fails >= 5) { blockedUntil = Date.now() + Math.min(300000, 15000 * Math.pow(2, fails - 5)); err.textContent = 'Too many tries. Wait a bit.'; } else err.textContent = 'That is not it.';
     };
     pin.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(); });
-    box.appendChild(h('div', { class: 'lockbox' }, h('div', { class: 'app-icon' }, U.logoSvg(36)), h('div', { class: 'display h2' }, 'Orbit is locked'), pin, err, h('button', { class: 'btn primary block', type: 'button', onclick: tryUnlock }, 'Unlock')));
+    box.appendChild(h('div', { class: 'lockbox' }, h('div', { class: 'app-icon' }, U.logoSvg(36)), h('div', { class: 'display h2' }, 'Regoal is locked'), pin, err, h('button', { class: 'btn primary block', type: 'button', onclick: tryUnlock }, 'Unlock')));
     setTimeout(() => pin.focus(), 50);
   }
   document.addEventListener('visibilitychange', () => {
@@ -176,7 +176,7 @@
   let updateBar = null;
   function showUpdateBar() {
     if (updateBar) return;
-    updateBar = h('div', { class: 'updatebar', role: 'status' }, h('span', null, 'A new version of Orbit is ready.'), h('button', { type: 'button', class: 'btn primary', onclick: () => location.reload() }, 'Reload'));
+    updateBar = h('div', { class: 'updatebar', role: 'status' }, h('span', null, 'A new version of Regoal is ready.'), h('button', { type: 'button', class: 'btn primary', onclick: () => location.reload() }, 'Reload'));
     document.body.appendChild(updateBar);
   }
 
@@ -188,7 +188,7 @@
     let url = 'sw.js';
     try {
       if (root.trustedTypes && root.trustedTypes.createPolicy) {
-        const p = root.trustedTypes.createPolicy('orbit-sw', { createScriptURL: (u) => { if (u !== 'sw.js') throw new TypeError('Blocked script URL'); return u; } });
+        const p = root.trustedTypes.createPolicy('regoal-sw', { createScriptURL: (u) => { if (u !== 'sw.js') throw new TypeError('Blocked script URL'); return u; } });
         url = p.createScriptURL('sw.js');
       }
       const hadController = !!navigator.serviceWorker.controller;

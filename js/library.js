@@ -1,11 +1,11 @@
 /*
  * The workout library: photos and videos you keep where you took them.
  *
- * Orbit never stores the original. What it keeps for each item is a small preview picture (around 15 KB), the date, a tag,
+ * Regoal never stores the original. What it keeps for each item is a small preview picture (around 15 KB), the date, a tag,
  * a note and the file's name and size. To see or use the original again it asks the browser for the file:
  *   - Chrome and Edge on a computer can remember a real link to the file (a file handle), so nothing is asked twice;
- *   - Safari on iPhone cannot keep a link into Photos, so you pick the item again, and Orbit uses it in memory and lets go.
- * Either way there is no second copy of your photos or videos in Orbit's storage.
+ *   - Safari on iPhone cannot keep a link into Photos, so you pick the item again, and Regoal uses it in memory and lets go.
+ * Either way there is no second copy of your photos or videos in Regoal's storage.
  */
 (function (root) {
   'use strict';
@@ -82,7 +82,7 @@
     }
   }
 
-  // What Orbit keeps: kind, name, size, date, dimensions, length and a small preview (null when the browser cannot decode it).
+  // What Regoal keeps: kind, name, size, date, dimensions, length and a small preview (null when the browser cannot decode it).
   async function readInfo(file) {
     const kind = kindOf(file);
     if (!kind) throw new Error('That is not a photo or a video.');

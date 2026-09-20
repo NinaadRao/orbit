@@ -24,9 +24,9 @@ This is what the sources themselves say. It is not legal advice.
 
 ## Indian Food Composition Tables (not bundled)
 
-Earlier builds of Orbit also carried 542 rows from **IFCT 2017**, National Institute of Nutrition, Hyderabad (ICMR). They were removed, and the repository's history was rewritten to drop them, because the book's terms allow reproduction for personal use with acknowledgement and do not allow storing it in any electronic format to create a product without the Institute's prior written permission. A public repository or a public app is beyond that. The `@ifct2017/compositions` npm package is MIT-licensed at the version used (the main ifct2017 repository moved to AGPL-3.0 in April 2025), but that licence is the packager's and cannot grant rights to the Institute's data.
+Earlier builds of Regoal also carried 542 rows from **IFCT 2017**, National Institute of Nutrition, Hyderabad (ICMR). They were removed, and the repository's history was rewritten to drop them, because the book's terms allow reproduction for personal use with acknowledgement and do not allow storing it in any electronic format to create a product without the Institute's prior written permission. A public repository or a public app is beyond that. The `@ifct2017/compositions` npm package is MIT-licensed at the version used (the main ifct2017 repository moved to AGPL-3.0 in April 2025), but that licence is the packager's and cannot grant rights to the Institute's data.
 
-You can still use IFCT in your own copy of Orbit for yourself: Fuel, Add food, Find, **Add my own food list** loads a CSV or JSON file that stays on your device (see [the user guide](../docs/USER_GUIDE.md#your-own-food-list)), and `scripts/ifct-to-import.mjs` converts a copy of the IFCT compositions table into that format. The converted file is yours alone; do not publish it or put it in a repository unless the Institute has given permission. If you want IFCT in the shipped app, write to the National Institute of Nutrition for permission first.
+You can still use IFCT in your own copy of Regoal for yourself: Fuel, Add food, Find, **Add my own food list** loads a CSV or JSON file that stays on your device (see [the user guide](../docs/USER_GUIDE.md#your-own-food-list)), and `scripts/ifct-to-import.mjs` converts a copy of the IFCT compositions table into that format. The converted file is yours alone; do not publish it or put it in a repository unless the Institute has given permission. If you want IFCT in the shipped app, write to the National Institute of Nutrition for permission first.
 
 ## How the numbers are prepared
 
@@ -59,4 +59,4 @@ Package integrity (from the npm registry):
 
 ## Not in it
 
-Home-cooked Indian dishes (a katori of dal, a phulka, an idli, a plate of poha) are not measured in USDA data in a cooked, portioned form. Orbit keeps a short list of typical values for those, labelled "approximate", and the Describe and Ingredients tabs cover the rest.
+Home-cooked Indian dishes (a katori of dal, a phulka, an idli, a plate of poha) are not measured in USDA data in a cooked, portioned form. Regoal keeps a short list of typical values for those, labelled "approximate", and the Describe and Ingredients tabs cover the rest.

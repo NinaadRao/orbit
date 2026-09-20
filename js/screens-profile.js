@@ -52,7 +52,7 @@
 
   Screens.profile = function () {
     const st = Store.getState(), pr = st.profile, plan = st.plan, set = Store.getSettings(), t = U.today();
-    const week = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
+    const week = E.clamp(E.weekOf(plan.startDate, t), 1, E.planWeeks(plan));
     const latest = st.weights.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).pop();
     const bu = set.bodyUnit, lu = set.lenUnit;
     const name = (pr.name || '').trim();
@@ -73,7 +73,7 @@
       h('div', { class: 'profbrand' }, U.brandMark(), h('div', { class: 'display tagline' }, U.TAGLINE[0], h('br'), U.TAGLINE[1])),
       UI.card(h('div', { class: 'profhead' },
         h('div', { class: 'avatar', 'aria-hidden': 'true' }, initials || U.icon('user', 26)),
-        h('div', { class: 'grow' }, h('div', { class: 'display big2' }, name || 'You'), h('div', { class: 'muted' }, cap(plan.goal) + ' · week ' + week + ' of ' + E.WEEKS)),
+        h('div', { class: 'grow' }, h('div', { class: 'display big2' }, name || 'You'), h('div', { class: 'muted' }, cap(plan.goal) + ' · week ' + week + ' of ' + E.planWeeks(plan))),
         UI.btn(name ? 'Edit' : 'Add name', { kind: 'quiet', block: false, onClick: editSheet }))),
       UI.card(h('div', { class: 'ct' }, 'Basics'),
         kv('Sex', cap(pr.sex)), kv('Age', pr.age ? pr.age + ' years' : null), kv('Height', height),

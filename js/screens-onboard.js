@@ -12,8 +12,8 @@
       units: { body: 'kg', length: 'in', lift: 'lb' },
       meas: { waist: '', chest: '', shoulders: '', hips: '', bicepL: '', bicepR: '', forearmL: '', forearmR: '' },
       goal: null, days: [1, 2, 3, 4, 5], sessionMin: '90', timeOfDay: 'AM', diet: 'Vegetarian', creatine: 'Yes', currentKcal: '', currentProtein: '',
-      training: { experience: '1-3 yrs', split: 'Orbit picks', equipment: new Set(['Dumbbells', 'Machines', 'Cables', 'Bodyweight']), dbStep: null, machineStep: null, focus: new Set(['Chest']), injuries: new Set(['Nothing']), repStyle: 'mixed', sets: '3', rest: '90 s', deload: 'planned', logRpe: true, restTimer: true, warmups: false, notes: true },
-      lifts, extra: [], custom: [], startLighter: false, dietPrefs: E.defaultDietPrefs(),
+      training: { experience: '1-3 yrs', split: 'Regoal picks', equipment: new Set(['Dumbbells', 'Machines', 'Cables', 'Bodyweight']), dbStep: null, machineStep: null, focus: new Set(['Chest']), injuries: new Set(['Nothing']), repStyle: 'mixed', sets: '3', rest: '90 s', deload: 'planned', logRpe: true, restTimer: true, warmups: false, notes: true },
+      lifts, extra: [], custom: [], startLighter: false, dietPrefs: E.defaultDietPrefs(), weeks: 26,
     };
   }
   let D = freshDraft();
@@ -49,11 +49,11 @@
       const w = num(c.weight);
       if (c.on !== false && c.name.trim() && (c.equip === 'bw' ? num(c.reps) : w > 0)) lifts.push({ id: E.newLiftId({ lifts: Object.fromEntries(lifts.map((x) => [x.id, 1])) }, c.name), on: true, name: c.name.trim().slice(0, 40), muscle: c.muscle, equip: c.equip, weight: w, reps: num(c.reps) || null, cls: c.cls || 'medium', gain: c.gain != null ? c.gain : 0.25 });
     }
-    const splitMap = { 'Orbit picks': 'auto', 'Push / Pull / Legs': 'ppl', 'Upper / Lower': 'ul', 'Body-part days': 'bodypart', 'Full body': 'fullbody' };
+    const splitMap = { 'Regoal picks': 'auto', 'Push / Pull / Legs': 'ppl', 'Upper / Lower': 'ul', 'Body-part days': 'bodypart', 'Full body': 'fullbody' };
     return {
       name: D.name.trim().slice(0, 40), sex: D.sex, age: num(D.age), heightCm: heightCm(), weightKg: E.clean(weightKg() || 0), bodyFatPct: num(D.bf),
       units: Object.assign({}, D.units), measurements: measCm(), goal: D.goal, days: D.days.slice(), sessionMin: Number(D.sessionMin), timeOfDay: D.timeOfDay, diet: D.diet,
-      creatine: D.creatine === 'Yes', currentKcal: num(D.currentKcal), currentProtein: num(D.currentProtein),
+      weeks: E.clamp(Math.round(Number(D.weeks)) || E.WEEKS, E.MIN_WEEKS, E.MAX_WEEKS), creatine: D.creatine === 'Yes', currentKcal: num(D.currentKcal), currentProtein: num(D.currentProtein),
       training: {
         experience: t.experience, split: splitMap[t.split] || 'auto', equipment: Array.from(t.equipment), dbStep: t.dbStep || st.db[0], machineStep: t.machineStep || st.mach[0],
         focus: Array.from(t.focus).map((x) => x.toLowerCase()), injuries: Array.from(t.injuries), repStyle: t.repStyle, sets: Number(t.sets) || 3, rest: t.rest,
@@ -67,7 +67,7 @@
     if (!(age >= 14 && age <= 90)) return 'Enter an age between 14 and 90.';
     if (!(hc >= 120 && hc <= 230)) return 'Enter your height.';
     if (!(wk >= 35 && wk <= 250)) return 'Enter your body weight.';
-    if (!(waist > 0)) return 'Waist is the one measurement Orbit needs. Tape at the navel, relaxed.';
+    if (!(waist > 0)) return 'Waist is the one measurement Regoal needs. Tape at the navel, relaxed.';
     const wc = U.unitToCm(waist, D.units.length);
     if (wc < 40 || wc > 200) return 'That waist looks off. Check the unit.';
     return null;
@@ -99,12 +99,12 @@
 
   // ---------- Welcome ----------
   function welcome() {
-    const importInput = h('input', { type: 'file', class: 'hidden', accept: '.orbitbackup,.json,application/json,application/octet-stream', onchange: () => { if (importInput.files[0]) root.Screens.importFile(importInput.files[0]); } });
+    const importInput = h('input', { type: 'file', class: 'hidden', accept: '.regoalbackup,.orbitbackup,.json,application/json,application/octet-stream', onchange: () => { if (importInput.files[0]) root.Screens.importFile(importInput.files[0]); } });
     const feature = (ic, t, sub) => h('div', { class: 'feat' }, U.icon(ic, 24), h('div', null, h('b', null, t), h('div', { class: 'muted' }, sub)));
     return h('div', { class: 'page welcome' },
       U.brandMark(),
       h('div', { class: 'display hero' }, U.TAGLINE[0], h('br'), U.TAGLINE[1]),
-      h('p', { class: 'muted lead' }, 'Orbit is what you do every day: circle back, log it, go again. Bulk, cut or recomp, it keeps the receipts.'),
+      h('p', { class: 'muted lead' }, 'Regoal is what you do every day: circle back, log it, go again. Bulk, cut or recomp, it keeps the receipts.'),
       h('div', { class: 'feats' },
         feature('lock', 'Lives on this phone.', 'No account, no cloud, no server. There is nothing to sign up for.'),
         feature('key', 'Bring your own brain.', 'Plug in your own AI coach key, or skip the AI entirely.'),
@@ -184,13 +184,13 @@
       UI.header('Your training', 'So the plan fits how you actually lift.', { back: '#/onboard/2' }), UI.stepBar(3, 5),
       UI.scroller(
         UI.seg({ label: 'Lifting experience', options: ['Under 1 yr', '1-3 yrs', '3+ yrs'], value: t.experience, onChange: (v) => { t.experience = v; } }),
-        UI.pills({ label: 'Split', items: ['Orbit picks', 'Push / Pull / Legs', 'Upper / Lower', 'Body-part days', 'Full body'], values: new Set([t.split]), multi: false, onChange: (v) => { t.split = Array.from(v)[0]; } }),
+        UI.pills({ label: 'Split', items: ['Regoal picks', 'Push / Pull / Legs', 'Upper / Lower', 'Body-part days', 'Full body'], values: new Set([t.split]), multi: false, onChange: (v) => { t.split = Array.from(v)[0]; } }),
         UI.pills({ label: 'Equipment you can use', items: ['Dumbbells', 'Machines', 'Cables', 'Barbell', 'Bodyweight', 'Bands'], values: t.equipment }),
         UI.row(
           UI.seg({ label: 'Dumbbell jump', options: st.db.map((x) => ({ value: x, label: x + ' ' + lu })), value: dbSel, flex: 1, onChange: (v) => { t.dbStep = v; } }),
           UI.seg({ label: 'Machine jump', options: st.mach.map((x) => ({ value: x, label: x + ' ' + lu })), value: mSel, flex: 1, onChange: (v) => { t.machineStep = v; } })),
         UI.pills({ label: 'Muscles to prioritise', items: ['Chest', 'Shoulders', 'Back', 'Arms', 'Forearms', 'Legs', 'Core'], values: t.focus, max: 3, hint: 'Pick up to 3. They get extra weekly work.' }),
-        UI.pills({ label: 'Anything to work around?', items: ['Nothing', 'Shoulder', 'Elbow', 'Wrist', 'Lower back', 'Knee'], values: t.injuries, exclusive: ['Nothing'], hint: 'Orbit flags lifts that lean on it.' }),
+        UI.pills({ label: 'Anything to work around?', items: ['Nothing', 'Shoulder', 'Elbow', 'Wrist', 'Lower back', 'Knee'], values: t.injuries, exclusive: ['Nothing'], hint: 'Regoal flags lifts that lean on it.' }),
         UI.seg({ label: 'Rep style', options: [{ value: 'heavy', label: 'Heavy 6-8' }, { value: 'mixed', label: 'Mixed 8-12' }, { value: 'pump', label: 'Pump 12-15' }], value: t.repStyle, onChange: (v) => { t.repStyle = v; } }),
         UI.row(UI.field({ label: 'Sets per lift', value: t.sets, type: 'number', flex: 1, min: 2, max: 6, onInput: (v) => { t.sets = v; } }), UI.seg({ label: 'Rest between sets', options: ['60 s', '90 s', '2 min'], value: t.rest, flex: 2, onChange: (v) => { t.rest = v; } })),
         UI.seg({ label: 'Easier deload weeks (planned: 7, 14, 21)', options: [{ value: 'planned', label: 'Planned' }, { value: 'feel', label: 'When I feel beat' }, { value: 'never', label: 'Never' }], value: t.deload, onChange: (v) => { t.deload = v; } }),
@@ -232,7 +232,7 @@
       UI.scroller(
         UI.card(h('div', { class: 'liftrow hdr' }, h('span', null), h('div', { class: 'ln' }, 'Lift'), h('div', { class: 'wbox' }, 'Weight'), h('div', { class: 'rbox' }, 'Reps')), rows),
         addBtn,
-        h('div', { class: 'muted small' }, 'Weight and reps let Orbit estimate your max and start week 1 at a sensible load. Leave a weight empty to skip a lift. For pull-ups, just enter reps.'),
+        h('div', { class: 'muted small' }, 'Weight and reps let Regoal estimate your max and start week 1 at a sensible load. Leave a weight empty to skip a lift. For pull-ups, just enter reps.'),
         UI.seg({ label: 'Starting point', options: [{ value: 'solid', label: 'These are solid' }, { value: 'light', label: 'Start me lighter' }], value: D.startLighter ? 'light' : 'solid', onChange: (v) => { D.startLighter = v === 'light'; } })),
       h('div', { class: 'foot' }, UI.btn('Next: see my plan', { onClick: () => { const e = validateLifts(); if (e) return U.toast(e, 'warn'); root.App.go('#/onboard/5'); } })));
   }
@@ -244,22 +244,26 @@
     try { plan = E.buildPlan(a); } catch (e) { return UI.page(UI.header('Plan', 'Something is missing', { back: '#/onboard/4' }), UI.scroller(UI.empty('Go back and check your answers: ' + e.message))); }
     const lu = a.units.lift, lenU = a.units.length;
     const segs = h('div', { class: 'timeline' });
-    for (let w = 1; w <= 26; w++) segs.appendChild(h('span', { class: w <= 12 ? 'a' : 'b' }));
+    const nw = E.planWeeks(plan), cpw = Math.max(2, Math.round(12 * nw / E.WEEKS)), nseg = Math.min(nw, 26);
+    for (let i = 1; i <= nseg; i++) segs.appendChild(h('span', { class: Math.ceil(i * nw / nseg) <= cpw ? 'a' : 'b' }));
+    const lenCard = UI.card(root.Screens.lengthPicker({ weeks: nw, min: E.MIN_WEEKS, label: 'How long is this plan', lazy: true, onChange: (w) => { D.weeks = w; root.App.render(); } }),
+      h('div', { class: 'muted small' }, 'You can change this any time, and add other goals (a run, a swim, pull-ups) from the Goals tab once you start.'));
     const total = plan.protein * 4 + plan.carbs * 4 + plan.fat * 9;
     const macroBar = h('div', { class: 'macrobar' }, ...[[plan.protein * 4, 'coral'], [plan.carbs * 4, 'acc'], [plan.fat * 9, 'cool']].map(([kc, c]) => { const s = h('span', { class: c }); s.style.width = (kc / total * 100) + '%'; return s; }));
     const targets = ['waist', 'shoulders', 'chest', 'bicepL'].filter((k) => plan.measTargets[k]).map((k) => h('div', { class: 'kv' }, h('span', null, k === 'bicepL' ? 'Biceps' : k[0].toUpperCase() + k.slice(1)), h('b', null, U.fmtLen(plan.measTargets[k].start, lenU) + ' to ' + U.fmtLen(plan.measTargets[k].target, lenU) + ' ' + lenU)));
     const w1 = E.weeklyTargets(plan, 1).slice(0, 4).map((t) => h('div', { class: 'kv' }, h('span', null, t.name), h('b', null, t.kg == null ? t.sets + ' x ' + t.reps + ' reps' : U.fmtLift(t.kg, lu) + ' x ' + t.sets + 'x' + t.reps)));
     const sched = plan.workouts.map((w) => h('div', { class: 'kv' }, h('span', null, U.DOW[w.weekday]), h('b', null, w.name)));
     return UI.page(
-      UI.header('Your 26 weeks', 'Built from what you told me.', { back: '#/onboard/4' }), UI.stepBar(5, 5),
+      UI.header('Your ' + root.Goals.lengthText(nw), 'Built from what you told me.', { back: '#/onboard/4' }), UI.stepBar(5, 5),
       UI.scroller(
         UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'muted small' }, 'Daily target · ' + plan.goal[0].toUpperCase() + plan.goal.slice(1)), h('div', { class: 'display big' }, U.withCommas(plan.kcal), h('span', { class: 'muted unitbig' }, ' kcal'))), U.chip('Maintenance about ' + U.withCommas(plan.maintenance), 'line')), macroBar,
           h('div', { class: 'macro-legend' }, h('span', null, h('b', null, plan.protein + ' g'), ' protein'), h('span', null, h('b', null, plan.carbs + ' g'), ' carbs'), h('span', null, h('b', null, plan.fat + ' g'), ' fat'))),
         root.Screens.dietOnboardCard(D.dietPrefs, plan, a.diet),
-        UI.card(h('div', { class: 'ct' }, 'Timeline · 26 weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk 12'), h('span', null, 'Wk 26')), h('div', { class: 'muted small' }, 'Progress photos are a weekly check-in on the day you choose in Profile. It starts on Friday.')),
-        targets.length ? UI.card(h('div', { class: 'ct' }, 'Six-month targets'), ...targets) : null,
+        lenCard,
+        UI.card(h('div', { class: 'ct' }, 'Timeline · ' + nw + ' weeks'), segs, h('div', { class: 'tl-legend' }, h('span', null, 'Wk 1'), h('span', null, 'Checkpoint wk ' + cpw), h('span', null, 'Wk ' + nw)), h('div', { class: 'muted small' }, 'Progress photos are a weekly check-in on the day you choose in Profile. It starts on Friday.')),
+        targets.length ? UI.card(h('div', { class: 'ct' }, root.Goals.lengthText(nw)[0].toUpperCase() + root.Goals.lengthText(nw).slice(1) + ' targets'), ...targets) : null,
         UI.card(h('div', { class: 'ct' }, 'Your week'), ...sched),
-        w1.length ? UI.card(h('div', { class: 'ct' }, 'Week 1 lifts'), ...w1) : UI.card(h('div', { class: 'muted' }, 'No lifts tracked yet. You can still log workouts; add lifts later from Lifts.')),
+        w1.length ? UI.card(h('div', { class: 'ct' }, 'Week 1 lifts'), ...w1) : UI.card(h('div', { class: 'muted' }, 'No lifts tracked yet. You can still log workouts; add lifts later from the Goals tab.')),
         h('div', { class: 'muted small' }, 'Every number here is a starting point. You can change targets any time, and the coach can suggest changes but never apply them without your tap.')),
       h('div', { class: 'foot' }, UI.btn('Start week 1', { onClick: async () => { try { await finish(a); } catch (e) { U.toast(e.message, 'warn'); } } })));
   }

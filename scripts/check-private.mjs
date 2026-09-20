@@ -2,7 +2,7 @@
 //   node scripts/check-private.mjs --staged   (used by the pre-commit hook)
 //   node scripts/check-private.mjs            (checks every tracked file; used by pre-push)
 // Extra terms you never want committed (your measurements, your name, an email) can go, one per line, in
-// ~/.orbit-private-terms or in the file named by ORBIT_PRIVATE_TERMS. That file is never part of the repo,
+// ~/.regoal-private-terms (or the older ~/.orbit-private-terms), or in the file named by REGOAL_PRIVATE_TERMS or ORBIT_PRIVATE_TERMS. That file is never part of the repo,
 // and matches are reported by line number only, so the terms themselves never reach a log.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import path from 'node:path';
 const staged = process.argv.includes('--staged');
 const git = (args, opts) => execFileSync('git', args, Object.assign({ encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }, opts));
 
-const BAD_EXT = /\.(heic|heif|jpe?g|mov|mp4|m4v|webm|3gp|orbitbackup|orbitprofile)$/i;
+const BAD_EXT = /\.(heic|heif|jpe?g|mov|mp4|m4v|webm|3gp|orbitbackup|orbitprofile|regoalbackup|regoalprofile)$/i;
 const BAD_FOODS = /\.orbitfoods\.(json|csv)$/i; // a person's own food list, which may carry someone else's copyright
 const IMG_EXT = /\.(png|gif|webp|svg)$/i;
 const IMG_OK = /^(icons|docs\/img)\//;
@@ -21,11 +21,11 @@ const BAD_NAME = /(^|\/)(\.env(\..*)?|.*\.pem|id_rsa.*|profile[-_.a-z0-9]*\.json
 const SECRETS = [
   [/sk-ant-[A-Za-z0-9_-]{20,}/, 'an Anthropic API key'], [/\bsk-(proj-)?[A-Za-z0-9_-]{32,}/, 'an OpenAI-style API key'], [/AIza[0-9A-Za-z_-]{35}/, 'a Google API key'],
   [/gh[pousr]_[A-Za-z0-9]{30,}/, 'a GitHub token'], [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'a private key'],
-  [/^\s*\{\s*"orbit"\s*:\s*1\b/, 'an Orbit backup, encrypted backup or profile file'],
+  [/^\s*\{\s*"orbit"\s*:\s*1\b/, 'a Regoal backup, encrypted backup or profile file'],
 ];
 
 function terms() {
-  const files = [process.env.ORBIT_PRIVATE_TERMS, path.join(os.homedir(), '.orbit-private-terms')].filter(Boolean);
+  const files = [process.env.REGOAL_PRIVATE_TERMS, process.env.ORBIT_PRIVATE_TERMS, path.join(os.homedir(), '.regoal-private-terms'), path.join(os.homedir(), '.orbit-private-terms')].filter(Boolean);
   const out = [];
   for (const f of files) { try { for (const l of fs.readFileSync(f, 'utf8').split(/\r?\n/)) if (l.trim() && !l.startsWith('#')) out.push(l.trim().toLowerCase()); } catch (e) { /* no such file */ } }
   return out;
@@ -39,7 +39,7 @@ try {
 const T = terms();
 const problems = [];
 for (const f of files) {
-  if (BAD_EXT.test(f)) problems.push(f + ': photos, videos and Orbit backups must never be committed');
+  if (BAD_EXT.test(f)) problems.push(f + ': photos, videos and Regoal backups must never be committed');
   else if (IMG_EXT.test(f) && !IMG_OK.test(f)) problems.push(f + ': images are only allowed in icons/ and docs/img/');
   if (BAD_DIR.test(f)) problems.push(f + ': this folder name is reserved for personal data');
   if (BAD_FOODS.test(f)) problems.push(f + ': a personal food list may carry someone else\'s copyright (for example IFCT), so it must not be committed');
@@ -55,9 +55,9 @@ for (const f of files) {
   }
 }
 if (problems.length) {
-  console.error('\nOrbit privacy check failed. Nothing was committed.\n');
+  console.error('\nRegoal privacy check failed. Nothing was committed.\n');
   for (const p of problems) console.error('  - ' + p);
   console.error('\nFix or unstage these files, then try again. This repository must hold code only, never your data.\n');
   process.exit(1);
 }
-console.log('Orbit privacy check passed (' + files.length + ' file' + (files.length === 1 ? '' : 's') + (T.length ? ', ' + T.length + ' private terms' : '') + ').');
+console.log('Regoal privacy check passed (' + files.length + ' file' + (files.length === 1 ? '' : 's') + (T.length ? ', ' + T.length + ' private terms' : '') + ').');

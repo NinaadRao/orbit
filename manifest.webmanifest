@@ -1,6 +1,6 @@
 {
-  "name": "Orbit",
-  "short_name": "Orbit",
+  "name": "Regoal",
+  "short_name": "Regoal",
   "description": "A private, on-device tracker for lifts, food, weight, measurements and progress photos.",
   "start_url": "./index.html",
   "scope": "./",

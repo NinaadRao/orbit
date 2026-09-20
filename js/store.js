@@ -146,7 +146,7 @@
     return text;
   }
   function safeParse(text) {
-    if (text.length > MAX_IMPORT_BYTES) throw new Error('That file is too large to be an Orbit backup.');
+    if (text.length > MAX_IMPORT_BYTES) throw new Error('That file is too large to be an Regoal backup.');
     return JSON.parse(text);
   }
   // Returns {kind:'backup'|'profile'|'encrypted', ...}. Never applies anything by itself.
@@ -156,13 +156,13 @@
       if (!passphrase) return { kind: 'encrypted' };
       obj = safeParse(await root.Crypt.decryptText(obj, passphrase));
     }
-    if (!obj || obj.orbit !== 1) throw new Error('This does not look like an Orbit file.');
+    if (!obj || obj.orbit !== 1) throw new Error('This does not look like an Regoal file.');
     if (E.hasBadKeys(obj, 0)) throw new Error('This file contains unsafe keys and was not opened.');
     if (obj.kind === 'profile') {
       if (!obj.answers || typeof obj.answers !== 'object') throw new Error('Profile file is missing its answers.');
       return { kind: 'profile', answers: obj.answers };
     }
-    if (obj.kind !== 'backup') throw new Error('Unknown Orbit file type.');
+    if (obj.kind !== 'backup') throw new Error('Unknown Regoal file type.');
     const bad = E.validateEvents(obj.events);
     if (bad) throw new Error(bad);
     return { kind: 'backup', payload: obj };

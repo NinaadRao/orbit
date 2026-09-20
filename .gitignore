@@ -1,5 +1,7 @@
 # Personal data never belongs in this repository.
 *.orbitbackup
+*.regoalbackup
+*.regoalprofile
 *.orbitprofile
 profile*.json
 *.orbitfoods.json
@@ -24,6 +26,7 @@ media/
 .env.*
 *.pem
 .orbit-private-terms
+.regoal-private-terms
 .DS_Store
 node_modules/
 dist/

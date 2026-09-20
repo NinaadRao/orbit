@@ -45,7 +45,7 @@
 
   Screens.progress = function () {
     const st = Store.getState(), plan = st.plan, set = Store.getSettings(), t = U.today();
-    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
+    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.planWeeks(plan));
     const cards = [];
 
     // Weight
@@ -88,9 +88,9 @@
     // Lifts
     const liftRows = Object.values(plan.lifts).map((l) => {
       const all = st.sets.filter((x) => x.lift === l.id && !x.warmup);
-      const tg = E.liftTarget(l, cur, { deloadWeeks: plan.deloadWeeks });
+      const tg = E.liftTarget(l, cur, E.targetOpts(plan));
       const best = all.reduce((m, x) => (l.bw ? Math.max(m, x.reps) : Math.max(m, x.kg || 0)), 0);
-      const startT = E.liftTarget(l, 1, { deloadWeeks: plan.deloadWeeks });
+      const startT = E.liftTarget(l, 1, E.targetOpts(plan));
       const fmt = (kg, reps) => (l.bw ? reps + ' reps' : U.fmtLift(kg, set.liftUnit));
       return h('a', { class: 'kv', href: '#/lifts/' + l.id }, h('span', null, l.name), h('b', null, best ? 'best ' + fmt(l.bw ? null : best, best) : 'no sets yet', h('span', { class: 'muted' }, '  (wk 1: ' + fmt(startT.kg, startT.reps) + ', now: ' + fmt(tg.kg, tg.reps) + ')')));
     });
@@ -99,8 +99,8 @@
     const ci = E.checkinStatus(st, set.checkinDay, U.today());
     cards.push(Screens.activityCard(st, set));
 
-    const weeksDone = E.PHOTO_WEEKS.filter((w) => E.anglesTaken(st, w) >= E.ANGLES.length).length;
-    const ciLine = ci.status === 'done' ? 'This week is done. Next: ' + U.longDate(E.checkinDate(plan.startDate, Math.min(E.WEEKS, ci.week + 1), set.checkinDay)) : ci.status === 'upcoming' ? 'Next check-in: ' + U.longDate(ci.date) : 'This week: ' + ci.taken + ' of ' + ci.of + ' angles';
+    const weeksDone = E.photoWeeks(plan).filter((w) => E.anglesTaken(st, w) >= E.ANGLES.length).length;
+    const ciLine = ci.status === 'done' ? 'This week is done. Next: ' + U.longDate(E.checkinDate(plan.startDate, Math.min(E.planWeeks(plan), ci.week + 1), set.checkinDay)) : ci.status === 'upcoming' ? 'Next check-in: ' + U.longDate(ci.date) : 'This week: ' + ci.taken + ' of ' + ci.of + ' angles';
     cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Progress photos'), h('div', { class: 'muted small' }, weeksDone + ' weekly check-in' + (weeksDone === 1 ? '' : 's') + ' complete · ' + ciLine)), UI.btn('Open', { href: '#/photos', block: false, kind: 'quiet' }))));
 
     cards.push(UI.card(h('div', { class: 'target-top' }, h('div', null, h('div', { class: 'ct' }, 'Workout photos and videos'), h('div', { class: 'muted small' }, (st.clips.length ? st.clips.length + ' saved' : 'None yet') + ' · kept where you took them, not copied')), UI.btn('Open', { href: '#/library', block: false, kind: 'quiet' }))));
@@ -108,7 +108,7 @@
     const hist = plan.history.slice(-5).reverse();
     if (hist.length) cards.push(UI.card(h('div', { class: 'ct' }, 'Plan changes'), ...hist.map((x) => h('div', { class: 'kv' }, h('span', null, U.shortDate(x.ts.slice(0, 10)) + ' · ' + x.src), h('b', null, String(x.reason || 'Changed').slice(0, 80))))));
 
-    return UI.page(UI.header('Progress', 'Week ' + cur + ' of ' + E.WEEKS), UI.scroller(...cards));
+    return UI.page(UI.header('Progress', 'Week ' + cur + ' of ' + E.planWeeks(plan)), UI.scroller(...cards));
   };
 
   // ---------- Photos ----------
@@ -149,13 +149,13 @@
   Screens.photos = function () {
     revokeUrls();
     const st = Store.getState(), plan = st.plan, set = Store.getSettings(), t = U.today();
-    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
+    const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.planWeeks(plan));
     if (selWeek == null || selWeek > cur) selWeek = cur;
     const chosen = selWeek;
     const ciName = (w) => U.shortDate(E.checkinDate(plan.startDate, w, set.checkinDay));
     // One check-in per week, named by its date. A list rather than a wall of pills: 26 weeks is a lot of buttons.
     const wkSel = h('select', { class: 'inp', 'aria-label': 'Check-in date', onchange: () => { selWeek = Number(wkSel.value); root.App.render(); } },
-      ...E.PHOTO_WEEKS.filter((w) => w <= cur).reverse().map((w) => h('option', { value: String(w), selected: w === chosen }, U.longDate(E.checkinDate(plan.startDate, w, set.checkinDay)) + (w === cur ? ' (this week)' : ''))));
+      ...E.photoWeeks(plan).filter((w) => w <= cur).reverse().map((w) => h('option', { value: String(w), selected: w === chosen }, U.longDate(E.checkinDate(plan.startDate, w, set.checkinDay)) + (w === cur ? ' (this week)' : ''))));
     const wkSeg = h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Check-in date'), h('span', { class: 'selbox' }, wkSel));
     const input = h('input', { type: 'file', accept: 'image/*', class: 'hidden', 'aria-label': 'Choose a photo' });
     let pendingAngle = null;

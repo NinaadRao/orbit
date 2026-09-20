@@ -1,6 +1,6 @@
 # Architecture
 
-A short tour of how Orbit is put together and why. It is written so you can explain each choice in a design discussion.
+A short tour of how Regoal is put together and why. It is written so you can explain each choice in a design discussion.
 
 ## Shape of the system
 
@@ -47,19 +47,24 @@ A short tour of how Orbit is put together and why. It is written so you can expl
 
 **Offline through a service worker.** Cache the app shell, serve stale-while-revalidate. It never caches or reads user data: that lives in IndexedDB. Because the newest files are only used on the next load, the app watches for a new worker taking over and shows an "update ready" bar with a Reload button, and asks the browser to check for updates whenever it returns to the foreground.
 
+**The app was called Orbit while it was built.** The rename touched everything a person sees. It left the names that data depends on alone, so nothing already stored or backed up stops working: the IndexedDB database is still called `orbit`, backup and profile files still carry `"orbit": 1` inside, `.orbitbackup` files still open (new ones are `.regoalbackup`, and the backup folder cleans up either kind), and `.orbitfoods.json` and `.orbit-private-terms` are still accepted. New names win where both exist.
+
 **Workouts, streaks and moved sessions are events and derived numbers.** A workout is one `workout_logged` event (date, activity, minutes, effort, estimated or typed calories, optional strength session name and note); a strength workout's sets are ordinary `set_logged` events carrying the workout's id in `wo`, so lift status and charts need no special case and deleting the workout voids its sets. A moved session is a `session_moved` event (`date`, `session` name or `rest`); `Engine.sessionFor` reads the plan's weekday unless a move says otherwise, and `Engine.moveSession` returns the events for a move or a swap. Whether a session is done is derived, not stored: a strength workout tagged with it, or working sets on one day covering at least half of its exercises, anywhere in that plan week. That makes "moved" and "trained on another day" the same thing and lets `weekPlan` say done, today, upcoming or not-yet without any bookkeeping. Active days, day and week streaks, the weekly log and the activity mix (`activitySummary`, `activityWeeks`, `activityMix`) are folds over the projection, so they survive restore and edits. `Engine.cleanWorkout` rebuilds every workout from a whitelist on load (activity names must be known, minutes and calories are clamped, strings length-limited). Calories are `(MET - 1) x kg x hours` from a table of MET triples per activity; the estimate is stored with the event so history does not shift when weight changes, and typing a number overrides it. `activityDigest` is the note-free summary the coach sees.
+
+**Goals are events, and progress is a fold over ordinary logs.** `goal_set` (a whole goal, replacing any earlier one with the same id) and `goal_entry` (a reading for a custom goal) go through the same whitelist-then-append path as everything else (`cleanGoal`, `cleanGoalEntry`), so editing a goal is just another event and undoing it is voiding that event. Endurance goals have no data of their own: `js/goals.js` folds the goal over the `workout_logged` events (which gained an optional `km`) to get the best session, best pace over the goal distance, or biggest week. `js/goals.js` is a pure module like `engine.js` and `diet.js`, with the path builders (`distancePath`, `volumePath`, `pacePath`), a feasibility check (`stepsNeeded`, `ambitious`, `suggestWeeks`), `progress` (ahead, on, behind, reached, ended, nodata, not started, closed), and `review` and `nextDraft` for the end of a cycle. Distances are kilometres and paces are seconds per kilometre in storage for every sport; only the screens convert. The strength plan is a goal without a `goal_set`: `strengthProgress` reads the plan and the sets. The plan's own length is `plan.weeks` (4 to 104), and `Engine.blockOfWeek` stretches the 26-week block layout to any length so every function that took `E.WEEKS` now takes the plan.
 
 **Lifts are open-ended.** The catalog (about 40) only seeds choices. A lift in the plan is a plain object with a five-value block table and a step, so a made-up lift (`c_<name>_<n>`) uses the same progression as any other. Everything that adds a lift to the plan (the form, a coach proposal, a restored file) goes through `Engine.cleanLift`, a whitelist that clamps every field and refuses a lift without a valid progression. `placeLifts` puts it on a chosen session, an exercise the plan already lists by name is upgraded in place rather than duplicated, and `removeLift` turns a tracked lift back into a plain exercise while its logged sets stay.
 
 **Weekly check-in is derived too.** Every plan week is a photo week, and the weekday it lands on is one setting (`checkinDay`, Friday by default). `Engine.checkinDate` finds that day inside each plan week and `Engine.checkinStatus` says whether this week is upcoming, due, overdue or done (all five angles saved) and lists earlier weeks left unfinished. Photos are shown by date only: the internal week index (1 to 26) never appears on a photo screen, in an export, or in a file name (`orbit-compare-front-2026-06-26-to-2026-09-18.png`), and empty check-ins use the date the day setting gives them. Nothing new is stored: the status is computed from the photo events, so it also survives a restore. The web cannot force anything, so "mandatory" means Today keeps a card up until the week is done and flags the ones you missed.
 
-**One backup file, replaced each time.** A backup always uses the same name (`orbit-backup.orbitbackup`). A browser cannot delete files it did not just create, so replacing the old copy depends on where you save: in Chrome or Edge on a computer you can pick a folder once (the folder handle is kept in the local meta store), and each backup then overwrites that file and removes older `orbit-*.orbitbackup` files there, after the new one is fully written and touching nothing else in the folder. The iPhone and iPad Files sheet offers Replace for a same-named file, and Safari on a Mac downloads a numbered copy.
+**One backup file, replaced each time.** A backup always uses the same name (`regoal-backup.regoalbackup`). A browser cannot delete files it did not just create, so replacing the old copy depends on where you save: in Chrome or Edge on a computer you can pick a folder once (the folder handle is kept in the local meta store), and each backup then overwrites that file and removes older `orbit-*.orbitbackup` files there, after the new one is fully written and touching nothing else in the folder. The iPhone and iPad Files sheet offers Replace for a same-named file, and Safari on a Mac downloads a numbered copy.
 
 ## Files
 
 ```
 index.html            page, security policy
 js/engine.js          pure plan, progression and validation logic (also runs in Node)
+js/goals.js           goal paths, status, cycle review (pure)
 js/store.js           IndexedDB event log, media, backup and restore
 js/crypto.js          passphrase encryption and passcode hashing
 js/llm.js             provider adapters (Anthropic, OpenAI-compatible, Gemini)
@@ -71,6 +76,7 @@ js/reel.js            stitches clips and photos into one MP4 on a canvas
 js/foodai.js          AI nutrition estimates (suggest only)
 js/diet.js            diet plan and "eat next": food table, meal ideas, preference filters and the portion fit (pure, also runs in Node)
 js/screens-diet.js    diet plan screen, preferences, the Fuel "what next" card, optional text-only AI tips
+js/screens-goals.js   Goals tab: switcher, goal detail, add and edit, plan length, next cycle
 js/mediaexport.js     comparison image and time-lapse video, drawn on a canvas on your device
 data/foods.json       the food database, USDA only (built by scripts/build-foods.mjs; sources in data/SOURCES.md)
 scripts/ifct-to-import.mjs  turns a copy of IFCT into a file for "Add my own food list"
@@ -89,10 +95,10 @@ docs/ARCHITECTURE.md  how it fits together and why
 | Provider outage | Readable error, retries with backoff, manual entry always available. |
 | Provider rejects the key (401, or Google's 400 "API key expired") | `LLM.isAuthFailure` marks the error; `LLM.chat` calls the app hook, which drops the key, marks the provider as rejected and opens the "key needs updating" sheet. Rate limits and outages are not mistaken for this. |
 | Remembered key cannot be decrypted (storage cleared, key lost) | Treated as no key; the person is asked again. |
-| A new version is deployed while the app is open | The service worker installs the new shell in the background; Orbit shows an "update ready" bar with a Reload button, and checks again whenever the app comes back to the foreground. |
+| A new version is deployed while the app is open | The service worker installs the new shell in the background; Regoal shows an "update ready" bar with a Reload button, and checks again whenever the app comes back to the foreground. |
 | Diet preferences cannot satisfy every filter | Softer filters (quick, dislikes) are dropped first; if no meal idea remains the slot says so instead of showing something that breaks a hard rule (diet style, foods to leave out). |
 | Model returns junk numbers | Clamped, cross-checked and shown for confirmation. |
-| Browser cannot record video, or the tab is hidden mid-recording | The video option says so and points to the image export; a hidden tab pauses drawing, so the sheet asks you to keep Orbit open. |
+| Browser cannot record video, or the tab is hidden mid-recording | The video option says so and points to the image export; a hidden tab pauses drawing, so the sheet asks you to keep Regoal open. |
 | A library original moved, renamed or never linked (iPhone) | The link fails quietly and the person is asked to pick the file again; a file whose length differs from the saved one is shown with a note. |
 | A photo or video the browser cannot decode (for example HEIC in some desktop browsers) | The item is still added with a placeholder; the reel skips unreadable items and says how many. |
 | Two tabs open | Events are appended atomically; reload to see the other tab's changes. A multi-tab lock is a possible improvement. |

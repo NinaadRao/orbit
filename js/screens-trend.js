@@ -88,7 +88,7 @@
     const st = Store.getState(), set = Store.getSettings();
     if (!T.angle) T.angle = trendAngle(st);
     const angle = T.angle;
-    const curWeek = E.clamp(E.weekOf(st.plan.startDate, U.today()), 1, E.WEEKS);
+    const curWeek = E.clamp(E.weekOf(st.plan.startDate, U.today()), 1, E.planWeeks(st.plan));
     const cis = E.checkIns(st, angle, curWeek), have = cis.filter((c) => c.photo), n = cis.length;
     setSlots(st, set, cis);
     const pills = anglePills((a) => { T.angle = a; T.week = null; T.reveal = false; root.App.render(); });

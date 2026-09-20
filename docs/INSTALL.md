@@ -1,6 +1,6 @@
-# Install and update Orbit
+# Install and update Regoal
 
-Orbit is a web app that stores everything in your browser. You can run it on your computer, or install it on an iPhone or Android phone so it opens like any other app and works offline.
+Regoal is a web app that stores everything in your browser. You can run it on your computer, or install it on an iPhone or Android phone so it opens like any other app and works offline.
 
 - [On your computer](#on-your-computer)
 - [Get an https address for your phone](#get-an-https-address-for-your-phone) (needed for iPhone and Android)
@@ -30,7 +30,7 @@ Tailscale links your computer and phone into a private network. With `tailscale 
 
 1. Install Tailscale on your computer and on your phone (App Store on iPhone, Google Play on Android) and sign in to the same account on both. The free personal plan is enough.
 2. In the Tailscale admin console, under DNS, turn on **MagicDNS** and **HTTPS Certificates**. You do this once.
-3. On your computer, start Orbit's server: `node scripts/serve.mjs`. Leave it running.
+3. On your computer, start Regoal's server: `node scripts/serve.mjs`. Leave it running.
 4. In a second Terminal window run `tailscale serve --bg 8080`. It prints an address like `https://your-computer.your-tailnet.ts.net`. Use `serve`, never `funnel`: Funnel makes the address public. (If the `tailscale` command is not found, the Mac App Store version keeps it inside the app; see Tailscale's docs.)
 5. On your phone, with Tailscale switched on, open that address in Safari (iPhone) or Chrome (Android), then follow the install steps below.
 
@@ -50,28 +50,28 @@ Any static host works, for example Cloudflare Pages or Netlify Drop. The folder 
 
 1. Open the https address in **Safari** (not another browser or an in-app viewer).
 2. Tap **Share**, then **Add to Home Screen**, then **Add**.
-3. Open Orbit from the Home Screen icon, not from Safari, and do your setup there.
+3. Open Regoal from the Home Screen icon, not from Safari, and do your setup there.
 
 Notes for iPhone:
 
 - The Home Screen app keeps its own copy of your data, separate from Safari. Do your first-run setup in the Home Screen app.
-- Safari can erase site data for sites you have not opened in about a week. Home Screen apps are treated more kindly, and Orbit asks the browser to keep its data, but the only real safety net is a backup file.
-- Safari cannot keep a link into your photo library, so Orbit asks you to pick a workout photo or video again when you want to watch or use the original. Nothing is copied. See [the user guide](USER_GUIDE.md#library-form-check-and-reel).
+- Safari can erase site data for sites you have not opened in about a week. Home Screen apps are treated more kindly, and Regoal asks the browser to keep its data, but the only real safety net is a backup file.
+- Safari cannot keep a link into your photo library, so Regoal asks you to pick a workout photo or video again when you want to watch or use the original. Nothing is copied. See [the user guide](USER_GUIDE.md#library-form-check-and-reel).
 - Save backups with **Save or share**, then **Save to Files**. Saving under the same name offers **Replace**.
 
 ## Install on Android
 
 1. Open the https address in **Chrome**.
 2. Tap the **⋮** menu, then **Install app** (some versions say **Add to Home screen**, then **Install**).
-3. Open Orbit from the new icon on your home screen or app drawer, and do your setup there.
+3. Open Regoal from the new icon on your home screen or app drawer, and do your setup there.
 
 Notes for Android:
 
 - Use a current version of Chrome. Other Chromium browsers (Edge, Brave, Samsung Internet) can install it too, with slightly different menu names.
-- Orbit only uses standard web features and picks whichever the browser offers, so it should behave the same as on a computer, but it has not been tested on a real Android phone yet. If something does not work, note the phone model and Chrome version when you report it.
-- **Backups.** Recent Chrome for Android can let you pick a backup folder once, after which each backup replaces the old file. Android does not allow apps to use a top-level folder such as Downloads itself, so make a folder (for example "Orbit backups") and choose that. If the folder option is missing or fails, Orbit falls back to the share sheet, where you choose Files or Drive, and to a normal download.
-- **Workout photos and videos.** Recent Chrome for Android can also link to the original file so it opens without asking again. If the link cannot be made, Orbit uses the normal file picker and you pick the original again. Either way nothing is copied.
-- **Time-lapse and reel** are recorded on the phone in real time and saved as MP4. Keep Orbit open on screen until they finish. A browser that cannot record MP4 hides the video option, and you can still save the comparison image.
+- Regoal only uses standard web features and picks whichever the browser offers, so it should behave the same as on a computer, but it has not been tested on a real Android phone yet. If something does not work, note the phone model and Chrome version when you report it.
+- **Backups.** Recent Chrome for Android can let you pick a backup folder once, after which each backup replaces the old file. Android does not allow apps to use a top-level folder such as Downloads itself, so make a folder (for example "Regoal backups") and choose that. If the folder option is missing or fails, Regoal falls back to the share sheet, where you choose Files or Drive, and to a normal download.
+- **Workout photos and videos.** Recent Chrome for Android can also link to the original file so it opens without asking again. If the link cannot be made, Regoal uses the normal file picker and you pick the original again. Either way nothing is copied.
+- **Time-lapse and reel** are recorded on the phone in real time and saved as MP4. Keep Regoal open on screen until they finish. A browser that cannot record MP4 hides the video option, and you can still save the comparison image.
 - Chrome on Android can clear site data when the phone is very short of storage or when you clear browsing data. Installing the app makes that less likely, but keep a backup.
 
 ## After you install
@@ -89,7 +89,7 @@ Two things worth knowing:
 
 With Option A, update the files in this folder (for example `git pull`); the server serves them as they are. With Option B, run `npm run site` again and upload the new `dist/` to the same project. Either way your data stays where it is, because it is stored under the same address.
 
-Orbit fetches the new version in the background. When it is ready, a bar at the bottom says **A new version is ready** with a **Reload** button: tap it. (Orbit also looks for updates each time you come back to it.) If you never see the bar, close Orbit fully (on iPhone, from the app switcher; on Android, swipe it away from recent apps) and open it twice.
+Regoal fetches the new version in the background. When it is ready, a bar at the bottom says **A new version is ready** with a **Reload** button: tap it. (Regoal also looks for updates each time you come back to it.) If you never see the bar, close Regoal fully (on iPhone, from the app switcher; on Android, swipe it away from recent apps) and open it twice.
 
 **Just want a quick look on the same Wi-Fi?** Run `node scripts/serve.mjs --lan` and open `http://<your-computer-ip>:8080` on the phone. Over plain http the app works, but encrypted backups and offline mode are switched off by the browser, so treat it as a preview only.
 
@@ -98,5 +98,5 @@ Orbit fetches the new version in the background. When it is ready, a bar at the 
 - *No "Add to Home Screen" on iPhone*: you are not in Safari, or the page is not https.
 - *No "Install app" on Android*: the page is not https, or you are not in Chrome. Reload once after the first visit.
 - *Old version keeps showing*: tap **Reload** on the update bar if it appears, or close the app fully and open it again, twice.
-- *Orbit keeps asking for my AI key*: the key is remembered on the device, but Safari can clear a website's storage after about a week without use unless it is installed to the Home Screen. Install it (see above). Also check that you did not turn off **Remember it on this device** when you pasted the key, and that Coach settings has **Device** selected.
+- *Regoal keeps asking for my AI key*: the key is remembered on the device, but Safari can clear a website's storage after about a week without use unless it is installed to the Home Screen. Install it (see above). Also check that you did not turn off **Remember it on this device** when you pasted the key, and that Coach settings has **Device** selected.
 - *Backup button says it needs a secure page*: the address is http, not https.

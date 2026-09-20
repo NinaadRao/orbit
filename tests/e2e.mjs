@@ -103,7 +103,7 @@ async function main() {
   await new Promise((res) => srv.listen(0, '127.0.0.1', res));
   const base = 'http://localhost:' + srv.address().port + '/index.html';
   const browser = await chromium.launch();
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'orbit-e2e-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'regoal-e2e-'));
 
   // ================= http://localhost =================
   console.log('\nApp on ' + base);
@@ -864,7 +864,7 @@ async function main() {
     const box = page.locator('.profbrand');
     await box.waitFor();
     const text = await box.innerText();
-    ok(/ORBIT/.test(text) && /Track the change\./.test(text) && /Not the vibes\./.test(text), 'wordmark and tagline are shown');
+    ok(/REGOAL/.test(text) && /Track the change\./.test(text) && /Not the vibes\./.test(text), 'wordmark and tagline are shown');
     eq(await box.locator('.app-icon svg').count(), 1, 'the logo is drawn');
   });
 
@@ -905,8 +905,8 @@ async function main() {
     await page.getByLabel('Repeat passphrase').fill('correct horse battery');
     await page.getByRole('button', { name: 'Prepare file' }).click();
     await page.getByText('Backup ready').waitFor();
-    ok(await page.getByText(/orbit-backup\.orbitbackup/).count() >= 1, 'fixed file name');
-    ok(await page.getByText(/orbit-\d{4}-\d{2}-\d{2}\.orbitbackup/).count() === 0, 'no dated name');
+    ok(await page.getByText(/regoal-backup\.regoalbackup/).count() >= 1, 'fixed file name');
+    ok(await page.getByText(/regoal-\d{4}-\d{2}-\d{2}\.regoalbackup/).count() === 0, 'no dated name');
     await page.getByRole('button', { name: 'Close' }).click();
   });
 
@@ -926,7 +926,7 @@ async function main() {
 
   await step('restore from an encrypted file through the UI replaces the data', async () => {
     const enc = await page.evaluate(() => Store.buildBackup({ media: false, passphrase: 'correct horse battery' }));
-    const file = path.join(tmp, 'test.orbitbackup'); fs.writeFileSync(file, enc);
+    const file = path.join(tmp, 'test.regoalbackup'); fs.writeFileSync(file, enc);
     await page.evaluate(async () => { await Store.append('weight_logged', { date: '2020-01-01', kg: 99 }); });
     const withExtra = await page.evaluate(() => Store.getEvents().length);
     await route(page, '#/settings');
@@ -1161,7 +1161,7 @@ async function main() {
     const dl = tpage.waitForEvent('download');
     await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
     const d = await dl;
-    eq(d.suggestedFilename(), 'orbit-compare-front-' + await isoAt(1) + '-to-' + await isoAt(9) + '.png');
+    eq(d.suggestedFilename(), 'regoal-compare-front-' + await isoAt(1) + '-to-' + await isoAt(9) + '.png');
     const p = await d.path(); const head = fs.readFileSync(p).subarray(0, 8);
     eq(Array.from(head), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     await sheet.getByRole('button', { name: 'Done' }).click();
@@ -1201,7 +1201,7 @@ async function main() {
     const dl = tpage.waitForEvent('download');
     await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
     const d = await dl;
-    ok(/^orbit-timelapse-front-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    ok(/^regoal-timelapse-front-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
     const mp4 = fs.readFileSync(await d.path());
     ok(mp4.length > 1000, 'not empty');
     eq(mp4.subarray(4, 8).toString('latin1'), 'ftyp', 'a real MP4 container, not WebM');
@@ -1470,7 +1470,7 @@ async function main() {
     const dl = lpage.waitForEvent('download');
     await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
     const d = await dl;
-    ok(/^orbit-reel-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    ok(/^regoal-reel-\d{4}-\d{2}-\d{2}\.mp4$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
     const mp4 = fs.readFileSync(await d.path());
     ok(mp4.length > 1000, 'not empty');
     eq(mp4.subarray(4, 8).toString('latin1'), 'ftyp', 'a real MP4 container, not WebM');
@@ -1729,6 +1729,152 @@ async function main() {
     eq(dproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
   });
   await dctx.close();
+
+  // ================= goals: several at once, edit, close, renew, plan length =================
+  console.log('\nGoals');
+  const gctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const gpage = await gctx.newPage(); gpage.setDefaultTimeout(8000);
+  const gproblems = await collect(gpage);
+  await gpage.goto(base);
+  const goalIds = () => gpage.evaluate(() => Store.getState().goalOrder.slice());
+  const gsheet = gpage.locator('#sheets');
+  await step('Goals tab: the strength plan is a goal, and the switcher lists what there is', async () => {
+    await onboard(gpage, { goal: 'Build' });
+    await gpage.locator('nav a', { hasText: 'Goals' }).first().click();
+    await gpage.waitForSelector('text=Set it, track it, review it, go again.');
+    ok(await gpage.locator('nav a', { hasText: 'Lifts' }).count() === 0, 'no separate Lifts tab any more');
+    ok(/Strength and muscle/.test(await gpage.locator('#screen').innerText()), 'the plan shows as a goal');
+    eq(await gpage.getByLabel('Goal', { exact: true }).locator('option').allTextContents(), ['All goals', 'Strength and muscle']);
+    await gpage.getByLabel('Goal', { exact: true }).selectOption('plan');
+    await gpage.waitForSelector('.liftcard');
+    ok(/26/.test(await gpage.locator('#screen').innerText()), 'the plan length is shown');
+  });
+
+  await step('add a half marathon: a path is previewed, it saves, and a run with a distance counts', async () => {
+    await route(gpage, '#/goals');
+    await gpage.getByRole('button', { name: 'Add a goal' }).first().click();
+    await gsheet.getByRole('button', { name: 'Half marathon', exact: true }).click();
+    await gsheet.getByRole('button', { name: '3 months', exact: true }).click();
+    ok(/Longest session starts near/.test(await gsheet.innerText()), 'a week-by-week path is previewed: ' + (await gsheet.innerText()).slice(0, 200));
+    await gsheet.getByRole('button', { name: 'Set goal' }).click();
+    await gpage.waitForFunction(() => Store.getState().goalOrder.length === 1);
+    const g = await gpage.evaluate(() => { const s = Store.getState(); return s.goals[s.goalOrder[0]]; });
+    eq([g.kind, g.sport, g.aim, g.weeks, g.status], ['endurance', 'running', 'distance', 13, 'active']);
+    ok(Math.abs(g.target - 21.098) < 0.01, 'half marathon is 21.098 km, got ' + g.target);
+    await gpage.waitForSelector('text=This week');
+    await gpage.getByRole('button', { name: /^Log run/i }).first().click();
+    await gsheet.getByLabel('How long').fill('35');
+    await gsheet.getByLabel('Distance (optional)').fill('6');
+    await gsheet.getByRole('button', { name: 'Save', exact: true }).click();
+    await gpage.waitForFunction(() => Store.getState().workouts.length === 1 && Store.getState().workouts[0].km === 6);
+    const p = await gpage.evaluate(() => { const s = Store.getState(); return Goals.progress(s, s.goals[s.goalOrder[0]], U.today()); });
+    ok(Math.abs(p.actual - 6) < 0.01, 'the 6 km run is the longest session: ' + p.actual);
+    ok(p.pct > 0, 'progress moved');
+  });
+
+  await step('a second goal: something else, with a reading, and the switcher shows both', async () => {
+    await route(gpage, '#/goals');
+    await gpage.getByRole('button', { name: 'Add a goal' }).first().click();
+    await gsheet.getByRole('radio', { name: 'Something else' }).click();
+    await gsheet.getByLabel('Name').fill('Pull-ups');
+    await gsheet.getByLabel('Unit').fill('reps');
+    await gsheet.getByLabel('Where you are today').fill('5');
+    await gsheet.getByLabel('Target', { exact: true }).fill('12');
+    await gsheet.getByRole('button', { name: '6 months', exact: true }).click();
+    await gsheet.getByLabel('Note (optional)').fill('SECRET-GOAL-NOTE');
+    await gsheet.getByRole('button', { name: 'Set goal' }).click();
+    await gpage.waitForFunction(() => Store.getState().goalOrder.length === 2);
+    await gpage.getByRole('button', { name: 'Log a reading' }).click();
+    await gsheet.getByRole('spinbutton', { name: 'Reading' }).fill('7');
+    await gsheet.getByRole('button', { name: 'Save', exact: true }).click();
+    await gpage.waitForFunction(() => Store.getState().goalEntries.length === 1);
+    const opts = await gpage.getByLabel('Goal', { exact: true }).locator('option').allTextContents();
+    eq(opts.length, 4, 'All goals, Strength, and two goals: ' + opts);
+    ok(opts.includes('Pull-ups'), 'the new goal is in the switcher');
+    await gpage.getByLabel('Goal', { exact: true }).selectOption('');
+    await gpage.waitForTimeout(200);
+    const txt = await gpage.locator('#screen').innerText();
+    ok(/Pull-ups/.test(txt) && /Half marathon/.test(txt) && /Strength and muscle/.test(txt), 'the overview shows every goal: ' + txt.slice(0, 300));
+  });
+
+  await step('goals change: edit the length and target, and the same goal is updated, not duplicated', async () => {
+    const [runId] = await goalIds();
+    await route(gpage, '#/goals/' + runId);
+    await gpage.getByRole('button', { name: 'Edit goal' }).click();
+    await gsheet.getByRole('button', { name: '6 months', exact: true }).click();
+    await gsheet.getByRole('button', { name: 'Save', exact: true }).click();
+    await gpage.waitForFunction((id) => Store.getState().goals[id].weeks === 26, runId);
+    eq((await goalIds()).length, 2, 'still two goals');
+    const g = await gpage.evaluate((id) => Store.getState().goals[id], runId);
+    ok(Math.abs(g.target - 21.098) < 0.01 && g.start, 'target and start kept');
+  });
+
+  await step('the plan length can be changed, and the whole app follows', async () => {
+    await route(gpage, '#/settings/plan');
+    await gpage.getByRole('button', { name: 'Change length' }).click();
+    await gsheet.getByRole('button', { name: '3 months', exact: true }).click();
+    await gsheet.getByRole('button', { name: 'Save', exact: true }).click();
+    await gpage.waitForFunction(() => Store.getState().plan.weeks === 13);
+    await route(gpage, '#/today');
+    await gpage.waitForSelector('text=Week 1 of 13');
+    await route(gpage, '#/goals/plan');
+    ok(/13/.test(await gpage.locator('#screen').innerText()), 'Goals shows 13 weeks');
+    await gpage.locator('.liftcard').first().click();
+    await gpage.waitForSelector('text=All 13 weeks');
+    eq(await gpage.locator('.kv', { hasText: /^Wk \d+/ }).count(), 13);
+  });
+
+  await step('closing a goal keeps it in Past goals, and it can be reopened or deleted (workouts stay)', async () => {
+    const [runId, custId] = await goalIds();
+    await route(gpage, '#/goals/' + custId);
+    await gpage.getByRole('button', { name: 'Close goal' }).click();
+    await gpage.waitForFunction((id) => Store.getState().goals[id].status === 'closed', custId);
+    await route(gpage, '#/goals');
+    ok(/Past goals/.test(await gpage.locator('#screen').innerText()), 'past goals section');
+    await route(gpage, '#/goals/' + custId);
+    await gpage.getByRole('button', { name: 'Reopen' }).click();
+    await gpage.waitForFunction((id) => Store.getState().goals[id].status === 'active', custId);
+    await gpage.getByRole('button', { name: 'Edit goal' }).click();
+    await gsheet.getByRole('button', { name: 'Delete' }).click();
+    await gpage.locator('#sheets').getByRole('button', { name: 'Delete' }).last().click();
+    await gpage.waitForFunction(() => Store.getState().goalOrder.length === 1);
+    eq(await gpage.evaluate(() => Store.getState().goalEntries.length), 0, 'its readings went with it');
+    eq(await gpage.evaluate(() => Store.getState().workouts.length), 1, 'the run is still logged');
+    eq(await goalIds(), [runId]);
+  });
+
+  await step('a finished cycle is reviewed and the next one starts from it', async () => {
+    const [runId] = await goalIds();
+    // move the goal into the past by editing its start, then open it
+    await gpage.evaluate(async (id) => { const s = Store.getState(), g = Object.assign({}, s.goals[id], { start: '2020-01-06', weeks: 4 }); const c = Engine.cleanGoal(g); if (!c.ok) throw new Error(c.errors[0]); await Store.append('goal_set', { goal: c.value }, 'user'); }, runId);
+    await route(gpage, '#/goals/' + runId);
+    await gpage.waitForSelector('text=Start the next cycle');
+    await gpage.getByRole('button', { name: 'Start the next cycle' }).click();
+    ok(/Next cycle/.test(await gsheet.innerText()), 'the next-cycle sheet opens');
+    await gsheet.getByRole('button', { name: 'Set goal' }).click();
+    await gpage.waitForFunction(() => Store.getState().goalOrder.length === 2);
+    const n = await gpage.evaluate((id) => { const s = Store.getState(); const g = s.goals[s.goalOrder.find((x) => x !== id)]; return { prev: g.prev, weeks: g.weeks, start: g.start }; }, runId);
+    eq(n.prev, runId, 'the new goal remembers the one it follows');
+  });
+
+  await step('the coach sees a short goals summary, never a goal note', async () => {
+    const body = await gpage.evaluate(() => JSON.stringify(Coach.buildContext(Store.getState(), Store.getSettings())));
+    ok(/"goals"/.test(body), 'goals are in the context');
+    ok(/Strength and muscle/.test(body), 'the plan goal is summarised');
+    ok(!/SECRET-GOAL-NOTE/.test(body), 'notes stay on the device');
+  });
+
+  await step('goal screens show no stray null, undefined or NaN and log nothing to the console', async () => {
+    const bad = /\b(null|undefined|NaN)\b/;
+    const ids = await goalIds();
+    for (const h of ['#/goals', '#/goals/plan'].concat(ids.map((i) => '#/goals/' + i))) {
+      await route(gpage, h);
+      const t = await gpage.locator('#screen').innerText();
+      ok(!bad.test(t), h + ' shows: ' + (t.match(bad) || [])[0]);
+    }
+    eq(gproblems.filter((p) => !/Failed to load resource/.test(p)), [], 'console problems');
+  });
+  await gctx.close();
 
   // ================= file:// =================
   console.log('\nOnboarding with more lifts');

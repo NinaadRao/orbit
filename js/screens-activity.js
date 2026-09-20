@@ -4,7 +4,7 @@
  */
 (function (root) {
   'use strict';
-  const E = root.Engine, U = root.U, UI = root.UI, Store = root.Store;
+  const E = root.Engine, G = root.Goals, U = root.U, UI = root.UI, Store = root.Store;
   const { h } = U;
   const Screens = root.Screens = root.Screens || {};
   const { cap, numOrNull } = Screens._;
@@ -46,7 +46,7 @@
       h('div', { class: 'stats' }, statBox(sum.weekStreak, sum.weekStreak === 1 ? 'week streak' : 'week streak', 'goal ' + sum.goal + ' days'), statBox(sum.dayStreak, sum.dayStreak === 1 ? 'day streak' : 'day streak', 'best ' + sum.bestDayStreak), statBox(sum.thisWeek.days + '/' + sum.goal, 'active days', 'this week')),
       dayStrip(sum),
       h('div', { class: 'muted small' }, streakLine(sum) + (sum.thisWeek.kcal ? ' This week: ' + kc(sum.thisWeek.kcal) + ' active.' : '')),
-      ...todays.map((w) => h('div', { class: 'kv' }, h('span', null, E.workoutName(w) + ' · ' + dur(w.mins)), h('b', null, kc(w.kcal)))),
+      ...todays.map((w) => h('div', { class: 'kv' }, h('span', null, E.workoutName(w) + ' · ' + dur(w.mins) + (w.km ? ' · ' + G.fmtDist(w.km, G.distUnitFor(set), w.type) : '')), h('b', null, kc(w.kcal)))),
       UI.row(UI.btn('Log a workout', { block: true, onClick: () => workoutSheet() })));
   };
 
@@ -68,6 +68,10 @@
     const labelF = UI.field({ label: 'What was it?', value: ex ? ex.label : '', maxlength: 40, placeholder: 'e.g. Kabaddi' });
     const minsF = UI.field({ label: 'How long', unit: 'min', type: 'number', inputmode: 'numeric', value: ex ? ex.mins : o.mins || '', flex: 1 });
     const kcalF = UI.field({ label: 'Calories burnt', unit: 'kcal', type: 'number', inputmode: 'numeric', value: ex && ex.manual ? ex.kcal : '', flex: 1 });
+    // Distance, for sports Goals can measure. Kept in km; typed in the person's unit (metres or yards for swimming).
+    const du = G.distUnitFor(set), isSport = (tp) => Object.prototype.hasOwnProperty.call(G.SPORTS, tp), distU = () => G.distInput(type, du);
+    const kmF = UI.field({ label: 'Distance (optional)', unit: distU(), type: 'number', value: ex && ex.km ? String(Math.round(G.fromKm(ex.km, G.distInput(ex.type, du)) * 100) / 100) : o.km ? String(o.km) : '', hint: 'Counts towards your running, cycling or swimming goals.' });
+    const paceLine = h('div', { class: 'muted small' });
     const noteF = UI.field({ label: 'Note (optional)', value: ex ? ex.note : '', maxlength: 200, hint: 'Stays on this device. The coach never sees it.' });
     const estLine = h('div', { class: 'muted small' });
     const effortHint = h('div', { class: 'muted small' }, EFFORT_HINT[effort]);
@@ -79,7 +83,7 @@
     sessSel.value = plan.workouts.some((w) => w.name === guess) ? guess : '';
     const rowsBox = h('div', { class: 'exbuild' });
     let rows = [];
-    const weekAt = () => E.clamp(E.weekOf(plan.startDate, dateF.input.value || t), 1, E.WEEKS);
+    const weekAt = () => E.clamp(E.weekOf(plan.startDate, dateF.input.value || t), 1, E.planWeeks(plan));
     const numInp = (label, ph, mode) => h('input', { class: 'inp sm', type: 'number', inputmode: mode || 'numeric', placeholder: ph == null ? '' : String(ph), 'aria-label': label });
     function addRow(spec) {
       if (rows.some((r) => r.id === spec.id)) return;
@@ -94,7 +98,7 @@
     }
     const specFor = (exx) => {
       const lift = exx.lift ? plan.lifts[exx.lift] : null;
-      if (lift) return { id: lift.id, label: exx.n, tracked: true, bw: !!lift.bw, target: E.liftTarget(lift, weekAt(), { deloadWeeks: plan.deloadWeeks }) };
+      if (lift) return { id: lift.id, label: exx.n, tracked: true, bw: !!lift.bw, target: E.liftTarget(lift, weekAt(), E.targetOpts(plan)) };
       const lo = parseInt(exx.range, 10);
       return { id: 'acc_' + E.slug(exx.n), label: exx.n, tracked: false, bw: false, target: { sets: exx.sets, reps: lo > 0 ? lo : '', kg: null } };
     };
@@ -111,7 +115,7 @@
     } }, 'Fill with the plan');
     // Add an exercise that is not in the list
     const known = [];
-    for (const l of Object.values(plan.lifts)) known.push({ key: l.id, label: l.name, spec: () => ({ id: l.id, label: l.name, tracked: true, bw: !!l.bw, target: E.liftTarget(l, weekAt(), { deloadWeeks: plan.deloadWeeks }), extra: true }) });
+    for (const l of Object.values(plan.lifts)) known.push({ key: l.id, label: l.name, spec: () => ({ id: l.id, label: l.name, tracked: true, bw: !!l.bw, target: E.liftTarget(l, weekAt(), E.targetOpts(plan)), extra: true }) });
     for (const w of plan.workouts) for (const exx of w.ex) if (!exx.lift && !known.some((k) => k.label === exx.n)) known.push({ key: 'acc_' + E.slug(exx.n), label: exx.n, spec: () => Object.assign(specFor(exx), { extra: true }) });
     const addSel = h('select', { class: 'inp', 'aria-label': 'Add an exercise' }, h('option', { value: '' }, 'Add an exercise'), ...known.map((k) => h('option', { value: k.key }, k.label)), h('option', { value: '__own' }, 'Something else…'));
     const ownF = UI.field({ label: 'Exercise name', maxlength: 30 });
@@ -134,18 +138,22 @@
           h('div', { class: 'muted small' }, 'Leave an exercise empty to skip it. ' + (already ? plural(already, 'set') + ' from Today are already logged for this day, so only add what is missing.' : 'Sets you log here count towards your lift targets.'))));
     if (!linked.length) buildRows();
 
-    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Activity'), typeSel), labelF, dateF, strengthBox, UI.row(minsF, kcalF), effortSeg, effortHint, estLine, noteF);
+    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Activity'), typeSel), labelF, dateF, strengthBox, UI.row(minsF, kcalF), kmF, paceLine, effortSeg, effortHint, estLine, noteF);
     function refresh() {
       type = typeSel.value;
       labelF.classList.toggle('hidden', type !== 'other');
       strengthBox.classList.toggle('hidden', type !== 'strength');
+      kmF.classList.toggle('hidden', !isSport(type));
+      kmF.querySelector('.unit').textContent = distU();
+      const kmv = numOrNull(kmF.input.value), mn = numOrNull(minsF.input.value);
+      paceLine.textContent = isSport(type) && kmv > 0 && mn > 0 ? 'Pace ' + G.fmtPace(mn * 60 / G.toKm(kmv, distU()), type, du) : '';
       const mins = numOrNull(minsF.input.value), date = dateF.input.value || t;
       const est = mins > 0 ? E.estimateKcal(type, effort, mins, E.bodyKg(st, date)) : 0;
       kcalF.input.placeholder = est ? String(est) : '';
       estLine.textContent = est ? 'Estimated ' + kc(est) + ' above resting (' + E.ACTIVITIES[type].name.toLowerCase() + ', ' + effort + ', ' + Math.round(mins) + ' min). Type your watch\'s number to use that instead. Your calorie target already allows for training, so there is no need to eat these back.'
         : 'Add how long it lasted to see the estimate.';
     }
-    typeSel.addEventListener('change', refresh); minsF.input.addEventListener('input', refresh); refresh();
+    typeSel.addEventListener('change', refresh); minsF.input.addEventListener('input', refresh); kmF.input.addEventListener('input', refresh); refresh();
 
     const actions = [{ label: 'Cancel' }];
     if (ex) actions.push({ label: linked.length ? 'Delete with sets' : 'Delete', kind: 'danger', run: async () => { for (const x of linked) await Store.voidEvent(x.seq); await Store.voidEvent(ex.seq); U.toast('Deleted.'); root.App.render(); } });
@@ -160,6 +168,11 @@
       const kcal = manual ? Math.round(kv) : E.estimateKcal(type, effort, mins, E.bodyKg(st, date));
       const id = ex && ex.id ? ex.id : newId();
       const raw = { id, date, type, mins, effort, kcal, manual, note: noteF.input.value };
+      if (isSport(type)) {
+        const kv2 = numOrNull(kmF.input.value);
+        if (kv2 != null && !(kv2 >= 0 && G.toKm(kv2, distU()) <= 1000)) { U.toast('Distance looks wrong. Check the unit (' + distU() + ').', 'warn'); return false; }
+        if (kv2 != null && kv2 > 0) raw.km = G.toKm(kv2, distU());
+      }
       if (type === 'other') raw.label = labelF.input.value;
       if (type === 'strength') raw.session = sessSel.value;
       const chk = E.cleanWorkout(raw);
@@ -302,7 +315,7 @@
     items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.seq - a.seq));
     const hist = items.slice(0, 40).map((it) => it.w
       ? h('button', { type: 'button', class: 'listrow', 'aria-label': 'Edit ' + E.workoutName(it.w), onclick: () => workoutSheet({ existing: it.w }) },
-        h('div', { class: 'grow' }, h('b', null, E.workoutName(it.w) + (it.w.session ? ' · ' + it.w.session : '')), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · ' + dur(it.w.mins) + ' · ' + cap(it.w.effort) + ' · ' + kc(it.w.kcal) + (it.w.manual ? ' (yours)' : ''))), U.icon('chev', 16))
+        h('div', { class: 'grow' }, h('b', null, E.workoutName(it.w) + (it.w.session ? ' · ' + it.w.session : '')), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · ' + dur(it.w.mins) + (it.w.km ? ' · ' + G.fmtDist(it.w.km, G.distUnitFor(Store.getSettings()), it.w.type) : '') + ' · ' + cap(it.w.effort) + ' · ' + kc(it.w.kcal) + (it.w.manual ? ' (yours)' : ''))), U.icon('chev', 16))
       : h('button', { type: 'button', class: 'listrow', 'aria-label': 'Add the time for the strength session on ' + dayLabel(it.date), onclick: () => workoutSheet({ type: 'strength', date: it.date }) },
         h('div', { class: 'grow' }, h('b', null, 'Strength · ' + plural(it.only.n, 'set') + ' logged'), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · tap to add the time and count the calories')), U.icon('chev', 16)));
     cards.push(UI.card(h('div', { class: 'ct' }, 'History'), h('div', { class: 'list' }, ...(hist.length ? hist : [UI.empty('No workouts yet. Anything that gets you moving counts: swimming, football, tennis, badminton, pickleball, hot yoga, strength and more.')]))));

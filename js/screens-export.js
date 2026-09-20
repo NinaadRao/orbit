@@ -1,6 +1,6 @@
 /*
  * The two "download" sheets: a time-lapse video of your check-ins and a comparison image.
- * Files are built on this device (js/mediaexport.js), shown back to you, and only leave Orbit when you tap
+ * Files are built on this device (js/mediaexport.js), shown back to you, and only leave Regoal when you tap
  * Save or share. The privacy note in each sheet is deliberate: the saved file is unblurred and not encrypted.
  */
 (function (root) {
@@ -13,7 +13,7 @@
 
   function privacyNote() {
     return h('div', { class: 'warnbox privacy', role: 'note' }, U.icon('shield', 20),
-      h('div', null, h('b', null, 'The saved file shows your photos unblurred'), ' and is not encrypted. It leaves Orbit only when you pick where it goes. Camera and location data are already removed.'));
+      h('div', null, h('b', null, 'The saved file shows your photos unblurred'), ' and is not encrypted. It leaves Regoal only when you pick where it goes. Camera and location data are already removed.'));
   }
   const closeLink = (close) => h('button', { type: 'button', class: 'linkbtn', onclick: () => close() }, 'Cancel');
 
@@ -74,7 +74,7 @@
         UI.toggleRow('Date', 'Shown on each frame', opt.labels, (v) => { opt.labels = v; refresh(); }),
         UI.toggleRow('Weight and waist', 'Shown on each frame', opt.numbers, (v) => { opt.numbers = v; refresh(); }),
         privacyNote(),
-        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Orbit in Safari or Chrome, or save a comparison image instead.'),
+        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Regoal in Safari or Chrome, or save a comparison image instead.'),
         UI.btn('Create video', { icon: 'download', disabled: !supported, onClick: create }),
         size, closeLink(closeSheet));
       say(); refresh();
@@ -86,11 +86,11 @@
       const fill = h('div', { class: 'bar-fill' }), bar = h('div', { class: 'bar tall', role: 'progressbar', 'aria-label': 'Progress' }, fill);
       const status = h('div', { class: 'muted small centered', role: 'status' }, 'Preparing…');
       U.clear(box);
-      U.put(box, h('div', { class: 'ct' }, 'Creating your video'), bar, status, h('div', { class: 'muted small centered' }, 'Keep Orbit open on this screen until it finishes. It records in real time.'), UI.btn('Cancel', { kind: 'quiet', onClick: () => my.abort() }));
+      U.put(box, h('div', { class: 'ct' }, 'Creating your video'), bar, status, h('div', { class: 'muted small centered' }, 'Keep Regoal open on this screen until it finishes. It records in real time.'), UI.btn('Cancel', { kind: 'quiet', onClick: () => my.abort() }));
       try {
         const out = await MediaOut.renderTimelapse({ frames, shape: opt.shape, secondsPer: opt.secondsPer, labels: opt.labels, numbers: opt.numbers, signal: my.signal, onProgress: (p, t) => { fill.style.width = Math.round(p * 100) + '%'; status.textContent = t; } });
         if (my.signal.aborted) return;
-        resultView(box, { kind: 'video', blob: out.blob, ext: out.ext, name: 'orbit-timelapse-' + slug(o.angle) + '-' + U.today() + '.' + out.ext, track: (u) => urls.push(u), close: closeSheet, again: options });
+        resultView(box, { kind: 'video', blob: out.blob, ext: out.ext, name: 'regoal-timelapse-' + slug(o.angle) + '-' + U.today() + '.' + out.ext, track: (u) => urls.push(u), close: closeSheet, again: options });
       } catch (e) {
         if (my.signal.aborted) { options(); return; }
         options(); U.toast(String(e && e.message ? e.message : e), 'warn');
@@ -145,7 +145,7 @@
       try {
         const blob = await build(0);
         const ext = opt.format === 'png' ? 'png' : 'jpg';
-        resultView(box, { kind: 'image', blob, ext, name: 'orbit-compare-' + slug(o.angle) + '-' + o.a.date + '-to-' + o.b.date + '.' + ext, track: (u) => urls.push(u), close: closeSheet, again: options });
+        resultView(box, { kind: 'image', blob, ext, name: 'regoal-compare-' + slug(o.angle) + '-' + o.a.date + '-to-' + o.b.date + '.' + ext, track: (u) => urls.push(u), close: closeSheet, again: options });
       } catch (e) { options(); U.toast(String(e && e.message ? e.message : e), 'warn'); }
     }
     options();

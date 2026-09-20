@@ -1,7 +1,7 @@
 /*
  * The reel: your workout clips and photos, and optionally your weekly check-in photos, stitched into one MP4.
  * It is drawn on a canvas and recorded on this device in real time. Nothing is uploaded, the video has no sound,
- * and Orbit does not keep it: it exists only until you save or share it, or close the sheet.
+ * and Regoal does not keep it: it exists only until you save or share it, or close the sheet.
  * The originals are opened one at a time (two while the next one is prepared) and let go as soon as their part is done,
  * so a long reel does not hold many videos in memory at once.
  */
@@ -72,7 +72,7 @@
   // o: { items, shape, photoSec, clipSec, labels, title, subtitle, signal, onProgress(0..1, text) }
   async function render(o) {
     const mime = M.pickVideoMime();
-    if (!mime) throw new Error('This browser cannot save video as MP4. Open Orbit in Safari or Chrome.');
+    if (!mime) throw new Error('This browser cannot save video as MP4. Open Regoal in Safari or Chrome.');
     const segs = segments(o.items, o);
     if (!o.items.length) throw new Error('Pick something for the reel first.');
     const total = segs.reduce((t, s) => t + s.ms, 0);

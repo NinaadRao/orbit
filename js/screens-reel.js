@@ -1,7 +1,7 @@
 /*
- * "Make a reel": choose library items (and optionally your weekly check-in photos), tell Orbit where the originals are,
- * and it stitches them into one MP4 on this device (js/reel.js). Nothing is uploaded and the video is not kept in Orbit.
- * Orbit does not hold the originals, so on iPhone you pick them again in one go and Orbit matches them by name and size.
+ * "Make a reel": choose library items (and optionally your weekly check-in photos), tell Regoal where the originals are,
+ * and it stitches them into one MP4 on this device (js/reel.js). Nothing is uploaded and the video is not kept in Regoal.
+ * Regoal does not hold the originals, so on iPhone you pick them again in one go and Regoal matches them by name and size.
  */
 (function (root) {
   'use strict';
@@ -78,10 +78,10 @@
       title.input.addEventListener('input', () => { opt.title = title.input.value.trim(); refresh(); });
       nTitle.appendChild(title);
       U.put(box,
-        h('div', { class: 'muted small' }, 'Pick the clips and photos that go in, in date order. Orbit does not hold the originals, so the next step asks where they are.'),
+        h('div', { class: 'muted small' }, 'Pick the clips and photos that go in, in date order. Regoal does not hold the originals, so the next step asks where they are.'),
         clips.length ? h('div', { class: 'linkrow' }, h('button', { type: 'button', class: 'linkbtn', onclick: () => { clips.slice(-Reel.MAX_ITEMS).forEach((c) => sel.add(c.id)); refresh(); } }, 'Select all'), h('button', { type: 'button', class: 'linkbtn', onclick: () => { sel.clear(); refresh(); } }, 'Clear')) : null,
         clips.length ? grid : h('div', { class: 'muted small' }, 'Your library is empty, so this reel will be your weekly check-in photos.'),
-        angles.length ? UI.toggleRow('Weekly check-in photos', 'Your ' + (opt.angle || '').toLowerCase() + ' photos, in date order. They are already in Orbit.', opt.progress, (v) => { opt.progress = v; angleSeg.classList.toggle('hidden', !v || angles.length < 2); refresh(); }) : null,
+        angles.length ? UI.toggleRow('Weekly check-in photos', 'Your ' + (opt.angle || '').toLowerCase() + ' photos, in date order. They are already in Regoal.', opt.progress, (v) => { opt.progress = v; angleSeg.classList.toggle('hidden', !v || angles.length < 2); refresh(); }) : null,
         angleSeg,
         UI.seg({ label: 'Shape', options: [{ value: 'story', label: 'Story 9:16' }, { value: 'square', label: 'Square' }, { value: 'wide', label: 'Wide 16:9' }], value: opt.shape, onChange: (v) => { opt.shape = v; } }),
         UI.seg({ label: 'Time per photo', options: [{ value: 1, label: '1 s' }, { value: 1.5, label: '1.5 s' }, { value: 2.5, label: '2.5 s' }], value: opt.photoSec, onChange: (v) => { opt.photoSec = v; refresh(); } }),
@@ -91,7 +91,7 @@
         nTitle,
         Screens._.privacyNote(),
         h('div', { class: 'muted small' }, 'Longer clips are trimmed to their middle part. The reel has no sound.'),
-        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Orbit in Safari or Chrome.'),
+        supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Regoal in Safari or Chrome.'),
         warn, go, sum, Screens._.closeLink(closeSheet));
       refresh();
     }
@@ -124,7 +124,7 @@
       U.put(box,
         h('div', { class: 'ct' }, missing.length ? 'Where are the originals?' : 'Ready'),
         h('div', { class: 'muted small' }, missing.length
-          ? (Library.canLink() ? 'Orbit could not open ' + missing.length + ' of them without you.' : 'Orbit does not keep your originals. Choose the same ' + (missing.length === 1 ? 'file' : 'files') + ' again, all at once, and Orbit matches them by name and size. They are used in memory and let go.')
+          ? (Library.canLink() ? 'Regoal could not open ' + missing.length + ' of them without you.' : 'Regoal does not keep your originals. Choose the same ' + (missing.length === 1 ? 'file' : 'files') + ' again, all at once, and Regoal matches them by name and size. They are used in memory and let go.')
           : 'All the originals were found. Nothing has been copied.'),
         list,
         missing.length ? UI.btn('Choose ' + (missing.length === 1 ? 'the file' : 'the files'), { icon: 'plus', onClick: choosePick }) : UI.btn('Create the reel', { icon: 'film', onClick: create }),
@@ -139,7 +139,7 @@
       const fill = h('div', { class: 'bar-fill' }), bar = h('div', { class: 'bar tall', role: 'progressbar', 'aria-label': 'Progress' }, fill);
       const status = h('div', { class: 'muted small centered', role: 'status' }, 'Preparing...');
       U.clear(box);
-      U.put(box, h('div', { class: 'ct' }, 'Creating your reel'), bar, status, h('div', { class: 'muted small centered' }, 'Keep Orbit open on this screen until it finishes. It records in real time.'), UI.btn('Cancel', { kind: 'quiet', onClick: () => my.abort() }));
+      U.put(box, h('div', { class: 'ct' }, 'Creating your reel'), bar, status, h('div', { class: 'muted small centered' }, 'Keep Regoal open on this screen until it finishes. It records in real time.'), UI.btn('Cancel', { kind: 'quiet', onClick: () => my.abort() }));
       try {
         const blobs = new Map();
         for (const p of progressPhotos()) { const m = await Store.getMedia(p.id); if (m) blobs.set(p.id, m.blob); }
@@ -149,7 +149,7 @@
         const out = await Reel.render({ items, shape: opt.shape, photoSec: opt.photoSec, clipSec: opt.clipSec, labels: opt.labels, title: opt.titleOn ? opt.title : '', subtitle: first === last ? U.longDate(first) : U.shortDate(first) + ' to ' + U.shortDate(last),
           signal: my.signal, onProgress: (p, t) => { fill.style.width = Math.round(p * 100) + '%'; status.textContent = t; } });
         if (my.signal.aborted) return;
-        Screens._.resultView(box, { kind: 'video', blob: out.blob, ext: out.ext, name: 'orbit-reel-' + U.today() + '.' + out.ext, track: (u) => urls.push(u), close: closeSheet, again: choose });
+        Screens._.resultView(box, { kind: 'video', blob: out.blob, ext: out.ext, name: 'regoal-reel-' + U.today() + '.' + out.ext, track: (u) => urls.push(u), close: closeSheet, again: choose });
         if (out.skipped) U.toast(out.skipped + (out.skipped === 1 ? ' item' : ' items') + ' could not be read and ' + (out.skipped === 1 ? 'was' : 'were') + ' left out.', 'warn');
       } catch (e) {
         if (my.signal.aborted || (e && e.name === 'AbortError')) { choose(); return; }

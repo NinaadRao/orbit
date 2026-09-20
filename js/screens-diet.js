@@ -83,7 +83,7 @@
     };
     draw();
     return UI.card(h('div', { class: 'ct' }, 'Diet plan'),
-      h('div', { class: 'muted small' }, 'A week of meals with portions that fit these targets. Pick how you eat and Orbit builds it on this device. You can change all of this later.'),
+      h('div', { class: 'muted small' }, 'A week of meals with portions that fit these targets. Pick how you eat and Regoal builds it on this device. You can change all of this later.'),
       prefsForm(dp, profileDiet, draw), preview);
   };
 

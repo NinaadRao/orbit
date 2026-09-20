@@ -8,10 +8,10 @@
 
   // ---------- getting a file out of the app ----------
   // One backup file with one fixed name, so a new backup replaces the old one wherever the browser lets it:
-  // in a chosen folder (Chrome or Edge on a computer) the old file is replaced and any older Orbit backup files are deleted;
+  // in a chosen folder (Chrome or Edge on a computer) the old file is replaced and any older Regoal backup files are deleted;
   // in the iPhone or iPad Files sheet, saving under the same name offers Replace. A browser cannot delete files any other way.
-  const BACKUP_NAME = 'orbit-backup.orbitbackup';
-  const OURS = /^orbit-.*\.orbitbackup$/;
+  const BACKUP_NAME = 'regoal-backup.regoalbackup';
+  const OURS = /^(regoal|orbit)-.*\.(regoal|orbit)backup$/;
   const canPickFolder = () => typeof root.showDirectoryPicker === 'function' && root.isSecureContext;
   async function writeToFolder(dir, name, blob) {
     let perm = await dir.queryPermission({ mode: 'readwrite' });
@@ -39,7 +39,7 @@
     }
     if (root.showSaveFilePicker) {
       try {
-        const fh = await root.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Orbit backup', accept: { 'application/octet-stream': ['.orbitbackup'] } }] });
+        const fh = await root.showSaveFilePicker({ suggestedName: name, types: [{ description: 'Regoal backup', accept: { 'application/octet-stream': ['.regoalbackup'] } }] });
         const w = await fh.createWritable(); await w.write(blob); await w.close();
         return 'saved';
       } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
@@ -122,7 +122,7 @@
 
   async function importFile(file) {
     try {
-      if (file.size > 400 * 1024 * 1024) throw new Error('That file is too large to be an Orbit file.');
+      if (file.size > 400 * 1024 * 1024) throw new Error('That file is too large to be an Regoal file.');
       const text = await file.text();
       let r = await Store.readImport(text);
       if (r.kind === 'encrypted') {
@@ -138,7 +138,7 @@
       if (r.kind === 'profile') {
         if (st.profile) throw new Error('This device already has a profile. Erase it first, or use a backup file instead.');
         const a = cleanProfile(r.answers);
-        U.sheet('Start from this profile?', h('div', { class: 'stack' }, h('div', { class: 'muted' }, 'A profile file holds your answers, not your history. Orbit will build a fresh 26-week plan starting today.')), [{ label: 'Cancel' }, { label: 'Build my plan', kind: 'primary', run: () => { root.Onboard.finish(a).catch((e) => U.toast(e.message, 'warn')); } }]);
+        U.sheet('Start from this profile?', h('div', { class: 'stack' }, h('div', { class: 'muted' }, 'A profile file holds your answers, not your history. Regoal will build a fresh 26-week plan starting today.')), [{ label: 'Cancel' }, { label: 'Build my plan', kind: 'primary', run: () => { root.Onboard.finish(a).catch((e) => U.toast(e.message, 'warn')); } }]);
         return;
       }
       const p = r.payload;
@@ -183,21 +183,21 @@
 
   // Chrome and Edge on a computer can remember a folder. Every backup then replaces the old file in it.
   function folderRow() {
-    if (!canPickFolder()) return h('div', { class: 'muted small' }, 'This browser cannot delete old backups for you. Your backup always uses the same file name, so the Files sheet on iPhone offers Replace. In Chrome or Edge on a computer you can pick a folder and Orbit replaces the old file for you.');
+    if (!canPickFolder()) return h('div', { class: 'muted small' }, 'This browser cannot delete old backups for you. Your backup always uses the same file name, so the Files sheet on iPhone offers Replace. In Chrome or Edge on a computer you can pick a folder and Regoal replaces the old file for you.');
     const box = h('div', { class: 'stack' });
     const draw = async () => {
       let dir = null; try { dir = await Store.getMeta('backupDir'); } catch (e) { /* none */ }
       U.clear(box);
       if (dir && dir.kind === 'directory') {
         U.put(box, h('div', { class: 'kv' }, h('span', null, 'Backup folder'), h('b', null, dir.name)),
-          h('div', { class: 'muted small' }, 'Each backup replaces the old ' + BACKUP_NAME + ' here and removes any older Orbit backup files in this folder. Other files are never touched.'),
+          h('div', { class: 'muted small' }, 'Each backup replaces the old ' + BACKUP_NAME + ' here and removes any older Regoal backup files in this folder. Other files are never touched.'),
           h('div', { class: 'row' }, UI.btn('Change folder', { kind: 'quiet', block: false, onClick: pick }), UI.btn('Stop using it', { kind: 'quiet', block: false, onClick: async () => { await Store.delMeta('backupDir'); draw(); } })));
       } else {
-        U.put(box, UI.btn('Choose a backup folder', { kind: 'quiet', icon: 'file', onClick: pick }), h('div', { class: 'muted small' }, 'Optional. Orbit then replaces the old backup in that folder each time, so only one stays.'));
+        U.put(box, UI.btn('Choose a backup folder', { kind: 'quiet', icon: 'file', onClick: pick }), h('div', { class: 'muted small' }, 'Optional. Regoal then replaces the old backup in that folder each time, so only one stays.'));
       }
     };
     const pick = async () => {
-      try { const d = await root.showDirectoryPicker({ mode: 'readwrite', id: 'orbit-backups' }); await Store.setMeta('backupDir', d); U.toast('Backups will go to ' + d.name + '.'); draw(); }
+      try { const d = await root.showDirectoryPicker({ mode: 'readwrite', id: 'regoal-backups' }); await Store.setMeta('backupDir', d); U.toast('Backups will go to ' + d.name + '.'); draw(); }
       catch (e) { if (!e || e.name !== 'AbortError') U.toast('Could not use that folder.', 'warn'); }
     };
     draw();
@@ -207,7 +207,7 @@
   Screens.settings = function () {
     const set = Store.getSettings(), st = Store.getState();
     const days = set.lastBackupAt ? E.daysBetween(set.lastBackupAt.slice(0, 10), U.today()) : null;
-    const fileIn = h('input', { type: 'file', class: 'hidden', accept: '.orbitbackup,.json,application/json,application/octet-stream', 'aria-label': 'Choose a backup file', onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
+    const fileIn = h('input', { type: 'file', class: 'hidden', accept: '.regoalbackup,.orbitbackup,.json,application/json,application/octet-stream', 'aria-label': 'Choose a backup file', onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
     const info = h('div', { class: 'meter' }, h('div', { class: 'muted small' }, 'Checking storage...'));
     Store.storageInfo().then((si) => { U.clear(info); U.put(info, h('div', { class: 'kv' }, h('span', null, 'Used'), h('b', null, fmtBytes(si.usage) + (si.quota ? ' of ' + fmtBytes(si.quota) : ''))), h('div', { class: 'kv' }, h('span', null, 'Kept if the browser is low on space'), h('b', null, si.persisted == null ? 'unknown' : si.persisted ? 'Yes' : 'Not guaranteed'))); });
     const saveAnd = (patch) => Store.saveSettings(patch).then(() => root.App.render());
@@ -215,7 +215,7 @@
       UI.card(h('div', { class: 'ct' }, 'Backup'),
         h('div', { class: days == null || days > 7 ? 'warnbox' : 'muted' }, set.lastBackupAt ? (days === 0 ? 'Last backup: today.' : 'Last backup ' + days + ' day' + (days === 1 ? '' : 's') + ' ago.') : 'No backup yet. Browsers can clear site data, especially Safari after a week of not opening the app. A backup file is your safety net.'),
         UI.btn('Back up now', { icon: 'download', onClick: backupSheet }),
-        h('div', { class: 'muted small' }, 'Back up now saves one file on this device and nothing else: Orbit never uploads it anywhere. On iPhone the Save sheet appears, so choose Save to Files, then On My iPhone. On a computer it goes to the folder you choose above, or to Downloads.'),
+        h('div', { class: 'muted small' }, 'Back up now saves one file on this device and nothing else: Regoal never uploads it anywhere. On iPhone the Save sheet appears, so choose Save to Files, then On My iPhone. On a computer it goes to the folder you choose above, or to Downloads.'),
         folderRow(),
         UI.btn('Restore from a file', { kind: 'quiet', icon: 'file', onClick: () => fileIn.click() }), fileIn),
       UI.card(h('div', { class: 'ct' }, 'App lock'),
@@ -236,8 +236,8 @@
       UI.card(h('div', { class: 'ct' }, 'Plan and coach'),
         h('a', { class: 'listrow', href: '#/settings/plan' }, U.icon('chart', 20), h('div', { class: 'grow' }, h('b', null, 'Targets, goal and history')), U.icon('chev', 16)),
         h('a', { class: 'listrow', href: '#/coach/setup' }, U.icon('key', 20), h('div', { class: 'grow' }, h('b', null, 'Coach and API key')), U.icon('chev', 16))),
-      UI.card(h('div', { class: 'ct' }, 'Storage'), info, h('div', { class: 'muted small' }, 'On iPhone, add Orbit to your Home Screen (Share, then Add to Home Screen). Safari can delete the data of sites you have not opened for about a week, and Home Screen apps are treated better.')),
-      UI.card(h('div', { class: 'ct' }, 'What Orbit does and does not do'),
+      UI.card(h('div', { class: 'ct' }, 'Storage'), info, h('div', { class: 'muted small' }, 'On iPhone, add Regoal to your Home Screen (Share, then Add to Home Screen). Safari can delete the data of sites you have not opened for about a week, and Home Screen apps are treated better.')),
+      UI.card(h('div', { class: 'ct' }, 'What Regoal does and does not do'),
         h('div', { class: 'muted small' }, 'No account, no server, no analytics, no ads, no cookies. Data lives in this browser\'s storage. The only network calls are AI requests you trigger, straight to the provider you chose. Everything on screen is written as plain text, and a strict content policy blocks scripts from anywhere else.')),
       UI.card(h('div', { class: 'ct' }, 'Danger zone'), UI.btn('Erase everything on this device', { kind: 'danger', onClick: eraseSheet })),
       st.profile && st.profile.name ? null : null));
@@ -264,6 +264,8 @@
         h('div', { class: 'kv' }, h('span', null, 'Estimated maintenance'), h('b', null, U.withCommas(plan.maintenance))),
         UI.btn('Edit targets', { kind: 'quiet', onClick: editTargets })),
       UI.card(h('div', { class: 'ct' }, 'Diet plan'), h('div', { class: 'muted small' }, 'A week of meals with gram portions that fit these targets, built on this device from your eating preferences.'), ...Screens.dietSummaryRows(), Screens.dietCardLinks()),
+      UI.card(h('div', { class: 'ct' }, 'Plan length'), h('div', { class: 'muted small' }, 'Week ' + E.clamp(E.weekOf(plan.startDate, U.today()), 1, E.planWeeks(plan)) + ' of ' + E.planWeeks(plan) + ' (' + root.Goals.lengthText(E.planWeeks(plan)) + '). Make it longer or shorter any time; your history stays.'),
+        UI.btn('Change length', { kind: 'quiet', onClick: Screens.planLengthSheet }), UI.btn('Goals', { kind: 'quiet', href: '#/goals' })),
       UI.card(h('div', { class: 'ct' }, 'Change goal'), h('div', { class: 'muted small' }, 'Regenerates calories, macros and measurement targets. Your logs stay.'),
         UI.row(...['build', 'recomp', 'cut'].map((g) => UI.btn(g[0].toUpperCase() + g.slice(1), { kind: g === plan.goal ? 'primary' : 'quiet', onClick: () => { if (g !== plan.goal) Screens.switchGoalSheet(g, 'Switched goal by hand', 'user'); } })))),
       UI.card(h('div', { class: 'ct' }, 'History'), ...(revs.length ? revs.map((r) => h('div', { class: 'kv' }, h('span', null, U.shortDate(r.ts.slice(0, 10)) + ' · ' + r.src), h('b', null, String(r.reason || 'Changed').slice(0, 60), ' ', h('button', { class: 'chip line', type: 'button', onclick: async () => { await Store.voidEvent(r.seq); root.App.render(); } }, 'Undo')))) : [h('div', { class: 'muted' }, 'No changes yet.')]))));
