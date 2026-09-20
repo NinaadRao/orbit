@@ -167,7 +167,7 @@
     }
     if (ci && ci.missed.length) {
       const w = ci.missed[ci.missed.length - 1];
-      cards.push(UI.cardX('coral', h('div', { class: 'ct' }, 'Week ' + w + ' check-in is missing'), h('div', { class: 'muted' }, ci.missed.length > 1 ? ci.missed.length + ' weekly check-ins are not finished. Start with the latest.' : 'The weekly photo check-in is not finished. Add the photos you can now.'), UI.btn('Add week ' + w + ' photos', { href: '#/photos', onClick: () => Screens._.gotoWeek(w) })));
+      cards.push(UI.cardX('coral', h('div', { class: 'ct' }, 'The check-in for ' + U.longDate(E.checkinDate(st.plan.startDate, w, set.checkinDay)) + ' is missing'), h('div', { class: 'muted' }, ci.missed.length > 1 ? ci.missed.length + ' weekly check-ins are not finished. Start with the latest.' : 'The weekly photo check-in is not finished. Add the photos you can now.'), UI.btn('Add those photos', { href: '#/photos', onClick: () => Screens._.gotoWeek(w) })));
     }
     if (ci && (ci.status === 'due' || ci.status === 'overdue')) {
       cards.push(UI.cardX(ci.status === 'overdue' ? 'coral' : 'acc', h('div', { class: 'ct' }, ci.status === 'overdue' ? 'Weekly check-in is overdue' : 'Weekly check-in today'),

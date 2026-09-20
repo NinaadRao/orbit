@@ -4,7 +4,7 @@
  * your data lives in IndexedDB, which this file cannot read.
  */
 'use strict';
-const CACHE = 'orbit-shell-v4';
+const CACHE = 'orbit-shell-v5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/engine.js', 'js/util.js', 'js/crypto.js', 'js/store.js', 'js/llm.js', 'js/foods.js', 'js/foodai.js', 'js/coach.js', 'js/ui.js',

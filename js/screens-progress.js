@@ -150,7 +150,11 @@
     const cur = E.clamp(E.weekOf(plan.startDate, t), 1, E.WEEKS);
     if (selWeek == null || selWeek > cur) selWeek = cur;
     const chosen = selWeek;
-    const wkSeg = UI.pills({ label: 'Check-in week', items: E.PHOTO_WEEKS.filter((w) => w <= cur).map((w) => 'Wk ' + w), values: new Set(['Wk ' + chosen]), multi: false, onChange: (v) => { selWeek = Number(Array.from(v)[0].slice(3)); root.App.render(); } });
+    const ciName = (w) => U.shortDate(E.checkinDate(plan.startDate, w, set.checkinDay));
+    // One check-in per week, named by its date. A list rather than a wall of pills: 26 weeks is a lot of buttons.
+    const wkSel = h('select', { class: 'inp', 'aria-label': 'Check-in date', onchange: () => { selWeek = Number(wkSel.value); root.App.render(); } },
+      ...E.PHOTO_WEEKS.filter((w) => w <= cur).reverse().map((w) => h('option', { value: String(w), selected: w === chosen }, U.longDate(E.checkinDate(plan.startDate, w, set.checkinDay)) + (w === cur ? ' (this week)' : ''))));
+    const wkSeg = h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Check-in date'), h('span', { class: 'selbox' }, wkSel));
     const input = h('input', { type: 'file', accept: 'image/*', class: 'hidden', 'aria-label': 'Choose a photo' });
     let pendingAngle = null;
     input.addEventListener('change', async () => {
@@ -173,7 +177,7 @@
     for (const angle of E.ANGLES) {
       const p = st.photos.find((x) => x.week === chosen && x.angle === angle);
       if (!p) { slots.appendChild(h('button', { type: 'button', class: 'thumb empty-slot', onclick: () => pick(angle), 'aria-label': 'Add ' + angle + ' photo' }, h('div', null, U.icon('camera', 24), h('div', null, angle)))); continue; }
-      const img = h('img', { alt: angle + ', week ' + chosen });
+      const img = h('img', { alt: angle + ', ' + ciName(chosen) });
       const holder = h('button', { type: 'button', class: 'thumb' + (set.blurPhotos ? ' blur' : ''), 'aria-label': 'Open ' + angle + ' photo' }, img, h('div', { class: 'lbl' }, angle));
       holder.addEventListener('click', () => viewer(p));
       slots.appendChild(holder);
@@ -181,7 +185,7 @@
     }
     function viewer(p) {
       const img = h('img', { alt: p.angle, class: 'viewer-img' });
-      const box = h('div', { class: 'stack' }, img, h('div', { class: 'muted small' }, p.angle + ' · week ' + p.week + ' · ' + U.shortDate(p.date)));
+      const box = h('div', { class: 'stack' }, img, h('div', { class: 'muted small' }, p.angle + ' · ' + U.longDate(p.date)));
       fillImg(img, p.id, box);
       U.sheet('Photo', box, [{ label: 'Replace', kind: 'quiet', run: () => { setTimeout(() => pick(p.angle), 0); } }, { label: 'Delete', kind: 'danger', run: async () => { await Store.voidEvent(p.seq); await Store.delMedia(p.id); root.App.render(); } }, { label: 'Close', kind: 'primary' }]);
     }
@@ -192,8 +196,8 @@
     let pair = null;
     if (tHave.length >= 2) {
       const first = tHave[0], last = tHave[tHave.length - 1];
-      const ia = h('img', { alt: tAngle + ' week ' + first.week }), ib = h('img', { alt: tAngle + ' week ' + last.week });
-      const ta = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ia, h('span', { class: 'lbl' }, 'Week ' + first.week)), tb = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ib, h('span', { class: 'lbl' }, 'Week ' + last.week));
+      const ia = h('img', { alt: tAngle + ', ' + U.shortDate(first.date) }), ib = h('img', { alt: tAngle + ', ' + U.shortDate(last.date) });
+      const ta = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ia, h('span', { class: 'lbl' }, U.shortDate(first.date))), tb = h('div', { class: 'trendthumb' + (set.blurPhotos ? ' blur' : '') }, ib, h('span', { class: 'lbl' }, U.shortDate(last.date)));
       pair = h('div', { class: 'trendpair' }, ta, tb);
       fillImg(ia, first.photo.id, ta); fillImg(ib, last.photo.id, tb);
     }
@@ -205,7 +209,7 @@
 
     return UI.page(UI.header('Photos', 'Stored on this device only.', { back: '#/progress' }), UI.scroller(
       wkSeg,
-      UI.card(h('div', { class: 'target-top' }, h('div', { class: 'ct' }, 'Week ' + chosen + (cur === chosen ? ' · this week' : '')), h('span', { class: 'muted small' }, 'Check-in ' + U.longDate(E.checkinDate(plan.startDate, chosen, set.checkinDay)))), slots, h('div', { class: 'muted small' }, 'Same spot, same light, same time of day, relaxed then flexed. Photos are compressed and stripped of location data when saved.'), input),
+      UI.card(h('div', { class: 'target-top' }, h('div', { class: 'ct' }, U.longDate(E.checkinDate(plan.startDate, chosen, set.checkinDay))), h('span', { class: 'muted small' }, cur === chosen ? 'This week' : 'Earlier check-in')), slots, h('div', { class: 'muted small' }, 'Same spot, same light, same time of day, relaxed then flexed. Photos are compressed and stripped of location data when saved.'), input),
       trendCard,
       UI.toggleRow('Blur thumbnails', 'Hide photos on screen until you open one', !!set.blurPhotos, (v) => { Store.saveSettings({ blurPhotos: v }).then(() => root.App.render()); })));
   };

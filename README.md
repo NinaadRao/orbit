@@ -24,6 +24,7 @@ Everything is plain HTML, CSS and JavaScript. There is nothing to build and no r
 </p>
 
 <p align="center">
+  <img src="docs/img/checkin.png" width="200" alt="Weekly photo check-in: pick a check-in by its date, then add the five angles">
   <img src="docs/img/photo-trend.png" width="200" alt="Photo trend: scrub through check-ins with the numbers of each day under the photo">
   <img src="docs/img/photo-compare.png" width="200" alt="Compare: any two check-ins with a slider, and a button to download the image">
   <img src="docs/img/profile.png" width="200" alt="Profile: your basics, your plan, and the weekly check-in day">
@@ -99,7 +100,7 @@ Two things worth knowing:
 
 ## Your photo trend
 
-Take the same five angles at your weekly check-in. The day is yours to set in **Profile** (Friday to begin with); Today asks for it that day, stays on it until all five are saved, and flags any week you missed. Then:
+Take the same five angles at your weekly check-in. The day is yours to set in **Profile** (Friday to begin with); Today asks for it that day, stays on it until all five are saved, and flags any week you missed. Check-ins are named by their date (Fri, 18 Sep), never "week 5": the Photos screen has one list of dates, and the trend, compare and downloads all show dates. Then:
 
 1. Progress, then **Open** on Progress photos, then **See trend** in the Your photo trend card. Pick an angle and drag along the check-in dots, or press play. The weight and measurements from around each photo's date sit under it, and green means the change is toward your goal.
 2. **Compare two dates** lets you pick any two check-ins and view them side by side, with a slider, or as an overlay that helps you line up your pose. The table underneath shows the change.

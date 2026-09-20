@@ -681,12 +681,19 @@ async function main() {
       await Store.append('photo_added', { date: at(w), week: w, angle: 'Front', id });
     }
   });
+  // Photos are labelled by the date of the weekly check-in, never "Week 5" or "Wk 5". These give the expected text for one of the three seeded photos.
+  const longAt = (w) => tpage.evaluate((w) => U.longDate(Engine.addDays(Engine.addDays(U.today(), -70), (w - 1) * 7)), w);
+  const shortAt = (w) => tpage.evaluate((w) => U.shortDate(Engine.addDays(Engine.addDays(U.today(), -70), (w - 1) * 7)), w);
+  const isoAt = (w) => tpage.evaluate((w) => Engine.addDays(Engine.addDays(U.today(), -70), (w - 1) * 7), w);
+  const noWeekWords = async (where) => { const t = await tpage.locator('body').innerText(); ok(!/\b(Week|Wk|week|wk) ?\d/.test(t), where + ' shows no week numbers: ' + (t.match(/.{0,20}\b(Week|Wk|week|wk) ?\d.{0,20}/) || [''])[0]); };
   const eventsBefore = await tpage.evaluate(() => Store.getEvents().length);
   const mediaBefore = await tpage.evaluate(async () => (await Store.allMedia()).length);
 
   await step('photos screen offers the trend and compare, and shows the first and latest photo', async () => {
     await route(tpage, '#/photos');
     await tpage.getByText('Your photo trend').waitFor();
+    await noWeekWords('photo check-in screen');
+    ok(new RegExp(await shortAt(1)).test(await tpage.locator('.trendthumb .lbl').first().innerText()), 'first thumbnail is labelled with its date');
     eq(await tpage.locator('.trendthumb').count(), 2);
     ok(await tpage.locator('.trendthumb.blur').count() === 2, 'thumbnails follow the blur setting');
     await tpage.getByRole('link', { name: 'See trend' }).click();
@@ -698,7 +705,8 @@ async function main() {
     const stage = tpage.locator('.stage');
     ok(await stage.evaluate((el) => el.classList.contains('blur')), 'blurred by default');
     ok(/Blurred/.test(await tpage.locator('.stage-badge').innerText()), 'badge says blurred');
-    ok(/Week 9/.test(await tpage.locator('.stage-cap').innerText()), 'starts on the latest check-in');
+    eq(await tpage.locator('.stage-cap').innerText(), await longAt(9)); // starts on the latest check-in, named by its date
+    await noWeekWords('trend');
     await stage.click();
     ok(!(await stage.evaluate((el) => el.classList.contains('blur'))), 'tap reveals');
     const cards = await tpage.locator('.tstat').allInnerTexts();
@@ -714,26 +722,28 @@ async function main() {
     const scrub = tpage.locator('.scrub');
     await scrub.focus();
     await tpage.keyboard.press('Home');
-    ok(/Week 1\b/.test(await tpage.locator('.stage-cap').innerText()), 'Home goes to the first');
-    ok(/Week 1,/.test(await scrub.getAttribute('aria-valuetext')), 'slider announces the week');
+    eq(await tpage.locator('.stage-cap').innerText(), await longAt(1)); // Home goes to the first
+    eq(await scrub.getAttribute('aria-valuetext'), await longAt(1)); // the slider announces the date
     await tpage.keyboard.press('ArrowRight');
-    ok(/Week 5\b/.test(await tpage.locator('.stage-cap').innerText()), 'arrow moves to the next photo');
+    eq(await tpage.locator('.stage-cap').innerText(), await longAt(5)); // arrow moves to the next photo
     await tpage.locator('.tstat').first().waitFor();
     ok(/Starting point|-\d/.test(await tpage.locator('.tstat').first().innerText()), 'numbers follow the photo');
     await tpage.getByRole('button', { name: /^Speed/ }).click(); // 2x
     eq(await tpage.getByRole('button', { name: /^Speed/ }).innerText(), 'Speed 2x');
     await tpage.keyboard.press('Home');
     await tpage.getByRole('button', { name: 'Play through the check-ins' }).click();
-    await tpage.waitForFunction(() => /Week 9\b/.test(document.querySelector('.stage-cap').textContent), null, { timeout: 5000 });
+    const last = await longAt(9); await tpage.waitForFunction((t) => document.querySelector('.stage-cap').textContent === t, last, { timeout: 5000 });
     await tpage.getByRole('button', { name: 'Play through the check-ins' }).waitFor(); // back to a play button: it stopped by itself
     const hrefs = await tpage.locator('a.tthumb.none').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
     const slots = await tpage.locator('.tthumb').count(), have = await tpage.locator('button.tthumb').count();
     ok(slots >= 8, 'every week so far is a slot, not just a few fixed weeks: ' + slots);
     eq(hrefs.length, slots - have); ok(hrefs.every((x) => x === '#/photos'));
-    ok(/Add week 2 /.test(await tpage.locator('a.tthumb.none').first().getAttribute('aria-label')), 'the first gap is week 2');
+    const gap = await tpage.locator('a.tthumb.none').first().getAttribute('aria-label'), gapDate = await tpage.evaluate(() => U.shortDate(Engine.checkinDate(Store.getState().plan.startDate, 2, 5)));
+    eq(gap, 'Add Front photo for ' + gapDate); // the first gap is the second weekly check-in, named by its date
     await tpage.locator('a.tthumb.none').first().click();
     await tpage.waitForSelector('.photogrid');
-    ok(/Wk 2/.test(await tpage.locator('.pill.on').innerText()), 'opens the check-in week you tapped');
+    eq(await tpage.getByLabel('Check-in date').locator('option:checked').innerText(), await tpage.evaluate(() => U.longDate(Engine.checkinDate(Store.getState().plan.startDate, 2, 5)))); // opens the check-in you tapped
+    await noWeekWords('photo check-in');
   });
 
   await step('trend: an angle with no photos says so, and the waist chart shows the check-ins', async () => {
@@ -750,6 +760,7 @@ async function main() {
   await step('compare: pick any two dates; slider, side by side and overlay; numbers with the change', async () => {
     await tpage.getByRole('link', { name: 'Compare two dates' }).click();
     await tpage.waitForSelector('.cmp-slider');
+    await noWeekWords('compare');
     eq(await tpage.getByLabel('Before').inputValue(), '1'); eq(await tpage.getByLabel('After').inputValue(), '9');
     const handle = tpage.locator('.cmp-handle');
     eq(await handle.getAttribute('aria-valuenow'), '50');
@@ -787,7 +798,7 @@ async function main() {
     const dl = tpage.waitForEvent('download');
     await sheet.getByRole('button', { name: /Download file|Save or share/ }).first().click();
     const d = await dl;
-    ok(/^orbit-compare-front-wk1-wk9-\d{4}-\d{2}-\d{2}\.png$/.test(d.suggestedFilename()), 'file name: ' + d.suggestedFilename());
+    eq(d.suggestedFilename(), 'orbit-compare-front-' + await isoAt(1) + '-to-' + await isoAt(9) + '.png');
     const p = await d.path(); const head = fs.readFileSync(p).subarray(0, 8);
     eq(Array.from(head), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     await sheet.getByRole('button', { name: 'Done' }).click();
@@ -800,7 +811,7 @@ async function main() {
       const a = (await Store.getMedia(cis[0].photo.id)).blob, b = (await Store.getMedia(cis[2].photo.id)).blob;
       const out = [];
       for (const layout of ['side', 'slider', 'overlay']) {
-        const blob = await MediaOut.composeComparison({ a: { blob: a, label: 'Week 1' }, b: { blob: b, label: 'Week 9' }, layout, format: 'jpeg', labels: true, rows: [{ name: 'Weight', a: '82.0 kg', b: '80.2 kg', change: '-1.8 kg', tone: '' }], head: ['Wk 1', 'Wk 9'] });
+        const blob = await MediaOut.composeComparison({ a: { blob: a, label: 'Fri, 4 Sep' }, b: { blob: b, label: 'Fri, 30 Oct' }, layout, format: 'jpeg', labels: true, rows: [{ name: 'Weight', a: '82.0 kg', b: '80.2 kg', change: '-1.8 kg', tone: '' }], head: ['Sep 4', 'Oct 30'] });
         const u8 = new Uint8Array(await blob.arrayBuffer());
         out.push({ layout, type: blob.type, soi: [u8[0], u8[1]], exif: new TextDecoder('latin1').decode(u8.subarray(0, 400)).includes('Exif') });
       }

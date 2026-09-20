@@ -16,7 +16,10 @@
   // One decimal everywhere on these screens, so columns line up: 82.0, -1.0, +0.7.
   const f1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
   const signed = (x) => { const v = Math.round(x * 10) / 10; return (v > 0 ? '+' : v < 0 ? '-' : '') + Math.abs(v).toFixed(1); };
-  const wk = (w) => 'Wk ' + w;
+  // Check-ins are labelled by their date, never by a week number. SLOT maps an internal check-in index to that date.
+  const SLOT = {};
+  const wk = (w) => (SLOT[w] ? U.shortDate(SLOT[w]) : '');
+  function setSlots(st, set, cis) { for (const c of cis) SLOT[c.week] = c.date || E.checkinDate(st.plan.startDate, c.week, set.checkinDay); }
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function revokeUrls() { for (const u of urls) URL.revokeObjectURL(u); urls = []; }
   function stopTimer() { if (timer) clearInterval(timer); timer = null; }
@@ -87,6 +90,7 @@
     const angle = T.angle;
     const curWeek = E.clamp(E.weekOf(st.plan.startDate, U.today()), 1, E.WEEKS);
     const cis = E.checkIns(st, angle, curWeek), have = cis.filter((c) => c.photo), n = cis.length;
+    setSlots(st, set, cis);
     const pills = anglePills((a) => { T.angle = a; T.week = null; T.reveal = false; root.App.render(); });
     const back = { back: '#/photos' };
 
@@ -109,12 +113,13 @@
     const keys = ['weight', 'waist', third];
     const cards = keys.map((k) => ({ k, lab: h('span', { class: 'tl' }, KEYS[k].label), val: h('b', null), unit: h('small', null), delta: h('div', { class: 'td' }) }));
     const statRow = h('div', { class: 'tstats' }, cards.map((c) => h('div', { class: 'tstat' }, c.lab, h('div', { class: 'tv' }, c.val, c.unit), c.delta)));
-    const note = h('div', { class: 'muted small' }, 'Change since week ' + have[0].week + '. Green means toward your goal.');
+    const note = h('div', { class: 'muted small' }, 'Change since ' + wk(have[0].week) + '. Green means toward your goal.');
 
     // scrubber
     const line = h('div', { class: 'scrub-line' }, h('div', { class: 'scrub-fill' }));
-    const showLabel = (w) => n <= 10 || w === 1 || w === n || w % 5 === 0;
-    const dotEls = cis.map((c) => h('span', { class: 'sdot' + (c.photo ? ' has' : '') + (showLabel(c.week) ? '' : ' nolab') }, h('i', { class: 'd' }), h('b', { class: 'w' }, String(c.week))));
+    const every = Math.max(1, Math.ceil(n / 5)); // about five date labels along the line, so they never overlap
+    const showLabel = (i) => i === 0 || i === n - 1 || (i % every === 0 && n - 1 - i >= every);
+    const dotEls = cis.map((c, i) => h('span', { class: 'sdot' + (c.photo ? ' has' : '') + (showLabel(i) ? '' : ' nolab') + (i === 0 ? ' first' : i === n - 1 ? ' last' : '') }, h('i', { class: 'd' }), h('b', { class: 'w' }, wk(c.week))));
     const scrub = h('div', { class: 'scrub', role: 'slider', tabindex: '0', 'aria-label': 'Check-in', 'aria-valuemin': '0', 'aria-valuemax': String(n - 1) }, line, ...dotEls);
     scrub.style.setProperty('--n', String(n)); if (n > 14) scrub.classList.add('dense');
     const idxOf = (w) => cis.findIndex((c) => c.week === w);
@@ -137,9 +142,9 @@
 
     // thumbnails
     const thumbEls = cis.map((c) => {
-      if (!c.photo) return h('a', { href: '#/photos', class: 'tthumb none', 'aria-label': 'Add week ' + c.week + ' ' + angle + ' photo', onclick: () => Screens._.gotoWeek(c.week) }, h('span', { class: 'tbox' }, U.icon('plus', 18)), h('span', { class: 'tw' }, wk(c.week)));
+      if (!c.photo) return h('a', { href: '#/photos', class: 'tthumb none', 'aria-label': 'Add ' + angle + ' photo for ' + wk(c.week), onclick: () => Screens._.gotoWeek(c.week) }, h('span', { class: 'tbox' }, U.icon('plus', 18)), h('span', { class: 'tw' }, wk(c.week)));
       const im = h('img', { alt: '' });
-      return Object.assign(h('button', { type: 'button', class: 'tthumb', 'aria-label': 'Show week ' + c.week, onclick: () => { stop(); pick(c.week); } }, h('span', { class: 'tbox' + (blurOn ? ' blur' : '') }, im), h('span', { class: 'tw' }, wk(c.week))), { im });
+      return Object.assign(h('button', { type: 'button', class: 'tthumb', 'aria-label': 'Show ' + wk(c.week), onclick: () => { stop(); pick(c.week); } }, h('span', { class: 'tbox' + (blurOn ? ' blur' : '') }, im), h('span', { class: 'tw' }, wk(c.week))), { im });
     });
     const strip = h('div', { class: 'tstrip' }, thumbEls);
     const chartBox = h('div', null);
@@ -147,7 +152,7 @@
 
     const enough = have.length >= 2;
     const foot = h('div', { class: 'foot' },
-      UI.btn('Download time-lapse', { icon: 'download', disabled: !enough, onClick: () => Screens._.videoSheet({ angle, items: have, index: Math.max(0, have.findIndex((c) => c.week === T.week)), numbersText, wkLabel: (c) => 'Week ' + c.week + ' · ' + U.shortDate(c.date) }) }),
+      UI.btn('Download time-lapse', { icon: 'download', disabled: !enough, onClick: () => Screens._.videoSheet({ angle, items: have, index: Math.max(0, have.findIndex((c) => c.week === T.week)), numbersText, wkLabel: (c) => U.longDate(c.date) }) }),
       UI.btn('Compare two dates', { href: '#/photos/compare', kind: 'quiet' }),
       enough ? null : h('div', { class: 'muted small centered' }, 'Add this angle at two check-ins to download or compare.'));
 
@@ -179,14 +184,14 @@
       const cur = cis.find((c) => c.week === T.week), ci = idxOf(T.week), url = urlByWeek[T.week];
       const hidden = blurOn && !T.reveal;
       if (url) { if (img.getAttribute('src') !== url) img.src = url; } else img.removeAttribute('src');
-      img.alt = angle + ', week ' + cur.week;
+      img.alt = angle + ', ' + wk(cur.week);
       stage.classList.toggle('blur', hidden);
       badge.textContent = hidden ? 'Blurred · tap to reveal' : 'Tap to blur';
       eye.classList.toggle('hidden', !hidden);
       stage.setAttribute('aria-label', hidden ? 'Reveal photo' : 'Blur photo');
-      cap.textContent = loaded && !url ? 'This photo is not on this device' : 'Week ' + cur.week + ' · ' + U.shortDate(cur.date);
+      cap.textContent = loaded && !url ? 'This photo is not on this device' : U.longDate(cur.date);
       // scrubber
-      scrub.setAttribute('aria-valuenow', String(ci)); scrub.setAttribute('aria-valuetext', 'Week ' + cur.week + ', ' + U.shortDate(cur.date));
+      scrub.setAttribute('aria-valuenow', String(ci)); scrub.setAttribute('aria-valuetext', U.longDate(cur.date));
       line.firstChild.style.width = (n > 1 ? (ci / (n - 1)) * 100 : 0) + '%';
       cis.forEach((c, i) => { dotEls[i].classList.toggle('cur', i === ci); dotEls[i].classList.toggle('past', i < ci); });
       thumbEls.forEach((t, i) => { if (!cis[i].photo) return; t.classList.toggle('cur', i === ci); const u = urlByWeek[cis[i].week]; if (u && t.im.getAttribute('src') !== u) t.im.src = u; });
@@ -223,6 +228,7 @@
     const st = Store.getState(), set = Store.getSettings();
     if (!T.angle) T.angle = trendAngle(st);
     const angle = T.angle, cis = E.checkIns(st, angle), have = cis.filter((c) => c.photo);
+    setSlots(st, set, cis);
     const head = UI.header('Compare', angle + ' · pick any two check-ins', { back: '#/photos/trend' });
     if (have.length < 2) {
       return UI.page(head, UI.scroller(UI.card(h('div', { class: 'muted' }, 'Add ' + angle + ' photos at two check-ins to compare them.'), UI.btn('Open photo check-in', { href: '#/photos', kind: 'quiet' }))));
@@ -234,7 +240,7 @@
 
     const selectFor = (which, label) => {
       const s = h('select', { class: 'inp', 'aria-label': label, onchange: () => { CMP[which] = Number(s.value); redraw(); } },
-        ...have.map((c) => h('option', { value: String(c.week), selected: c.week === CMP[which] }, wk(c.week) + ' · ' + U.shortDate(c.date))));
+        ...have.map((c) => h('option', { value: String(c.week), selected: c.week === CMP[which] }, U.longDate(c.date))));
       return h('label', { class: 'field flex' }, h('span', { class: 'lab' }, label), h('span', { class: 'selbox' }, s));
     };
     const modeSeg = UI.seg({ options: [{ value: 'side', label: 'Side by side' }, { value: 'slider', label: 'Slider' }, { value: 'overlay', label: 'Overlay' }], value: CMP.mode, onChange: (v) => { CMP.mode = v; redraw(); } });
@@ -246,12 +252,12 @@
     let loaded = false;
 
     const pill = (t, side) => h('span', { class: 'cmplabel ' + side }, t);
-    const photo = (w, cls) => { const im = h('img', { class: cls || '', alt: angle + ' week ' + w }); const u = urlByWeek[w]; if (u) im.src = u; return im; };
+    const photo = (w, cls) => { const im = h('img', { class: cls || '', alt: angle + ', ' + wk(w) }); const u = urlByWeek[w]; if (u) im.src = u; return im; };
 
     function redraw() {
       const ca = byWeek(CMP.a), cb = byWeek(CMP.b), hidden = blurOn && !CMP.reveal;
       U.clear(stageBox);
-      const la = 'Week ' + ca.week + ' · ' + U.shortDate(ca.date), lb = 'Week ' + cb.week + ' · ' + U.shortDate(cb.date);
+      const la = U.longDate(ca.date), lb = U.longDate(cb.date);
       if (CMP.mode === 'side') {
         stageBox.appendChild(h('div', { class: 'cmp-side' + (hidden ? ' blur' : '') }, h('div', { class: 'cmp-cell' }, photo(ca.week), pill(wk(ca.week), 'l')), h('div', { class: 'cmp-cell' }, photo(cb.week), pill(wk(cb.week), 'l'))));
         help.textContent = 'Same pose, same light. Look at the same spots on both.';

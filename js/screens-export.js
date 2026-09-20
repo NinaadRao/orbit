@@ -71,7 +71,7 @@
       U.put(box,
         h('div', { class: 'target-top' }, h('span', { class: 'chip line' }, o.angle + ' · ' + frames.length + ' photos'), set.blurPhotos ? h('span', { class: 'muted small' }, 'Preview is blurred') : null),
         h('div', { class: 'expgrid' }, prev, h('div', { class: 'stack' }, shape, speed)),
-        UI.toggleRow('Week and date', 'Shown on each frame', opt.labels, (v) => { opt.labels = v; refresh(); }),
+        UI.toggleRow('Date', 'Shown on each frame', opt.labels, (v) => { opt.labels = v; refresh(); }),
         UI.toggleRow('Weight and waist', 'Shown on each frame', opt.numbers, (v) => { opt.numbers = v; refresh(); }),
         privacyNote(),
         supported ? null : h('div', { class: 'warnbox', role: 'alert' }, 'This browser cannot save video as MP4. Open Orbit in Safari or Chrome, or save a comparison image instead.'),
@@ -106,8 +106,8 @@
     const ma = await Store.getMedia(o.a.photo.id), mb = await Store.getMedia(o.b.photo.id);
     if (!ma || !mb) { U.toast('One of those photos is not on this device.', 'warn'); return; }
     const opt = { layout: 'side', format: 'jpeg', labels: true, table: o.rows.length > 0 };
-    const A = { blob: ma.blob, label: 'Week ' + o.a.week + ' · ' + U.shortDate(o.a.date) }, B = { blob: mb.blob, label: 'Week ' + o.b.week + ' · ' + U.shortDate(o.b.date) };
-    const build = (scale) => MediaOut.composeComparison({ a: A, b: B, layout: opt.layout, format: scale ? 'jpeg' : opt.format, labels: opt.labels, rows: opt.table ? o.rows : null, head: ['Wk ' + o.a.week, 'Wk ' + o.b.week], pos: o.pos, blend: o.blend, scale });
+    const A = { blob: ma.blob, label: U.longDate(o.a.date) }, B = { blob: mb.blob, label: U.longDate(o.b.date) };
+    const build = (scale) => MediaOut.composeComparison({ a: A, b: B, layout: opt.layout, format: scale ? 'jpeg' : opt.format, labels: opt.labels, rows: opt.table ? o.rows : null, head: [U.shortDate(o.a.date), U.shortDate(o.b.date)], pos: o.pos, blend: o.blend, scale });
     const box = h('div', { class: 'stack' });
     const urls = [];
     let tok = 0, prevUrl = null, closeSheet = null;
@@ -129,9 +129,9 @@
       const layout = UI.seg({ label: 'Layout', options: [{ value: 'side', label: 'Side by side' }, { value: 'slider', label: 'Slider view' }, { value: 'overlay', label: 'Overlay' }], value: opt.layout, onChange: (v) => { opt.layout = v; refresh(); } });
       const type = UI.seg({ label: 'File type', options: [{ value: 'jpeg', label: 'JPEG' }, { value: 'png', label: 'PNG' }], value: opt.format, onChange: (v) => { opt.format = v; } });
       U.put(box,
-        h('div', { class: 'target-top' }, h('span', { class: 'chip line' }, o.angle + ' · Wk ' + o.a.week + ' vs Wk ' + o.b.week), set.blurPhotos ? h('span', { class: 'muted small' }, 'Preview is blurred') : null),
+        h('div', { class: 'target-top' }, h('span', { class: 'chip line' }, o.angle + ' · ' + U.shortDate(o.a.date) + ' vs ' + U.shortDate(o.b.date)), set.blurPhotos ? h('span', { class: 'muted small' }, 'Preview is blurred') : null),
         prev, layout, type,
-        UI.toggleRow('Week and date labels', 'Shown on the image', opt.labels, (v) => { opt.labels = v; refresh(); }),
+        UI.toggleRow('Date labels', 'Shown on the image', opt.labels, (v) => { opt.labels = v; refresh(); }),
         o.rows.length ? UI.toggleRow('Measurements table', 'Added under the photos', opt.table, (v) => { opt.table = v; refresh(); }) : null,
         privacyNote(),
         UI.btn('Save image', { icon: 'download', onClick: save }),
@@ -145,7 +145,7 @@
       try {
         const blob = await build(0);
         const ext = opt.format === 'png' ? 'png' : 'jpg';
-        resultView(box, { kind: 'image', blob, ext, name: 'orbit-compare-' + slug(o.angle) + '-wk' + o.a.week + '-wk' + o.b.week + '-' + U.today() + '.' + ext, track: (u) => urls.push(u), close: closeSheet, again: options });
+        resultView(box, { kind: 'image', blob, ext, name: 'orbit-compare-' + slug(o.angle) + '-' + o.a.date + '-to-' + o.b.date + '.' + ext, track: (u) => urls.push(u), close: closeSheet, again: options });
       } catch (e) { options(); U.toast(String(e && e.message ? e.message : e), 'warn'); }
     }
     options();
