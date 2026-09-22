@@ -69,6 +69,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 - Log sets with effort and a rest timer. Each lift shows Hit, Partial or Todo against its weekly target.
 - Track as many lifts as you like: about 40 are built in, and you can add your own (name, muscle, equipment, starting weight) and choose which workout it goes on. Stop tracking one any time; its history stays.
 - Today shows the day's workout as a suggestion. Move it to another day, swap it with another session, train something else, or skip it for the week. Weekly targets do not depend on the weekday, and a moved session is never counted as missed.
+- Did more than the plan called for? **+ Add an exercise** on Today logs any catalog lift or a name you type, for just that day. It never changes your ongoing plan, and it works on rest days too.
 
 **Activity**
 - Log any workout by hand: swimming, football, tennis, badminton, pickleball, hot yoga, running, cycling and about twenty more, or your own. Pick the time and how hard it was.
@@ -81,7 +82,7 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 - Fuel's **What should I eat next?** looks at what you have logged today and fits the next meal to what is left, so the portions shrink after a big meal and a protein top-up appears when protein is behind. An optional AI button gives text tips only; it never changes the plan or logs anything.
 
 **Fuel**
-- Search about 7,200 foods (USDA data) with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI, type raw ingredients, or enter macros by hand.
+- Search about 7,200 foods (USDA data) with a Veg, Veg + egg or Non-veg filter, describe a meal to your own AI (with an optional photo of the plate or the label), type raw ingredients, or enter macros by hand.
 - Add your own food list from a CSV or JSON file. For Indian foods, the IFCT 2017 tables are the best source, and [how to get them](#food-data) takes a few minutes. The list stays on your device.
 - AI results always show an editable confirmation card. Nothing is saved until you tap "Looks right".
 
@@ -91,11 +92,11 @@ A private, local-first tracker for lifts, workouts and sport, food, body weight,
 - Scrub or play through your check-ins with the numbers of each day under the photo, compare any two dates, and save a time-lapse video or comparison image. Photos stay blurred until you tap.
 
 **Workout library and reel**
-- Keep gym photos and clips without copying them: Regoal stores a small preview and your originals stay where you took them.
+- Keep gym photos and clips without copying the original file: Regoal stores a small preview for both and, for a photo, a compressed copy you can reopen any time; your originals stay where you took them.
 - Ask your coach about form on a set, and stitch clips and check-in photos into one shareable MP4.
 
 **Coach (optional)**
-- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). Enter the key once: it can be remembered on this device, encrypted with a key the browser will not let out, and if the provider says it has expired Regoal asks for a new one. It sees a summary of your lifts, food, weight and activity (never photos or notes) and can suggest changes, log a workout or move a session; you tap Apply; every change has Undo. Nothing else in the app needs AI.
+- A chat that runs on your model with your key (Anthropic, OpenAI, Gemini, or any OpenAI-compatible endpoint). Enter the key once: it can be remembered on this device, encrypted with a key the browser will not let out, and if the provider says it has expired Regoal asks for a new one. It sees a summary of your lifts, today's food log, weight and activity (never notes, and never your progress photos or library) and can suggest changes, log a workout or move a session; you tap Apply; every change has Undo. A camera button lets you attach a photo to a message when you want its help with something visual. Nothing else in the app needs AI.
 
 **Backup and privacy**
 - One encrypted backup file saved on your own device, replaced each time. Optional passcode.

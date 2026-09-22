@@ -418,9 +418,10 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, errors: ['Bad date.'] };
     const numIn = (x, lo, hi) => { const n = Number(x); return Number.isFinite(n) ? clamp(n, lo, hi) : 0; };
     const thumb = /^[a-z0-9][a-z0-9_]{0,69}$/.test(String(raw.thumb || '')) ? String(raw.thumb) : null;
+    const full = /^[a-z0-9][a-z0-9_]{0,69}$/.test(String(raw.full || '')) ? String(raw.full) : null;
     const lift = /^[a-z0-9][a-z0-9_]{0,39}$/.test(String(raw.lift || '')) ? String(raw.lift) : null;
     return { ok: true, value: {
-      id, kind, date, thumb, lift,
+      id, kind, date, thumb, full, lift,
       tag: CLIP_TAGS.includes(raw.tag) ? raw.tag : 'Other',
       note: cleanStr(raw.note, 200), name: cleanStr(raw.name, 80), review: String(raw.review == null ? '' : raw.review).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').slice(0, 2500),
       size: Math.round(numIn(raw.size, 0, 1e12)), mtime: Math.round(numIn(raw.mtime, 0, 4e12)), w: Math.round(numIn(raw.w, 0, 20000)), h: Math.round(numIn(raw.h, 0, 20000)), dur: Math.round(numIn(raw.dur, 0, 36000) * 10) / 10,

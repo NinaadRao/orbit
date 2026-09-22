@@ -129,14 +129,17 @@
     let tab = pre.tab || 'find', meal = pre.meal || guessMeal(), pick = null, close = null;
     let aiText = pre.text || '', servings = '1', mFields = { name: pre.name || '', kcal: '', protein: '', carbs: '', fat: '' };
     let est = null, busy = null, err = '';
+    // A photo of the food or its label, picked for the AI estimate: { b64, mime, url }. Never saved with the log entry.
+    let aiImage = null;
+    const clearAiImage = () => { if (aiImage) URL.revokeObjectURL(aiImage.url); aiImage = null; };
     const body = h('div', { class: 'stack' });
-    const finish = (msg) => { if (close) close(); U.toast(msg || 'Logged.'); root.App.render(); };
+    const finish = (msg) => { clearAiImage(); if (close) close(); U.toast(msg || 'Logged.'); root.App.render(); };
 
     const mealPills = () => UI.pills({ label: 'Meal', items: E.MEALS, values: new Set([meal]), multi: false, onChange: (v) => { meal = Array.from(v)[0]; } });
     const tabBar = () => {
       const bar = h('div', { class: 'tabs2', role: 'tablist' });
       for (const [id, label] of [['find', 'Find'], ['ai', 'Describe'], ['ingr', 'Ingredients'], ['manual', 'Manual']]) {
-        bar.appendChild(h('button', { type: 'button', role: 'tab', 'aria-selected': tab === id ? 'true' : 'false', class: tab === id ? 'on' : '', onclick: () => { if (busy) return; tab = id; est = null; pick = null; err = ''; draw(); } }, label));
+        bar.appendChild(h('button', { type: 'button', role: 'tab', 'aria-selected': tab === id ? 'true' : 'false', class: tab === id ? 'on' : '', onclick: () => { if (busy) return; tab = id; est = null; pick = null; err = ''; clearAiImage(); draw(); } }, label));
       }
       return bar;
     };
@@ -249,23 +252,49 @@
       const cfg = root.App.llmConfig();
       let host = '';
       try { host = new URL(root.LLM.endpointOf(cfg)).host; } catch (e) { host = 'your provider'; }
-      const ta = h('textarea', { class: 'inp', maxlength: 1200, 'aria-label': mode === 'ingr' ? 'Raw ingredients' : 'What you ate', placeholder: mode === 'ingr' ? '200 g paneer\n1 tbsp oil\n1 onion, 2 tomatoes\nspices' : 'Two rotis with rajma and a bowl of curd', value: aiText, oninput: () => { aiText = ta.value; } });
+      const ta = h('textarea', { class: 'inp', maxlength: 1200, 'aria-label': mode === 'ingr' ? 'Raw ingredients' : 'What you ate', placeholder: mode === 'ingr' ? '200 g paneer\n1 tbsp oil\n1 onion, 2 tomatoes\nspices' : 'Two rotis with rajma and a bowl of curd, or attach a photo below', value: aiText, oninput: () => { aiText = ta.value; } });
       const sv = UI.field({ label: 'Makes how many equal servings?', type: 'number', inputmode: 'numeric', value: servings, hint: 'Cooked a pot for 4? Enter 4 and log one share.', onInput: (v) => { servings = v; } });
-      const note = h('div', { class: 'muted small' }, 'Sends only this text to ' + host + ' with your key. Nothing is saved until you check the numbers.');
+      const note = h('div', { class: 'muted small' });
       const errBox = err ? h('div', { class: 'warnbox', role: 'alert' }, err) : null;
+      const attachRow = h('div', { class: 'attachprev hidden' });
+      const syncAttach = () => {
+        U.clear(attachRow);
+        const has = !!aiImage;
+        attachRow.classList.toggle('hidden', !has);
+        if (has) {
+          attachRow.appendChild(h('img', { src: aiImage.url, alt: 'Photo of the food', class: 'attachthumb' }));
+          attachRow.appendChild(h('div', { class: 'muted small grow' }, 'Photo attached.'));
+          attachRow.appendChild(h('button', { type: 'button', class: 'iconbtn tiny', 'aria-label': 'Remove photo', onclick: () => { clearAiImage(); syncAttach(); } }, U.icon('x', 16)));
+        }
+        note.textContent = (has ? 'Sends this text and photo ' : 'Sends only this text ') + 'to ' + host + ' with your key. Nothing is saved until you check the numbers.';
+      };
+      const fileInput = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'offscreen', 'aria-label': 'Take or choose a photo of the food' });
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0]; fileInput.value = '';
+        if (!file) return;
+        if (!/^image\//.test(file.type)) return U.toast('Choose a photo.', 'warn');
+        U.toast('Reading photo...');
+        try {
+          const [fr] = await root.Library.frames(file, 1, 1024);
+          clearAiImage();
+          aiImage = { b64: await root.Library.toB64(fr.blob), mime: 'image/jpeg', url: URL.createObjectURL(fr.blob) };
+          syncAttach();
+        } catch (e) { U.toast(String(e && e.message ? e.message : e).slice(0, 200), 'warn'); }
+      });
+      const photoBtn = UI.btn(aiImage ? 'Retake photo' : 'Attach a photo', { kind: 'quiet', icon: 'camera', onClick: () => fileInput.click() });
       const ctl = new AbortController();
       const go = h('button', { type: 'button', class: 'btn primary block' }, 'Estimate nutrition');
       go.addEventListener('click', async () => {
         if (busy) { ctl.abort(); return; }
-        if (!aiText.trim()) { U.toast('Type what you had first.', 'warn'); return; }
+        if (!aiText.trim() && !aiImage) { U.toast('Type what you had, or attach a photo, first.', 'warn'); return; }
         busy = ctl; err = ''; go.textContent = 'Stop';
         go.insertBefore(h('span', { class: 'spin' }), go.firstChild);
         const sN = mode === 'ingr' ? Math.max(1, Math.min(20, Math.round(numOrNull(servings) || 1))) : 1;
         try {
-          const r = await root.FoodAI.estimate(cfg, { mode: mode === 'ingr' ? 'ingredients' : 'describe', text: aiText, servings: sN, signal: ctl.signal });
+          const r = await root.FoodAI.estimate(cfg, { mode: mode === 'ingr' ? 'ingredients' : 'describe', text: aiText, servings: sN, image: aiImage, signal: ctl.signal });
           busy = null;
           if (!document.body.contains(body)) return;
-          est = { r, mode, sN, input: aiText.trim().slice(0, 300) };
+          est = { r, mode, sN, input: aiText.trim().slice(0, 300), hadImage: !!aiImage };
         } catch (e) {
           busy = null;
           if (!document.body.contains(body)) return;
@@ -273,7 +302,8 @@
         }
         draw();
       });
-      U.put(body, ta, mode === 'ingr' ? sv : null, note, errBox, go, err ? UI.btn('Enter macros myself', { kind: 'quiet', onClick: () => { mFields.name = aiText.split('\n')[0].slice(0, 80); tab = 'manual'; err = ''; draw(); } }) : null);
+      syncAttach();
+      U.put(body, ta, mode === 'ingr' ? sv : null, photoBtn, attachRow, fileInput, note, errBox, go, err ? UI.btn('Enter macros myself', { kind: 'quiet', onClick: () => { mFields.name = aiText.split('\n')[0].slice(0, 80); tab = 'manual'; err = ''; draw(); } }) : null);
     }
 
     // The confirmation card. Everything is editable and nothing is stored before "Looks right".
@@ -305,7 +335,7 @@
       U.put(body, 
         h('div', { class: 'est' },
           h('div', { class: 'est-top' }, h('div', { class: 'ct' }, 'Check these numbers'), U.chip(v.confidence + ' confidence', v.confidence === 'high' ? 'good' : v.confidence === 'low' ? 'coral' : 'cool')),
-          h('div', { class: 'muted small' }, 'This is an AI estimate from what you typed' + (est.sN > 1 ? ' (one of ' + est.sN + ' servings)' : '') + '. Fix anything that looks off, then confirm.'),
+          h('div', { class: 'muted small' }, 'This is an AI estimate from ' + (est.hadImage ? (est.input ? 'your photo and text' : 'your photo') : 'what you typed') + (est.sN > 1 ? ' (one of ' + est.sN + ' servings)' : '') + '. Fix anything that looks off, then confirm.'),
           name, UI.row(kc), UI.row(p, c, fa), live,
           items,
           v.assumptions.length ? h('ul', { class: 'assume' }, ...v.assumptions.map((a) => h('li', null, a))) : null,

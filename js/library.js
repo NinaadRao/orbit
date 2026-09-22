@@ -1,11 +1,14 @@
 /*
  * The workout library: photos and videos you keep where you took them.
  *
- * Regoal never stores the original. What it keeps for each item is a small preview picture (around 15 KB), the date, a tag,
- * a note and the file's name and size. To see or use the original again it asks the browser for the file:
+ * Regoal never stores the original file. What it keeps for each item is a small preview picture (around 15 KB), the date,
+ * a tag, a note and the file's name and size. For a photo it also keeps a second, larger compressed copy (roughly 100-300 KB,
+ * about 1600px on the long side) so you can view it again without being asked for the file - that copy is a recompression,
+ * not the original, and it is left out of backups unless you turn on "Include progress and library photos". Videos still keep
+ * only the small preview, so to watch one again it asks the browser for the file:
  *   - Chrome and Edge on a computer can remember a real link to the file (a file handle), so nothing is asked twice;
  *   - Safari on iPhone cannot keep a link into Photos, so you pick the item again, and Regoal uses it in memory and lets go.
- * Either way there is no second copy of your photos or videos in Regoal's storage.
+ * Either way there is no copy of your videos, and no copy of the original photo file, in Regoal's storage.
  */
 (function (root) {
   'use strict';
@@ -14,6 +17,8 @@
   const IMG_EXT = /\.(heic|heif|jpe?g|png|webp|gif|avif)$/i, VID_EXT = /\.(mp4|mov|m4v|webm|3gp|mkv)$/i;
   const MAX_FILES = 40;
   const THUMB_SIDE = 320;
+  const FULL_SIDE = 1600;
+  const FULL_Q = 0.82;
 
   const kindOf = (f) => (/^image\//.test(f.type) ? 'photo' : /^video\//.test(f.type) ? 'video' : IMG_EXT.test(f.name || '') ? 'photo' : VID_EXT.test(f.name || '') ? 'video' : null);
   const pad = (n) => String(n).padStart(2, '0');
@@ -86,11 +91,15 @@
   async function readInfo(file) {
     const kind = kindOf(file);
     if (!kind) throw new Error('That is not a photo or a video.');
-    const base = { kind, name: String(file.name || '').slice(0, 80), size: file.size, mtime: file.lastModified || 0, date: dateOf(file), w: 0, h: 0, dur: 0, thumb: null };
+    const base = { kind, name: String(file.name || '').slice(0, 80), size: file.size, mtime: file.lastModified || 0, date: dateOf(file), w: 0, h: 0, dur: 0, thumb: null, full: null };
     if (kind === 'photo') {
       if (file.size > 200 * 1024 * 1024) throw new Error('That photo is too large.');
       const im = await decodeImage(file);
-      try { base.w = im.w; base.h = im.h; base.thumb = await toJpeg(drawScaled(im.src, im.w, im.h, THUMB_SIDE), 0.72); } finally { im.done(); }
+      try {
+        base.w = im.w; base.h = im.h;
+        base.thumb = await toJpeg(drawScaled(im.src, im.w, im.h, THUMB_SIDE), 0.72);
+        base.full = await toJpeg(drawScaled(im.src, im.w, im.h, FULL_SIDE), FULL_Q);
+      } finally { im.done(); }
       return base;
     }
     const { v, done } = openVideo(file);
@@ -203,6 +212,6 @@
     return out;
   }
 
-  const Library = { match, MAX_FILES, THUMB_SIDE, kindOf, dateOf, fmtDur, readInfo, frames, toB64, canLink, saveHandle, getHandle, dropHandle, fromLink, pick, original, warm, openVideo, ready, knownDuration, seekTo, noLinks: false };
+  const Library = { match, MAX_FILES, THUMB_SIDE, FULL_SIDE, kindOf, dateOf, fmtDur, readInfo, frames, toB64, canLink, saveHandle, getHandle, dropHandle, fromLink, pick, original, warm, openVideo, ready, knownDuration, seekTo, noLinks: false };
   root.Library = Library;
 })(self);

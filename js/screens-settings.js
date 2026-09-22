@@ -62,7 +62,7 @@
     const body = h('div', { class: 'stack' },
       UI.toggleRow('Encrypt with a passphrase', Crypt.hasCrypto() ? 'AES-256. Strongly recommended, since the file holds all your data.' : 'Needs a secure (https or localhost) page.', encrypt, (v) => { encrypt = v && Crypt.hasCrypto(); passBox.classList.toggle('hidden', !encrypt); }),
       passBox,
-      UI.toggleRow('Include progress photos', 'Makes the file much larger', media, (v) => { media = v; }),
+      UI.toggleRow('Include progress and library photos', 'Makes the file much larger', media, (v) => { media = v; }),
       h('div', { class: 'muted small' }, 'Your API key is never included.'));
     U.sheet('Back up', body, [{ label: 'Cancel' }, { label: 'Prepare file', kind: 'primary', run: () => {
       if (encrypt && (pass.input.value.length < 8 || pass.input.value !== pass2.input.value)) { U.toast('Passphrases must match and be 8 or more characters.', 'warn'); return false; }

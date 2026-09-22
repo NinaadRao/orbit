@@ -56,8 +56,10 @@
       return { id: l.id, name: l.name, target: { sets: st.target.sets, reps: st.target.reps, kg: st.target.kg }, status: st.status, recent: hist };
     });
     const days = {};
-    for (const f of state.foods) if (f.date >= E.addDays(today, -7)) { days[f.date] = days[f.date] || { kcal: 0, protein: 0 }; days[f.date].kcal += f.kcal || 0; days[f.date].protein += f.protein || 0; }
+    for (const f of state.foods) if (f.date >= E.addDays(today, -7)) { days[f.date] = days[f.date] || { kcal: 0, protein: 0, carbs: 0, fat: 0 }; days[f.date].kcal += f.kcal || 0; days[f.date].protein += f.protein || 0; days[f.date].carbs += f.carbs || 0; days[f.date].fat += f.fat || 0; }
     const dk = Object.values(days);
+    const todayTot = E.dayTotals(state, today);
+    const todayItems = state.foods.filter((f) => f.date === today).map((f) => ({ name: str(f.name, 80), meal: f.meal, kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat }));
     const rev = E.reviewMonth(state, today);
     return {
       today, planWeek: week, planWeeks: E.planWeeks(plan), goal: plan.goal,
@@ -69,7 +71,8 @@
       weightAvg7d: avg.length ? E.clean(avg[avg.length - 1].kg) : null,
       measurements: meas,
       lifts,
-      nutrition7d: { daysLogged: dk.length, avgKcal: dk.length ? Math.round(dk.reduce((t, x) => t + x.kcal, 0) / dk.length) : null, avgProtein: dk.length ? Math.round(dk.reduce((t, x) => t + x.protein, 0) / dk.length) : null },
+      foodToday: { kcal: Math.round(todayTot.kcal), protein: Math.round(todayTot.protein), carbs: Math.round(todayTot.carbs), fat: Math.round(todayTot.fat), targetKcal: plan.kcal, targetProtein: plan.protein, items: todayItems },
+      nutrition7d: { daysLogged: dk.length, avgKcal: dk.length ? Math.round(dk.reduce((t, x) => t + x.kcal, 0) / dk.length) : null, avgProtein: dk.length ? Math.round(dk.reduce((t, x) => t + x.protein, 0) / dk.length) : null, avgCarbs: dk.length ? Math.round(dk.reduce((t, x) => t + x.carbs, 0) / dk.length) : null, avgFat: dk.length ? Math.round(dk.reduce((t, x) => t + x.fat, 0) / dk.length) : null },
       monthlyReview: { message: rev.message, suggestedKcalChange: rev.kcalDelta },
       activity: E.activityDigest(state, today, settings.activeGoal || E.defaultActiveGoal(prof)),
       goals: root.Goals ? root.Goals.digest(state, today, root.Goals.distUnitFor(settings)) : [],
@@ -88,6 +91,7 @@
       '- The plan suggests a session per weekday, but people move sessions around. A session that was moved, swapped or done on another day is NOT a miss. Judge consistency from activity.thisWeek.sessions (status) and active days against goalActiveDaysPerWeek, and never propose lift or calorie changes because of a weekday that was skipped.',
       '- activity covers everything the person did: strength, sports, swimming, yoga and so on. Use it for streaks, balance across activities, recovery and week-to-week trends. activeKcal values are MET-based estimates above resting; calorie targets already allow for training, so do not tell them to eat those back unless their weight and lifts point that way.',
       '- goals lists everything the person is working towards, each with its own length, target, status against its week-by-week path (Ahead, On track or Behind) and what this week asks for. The first entry is the strength and muscle plan. Running, cycling, swimming and custom goals are measured from logged workouts and readings. You cannot change goals; suggest they edit one in the Goals tab. Be honest when a goal is behind, and gentle: one small next step beats a lecture.',
+      '- foodToday has the exact totals and every item logged today (name, meal, kcal, protein, carbs, fat) against the day\'s targets. Always use it, not nutrition7d, when asked about today, "how did I eat today" or similar. nutrition7d is only for trends across the last week.',
       '- You cannot see progress photos or workout notes.',
       'USER DATA:',
       JSON.stringify(ctx),

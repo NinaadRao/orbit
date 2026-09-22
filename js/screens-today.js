@@ -107,6 +107,41 @@
       } })));
   }
 
+  // ---------- an exercise beyond today's planned list ----------
+  // Logged just for today: either a catalog lift (tracked or not) or a typed name. Never touches the plan.
+  function addExtraSheet(t, excludeIds) {
+    const CUSTOM_EXTRA = '__custom';
+    const st = Store.getState(), plan = st.plan;
+    const free = Object.keys(E.CATALOG).filter((id) => !excludeIds.has(id));
+    const sel = h('select', { class: 'inp', 'aria-label': 'Exercise' });
+    for (const m of E.LIFT_MUSCLES) {
+      const ids = free.filter((id) => E.CATALOG[id].muscle === m);
+      if (ids.length) sel.appendChild(h('optgroup', { label: cap(m) }, ...ids.map((id) => h('option', { value: id }, E.CATALOG[id].name + (plan.lifts[id] ? ' (tracked)' : '')))));
+    }
+    sel.appendChild(h('option', { value: CUSTOM_EXTRA }, 'Something else: type a name'));
+    const nameF = UI.field({ label: 'Name', maxlength: 40, placeholder: 'e.g. Cable crossover' });
+    const customBox = h('div', { class: 'stack hidden' }, nameF);
+    const sync = () => customBox.classList.toggle('hidden', sel.value !== CUSTOM_EXTRA);
+    sel.addEventListener('change', sync); sync();
+    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Exercise'), sel), customBox,
+      h('div', { class: 'muted small' }, 'Logged just for today. It does not change your ongoing plan.'));
+    U.sheet('Add an exercise', body, [{ label: 'Cancel' }, { label: 'Next', kind: 'primary', run: () => {
+      const custom = sel.value === CUSTOM_EXTRA;
+      let id, label, bw;
+      if (custom) {
+        const name = nameF.input.value.trim().replace(/\s+/g, ' ');
+        if (!name) { U.toast('Give it a name.', 'warn'); return false; }
+        id = 'acc_' + slug(name); label = name.slice(0, 40); bw = false;
+      } else {
+        id = sel.value;
+        const cat = E.CATALOG[id];
+        label = plan.lifts[id] ? plan.lifts[id].name : cat.name;
+        bw = plan.lifts[id] ? !!plan.lifts[id].bw : cat.equip === 'bw';
+      }
+      setSheet({ liftId: id, label, bw, date: t });
+    } }]);
+  }
+
   function switchGoalSheet(goal, reason, src) {
     const st = Store.getState(), plan = st.plan, kg = st.weights.length ? st.weights[st.weights.length - 1].kg : st.profile.weightKg;
     const t = E.targetsFor(goal, { sex: st.profile.sex, kg, cm: st.profile.heightCm, age: st.profile.age, days: (st.profile.days || []).length || 5 });
@@ -183,9 +218,11 @@
     if (wo) {
       const list = h('div', null);
       let doneEx = 0;
+      const usedIds = new Set();
       for (const ex of wo.ex) {
         const lift = ex.lift ? plan.lifts[ex.lift] : null;
         const id = lift ? lift.id : 'acc_' + slug(ex.n);
+        usedIds.add(id);
         const mine = todaySets.filter((x) => x.lift === id);
         let targetTxt, defaultKg = null, defaultReps = null, bw = false;
         if (lift) {
@@ -210,17 +247,40 @@
           ex.flag ? h('div', { class: 'flag' }, ex.flag) : null,
           setChips(mine, opts, set.liftUnit)));
       }
+      // Extra exercises logged today beyond the planned list (e.g. an accessory the person felt like adding).
+      const extraIds = Array.from(new Set(todaySets.filter((x) => !usedIds.has(x.lift)).map((x) => x.lift)));
+      const extraList = extraIds.length ? h('div', null, ...extraIds.map((id) => {
+        const mine = todaySets.filter((x) => x.lift === id);
+        const lift = plan.lifts[id];
+        const label = mine[0].name || (lift ? lift.name : id);
+        const bw = lift ? !!lift.bw : false;
+        return h('div', { class: 'exrow' },
+          h('div', { class: 'exname' }, h('span', null, label), h('span', { class: 'extarget' }, 'Extra')),
+          setChips(mine, { liftId: id, label, bw, date: t }, set.liftUnit));
+      })) : null;
       const timeDone = st.workouts.some((w) => w.date === t && w.type === 'strength');
       cards.push(UI.card(
         h('div', { class: 'todayhead' }, h('div', { class: 'grow' }, h('div', { class: 'ct' }, wo.name + ' day'), h('div', { class: 'muted small' }, doneEx + ' of ' + wo.ex.length + ' exercises done · ' + (f.moved ? 'moved here' : 'suggested for today'))),
           h('button', { class: 'btn quiet small', type: 'button', onclick: () => Screens.rescheduleSheet(t) }, 'Change')),
         h('div', { class: 'row' }, U.chip(set.restTimer ? 'Rest timer on' : 'Timer off', 'line'), h('span', { class: 'muted small' }, 'Just a suggestion. Move it if your week changes.')),
         list,
+        extraList,
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => addExtraSheet(t, usedIds) }, '+ Add an exercise'),
         todaySets.some((x) => !x.warmup) && !timeDone ? h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.workoutSheet({ type: 'strength', date: t, session: wo.name }) }, 'Add how long it took, to count the calories') : null));
     } else {
       const nextIdx = [1, 2, 3, 4, 5, 6, 7].map((d) => E.sessionFor(plan, st.moves, E.addDays(t, d))).map((x) => x.session).find(Boolean);
+      const restIds = Array.from(new Set(todaySets.map((x) => x.lift)));
+      const restList = restIds.length ? h('div', null, ...restIds.map((id) => {
+        const mine = todaySets.filter((x) => x.lift === id);
+        const lift = plan.lifts[id];
+        const label = mine[0].name || (lift ? lift.name : id);
+        const bw = lift ? !!lift.bw : false;
+        return h('div', { class: 'exrow' }, h('div', { class: 'exname' }, h('span', null, label)), setChips(mine, { liftId: id, label, bw, date: t }, set.liftUnit));
+      })) : null;
       cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, (f.planned ? f.planned.name + ' was moved off today. ' : '') + 'A light walk counts. ' + (nextIdx ? 'Next up: ' + nextIdx.name + '.' : '')),
-        UI.row(UI.btn('Train anyway', { kind: 'quiet', onClick: () => Screens.rescheduleSheet(t) }), UI.btn('Lifts', { kind: 'quiet', href: '#/lifts' }))));
+        restList,
+        UI.row(UI.btn('Train anyway', { kind: 'quiet', onClick: () => Screens.rescheduleSheet(t) }), UI.btn('Lifts', { kind: 'quiet', href: '#/lifts' })),
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => addExtraSheet(t, new Set()) }, '+ Log an exercise anyway')));
     }
     const gc = Screens.goalsTodayCard ? Screens.goalsTodayCard() : null;
     if (gc) cards.push(gc);

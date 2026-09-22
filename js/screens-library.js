@@ -1,7 +1,9 @@
 /*
  * Library: workout photos and videos you keep where you took them (see js/library.js).
- * Regoal stores a small preview, the date, a tag and a note. The original stays in Photos or Files; nothing is copied.
- * From here you can view the original, ask your coach about form (frames only, with a confirmation first), or make a reel.
+ * Regoal stores a small preview, the date, a tag and a note, and for a photo also a larger compressed copy so it can be
+ * viewed again without asking for the file. The original file itself is never copied.
+ * From here you can view the photo (or, for a video, the original), ask your coach about form (frames only, with a
+ * confirmation first), or make a reel.
  */
 (function (root) {
   'use strict';
@@ -33,6 +35,7 @@
   async function removeClip(c) {
     await Store.voidEvent(c.seq);
     if (c.thumb) await Store.delMedia(c.thumb);
+    if (c.full) await Store.delMedia(c.full);
     await Library.dropHandle(c.id);
   }
 
@@ -77,10 +80,11 @@
           const info = await Library.readInfo(batch[i].file);
           if (Store.getState().clips.some((c) => c.name === info.name && c.size === info.size)) { skipped++; continue; }
           const id = 'c_' + Date.now().toString(36) + rand();
-          let thumb = null;
+          let thumb = null, full = null;
           if (info.thumb) { thumb = 't_' + id; await Store.putMedia(thumb, info.thumb, { kind: 'thumb' }); previews++; }
+          if (info.full) { full = 'f_' + id; await Store.putMedia(full, info.full, { kind: 'full' }); }
           const linked = batch[i].handle ? await Library.saveHandle(id, batch[i].handle) : false;
-          const r = E.cleanClip({ id, kind: info.kind, date: info.date, tag, lift, note: note.input.value, name: info.name, size: info.size, mtime: info.mtime, w: info.w, h: info.h, dur: info.dur, thumb, linked });
+          const r = E.cleanClip({ id, kind: info.kind, date: info.date, tag, lift, note: note.input.value, name: info.name, size: info.size, mtime: info.mtime, w: info.w, h: info.h, dur: info.dur, thumb, full, linked });
           if (!r.ok) throw new Error(r.errors[0]);
           await Store.append('clip_added', r.value);
           added++;
@@ -96,24 +100,37 @@
     }
   }
 
-  // ---------- viewing the original ----------
+  // ---------- viewing a photo or video ----------
+  // A photo with a stored full copy shows it at once, no prompt. Otherwise (a video, or an item added before this feature)
+  // it falls back to asking the browser for the original.
+  async function viewStoredFull(c) {
+    if (!c.full) return null;
+    const m = await Store.getMedia(c.full);
+    return m ? m.blob : null;
+  }
   async function viewOriginal(c) {
-    let got;
-    try { got = await Library.original(c); } catch (e) { return U.toast(String(e && e.message ? e.message : e), 'warn'); }
-    if (!got) return;
-    if (got.how === 'picked' && got.handle) await Library.saveHandle(c.id, got.handle);
-    const url = URL.createObjectURL(got.file);
     const set = Store.getSettings();
-    const media = c.kind === 'video' ? h('video', { src: url, controls: true, playsinline: true, class: 'resmedia', 'aria-label': 'Original video' }) : h('img', { src: url, alt: 'Original photo', class: 'resmedia' });
-    const warn = h('div', { class: 'warnbox hidden', role: 'note' }, 'This does not look like the item you saved (its length is different). It is shown anyway.');
+    let url, note;
+    const full = c.kind === 'photo' ? await viewStoredFull(c) : null;
+    if (full) {
+      url = URL.createObjectURL(full);
+      note = 'A compressed copy Regoal kept, so this opens without asking for the file again.';
+    } else {
+      let got;
+      try { got = await Library.original(c); } catch (e) { return U.toast(String(e && e.message ? e.message : e), 'warn'); }
+      if (!got) return;
+      if (got.how === 'picked' && got.handle) await Library.saveHandle(c.id, got.handle);
+      url = URL.createObjectURL(got.file);
+      note = got.how === 'link' ? 'Opened from the file on this computer.' : 'You picked it again. Regoal is using it now and is not keeping a copy.';
+    }
+    const media = c.kind === 'video' ? h('video', { src: url, controls: true, playsinline: true, class: 'resmedia', 'aria-label': 'Original video' }) : h('img', { src: url, alt: full ? 'Photo' : 'Original photo', class: 'resmedia' });
     const noplay = h('div', { class: 'warnbox hidden', role: 'alert' }, 'This browser cannot show this file (some phone formats, such as HEIC photos or HEVC videos, only open on Apple devices or in Safari). The original is fine where it is. Open it from Photos or Files instead.');
-    media.addEventListener('error', () => { noplay.classList.remove('hidden'); warn.classList.add('hidden'); });
-    if (c.kind === 'video' && c.dur) media.addEventListener('loadedmetadata', () => { if (Number.isFinite(media.duration) && Math.abs(media.duration - c.dur) > 1.5) warn.classList.remove('hidden'); });
+    media.addEventListener('error', () => { noplay.classList.remove('hidden'); });
     let hidden = !!set.blurPhotos;
     const holder = h('div', { class: 'resbox' + (hidden ? ' blur' : '') }, media);
     const peek = set.blurPhotos ? h('button', { type: 'button', class: 'chip line peekbtn', onclick: () => { hidden = !hidden; holder.classList.toggle('blur', hidden); peek.textContent = hidden ? 'Show' : 'Blur'; } }, 'Show') : null;
-    U.sheet(c.kind === 'video' ? 'Original video' : 'Original photo', h('div', { class: 'stack' }, holder, peek, noplay, warn,
-      h('div', { class: 'muted small' }, got.how === 'link' ? 'Opened from the file on this computer.' : 'You picked it again. Regoal is using it now and is not keeping a copy.')), [{ label: 'Close', kind: 'primary' }], { onClose: () => URL.revokeObjectURL(url) });
+    U.sheet(c.kind === 'video' ? 'Original video' : 'Photo', h('div', { class: 'stack' }, holder, peek, noplay,
+      h('div', { class: 'muted small' }, note)), [{ label: 'Close', kind: 'primary' }], { onClose: () => URL.revokeObjectURL(url) });
   }
 
   // ---------- coach form check ----------
@@ -193,8 +210,8 @@
     const body = h('div', { class: 'stack' },
       prev,
       h('div', { class: 'muted small' }, meta),
-      h('div', { class: 'muted small' }, c.name ? c.name + ' stays where it is. Regoal keeps only the preview above.' : 'The original stays where it is. Regoal keeps only the preview above.'),
-      UI.btn(c.kind === 'video' ? 'Watch the original' : 'View the original', { icon: 'eye', onClick: () => viewOriginal(c) }),
+      h('div', { class: 'muted small' }, (c.name ? c.name + ' stays where it is. ' : 'The original stays where it is. ') + (c.full ? 'Regoal also kept a compressed copy, so you can view it here any time.' : 'Regoal keeps only the preview above.')),
+      UI.btn(c.kind === 'video' ? 'Watch the original' : 'View photo', { icon: 'eye', onClick: () => viewOriginal(c) }),
       UI.btn('Ask the coach about form', { kind: 'quiet', icon: 'chat', onClick: () => formCheck(c) }),
       c.review ? h('div', { class: 'stack' }, h('div', { class: 'lab' }, 'Coach form check'), h('div', { class: 'coachout' }, c.review)) : null,
       UI.pills({ label: 'What is it?', items: E.CLIP_TAGS, values: new Set([tag]), multi: false, onChange: (v) => { tag = Array.from(v)[0]; } }),
@@ -212,7 +229,7 @@
     const clips = st.clips.slice().sort(dateDesc);
     const shown = filter === 'All' ? clips : clips.filter((c) => c.tag === filter);
     const usedNote = h('div', { class: 'muted small' }, clips.length ? clips.length + (clips.length === 1 ? ' item' : ' items') + ' in Regoal. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.') : 'Nothing here yet.');
-    Store.allMedia().then((all) => { const b = all.filter((m) => m.kind === 'thumb').reduce((t, m) => t + (m.size || 0), 0); if (clips.length) usedNote.textContent = clips.length + (clips.length === 1 ? ' item' : ' items') + ' · ' + fmtBytes(b) + ' of previews in Regoal. The originals stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.'); }).catch(() => {});
+    Store.allMedia().then((all) => { const b = all.filter((m) => m.kind === 'thumb' || m.kind === 'full').reduce((t, m) => t + (m.size || 0), 0); if (clips.length) usedNote.textContent = clips.length + (clips.length === 1 ? ' item' : ' items') + ' · ' + fmtBytes(b) + ' kept in Regoal (previews, and a compressed copy for each photo). The original files stay in ' + (Library.canLink() ? 'their folders on this computer.' : 'Photos or Files.'); }).catch(() => {});
     const grid = h('div', { class: 'photogrid libgrid' });
     for (const c of shown) {
       const img = h('img', { alt: '' });
@@ -222,11 +239,11 @@
       fillThumb(img, tile, c);
     }
     const intro = UI.card(h('div', { class: 'ct' }, 'Your workout photos and videos'),
-      h('div', { class: 'muted' }, 'Add gym photos and clips, and sets you want checked for form. Regoal does not copy them: it keeps a small preview, the date and your note, and the original stays where you took it, so your phone storage does not fill up twice.'),
+      h('div', { class: 'muted' }, 'Add gym photos and clips, and sets you want checked for form. Regoal does not copy the original file: for a photo it keeps a small preview plus a compressed copy you can view any time; for a video it keeps only a small preview. The original stays where you took it, so your phone storage does not fill up twice.'),
       UI.btn('Add photos or videos', { icon: 'plus', onClick: () => addFlow() }),
       h('div', { class: 'row' }, UI.btn('Make a reel', { kind: 'quiet', icon: 'film', onClick: () => Screens.reelSheet && Screens.reelSheet() })),
       usedNote,
-      Library.canLink() ? null : h('div', { class: 'muted small' }, 'On iPhone a web app cannot keep a link into Photos, so to watch an original again you pick it again. That is the price of not copying it.'));
+      Library.canLink() ? null : h('div', { class: 'muted small' }, 'On iPhone a web app cannot keep a link into Photos, so to watch a video\'s original again you pick it again. Photos view instantly from the compressed copy above.'));
     return UI.page(UI.header('Library', 'Kept where you took them.', { back: '#/progress' }), UI.scroller(intro,
       clips.length ? UI.pills({ label: 'Show', items: ['All'].concat(E.CLIP_TAGS), values: new Set([filter]), multi: false, onChange: (v) => { filter = Array.from(v)[0]; root.App.render(); } }) : null,
       clips.length ? (shown.length ? grid : UI.empty('Nothing with that tag yet.')) : null));

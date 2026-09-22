@@ -1,7 +1,7 @@
 /* Coach chat (your own model, your own key) and the coach setup page. */
 (function (root) {
   'use strict';
-  const E = root.Engine, U = root.U, UI = root.UI, Store = root.Store, LLM = root.LLM, Coach = root.Coach, Crypt = root.Crypt;
+  const E = root.Engine, U = root.U, UI = root.UI, Store = root.Store, LLM = root.LLM, Coach = root.Coach, Crypt = root.Crypt, Library = root.Library;
   const { h } = U;
   const Screens = root.Screens = root.Screens || {};
 
@@ -9,6 +9,9 @@
   const msgs = [];
   const hist = [];
   let busy = false, ctl = null, liveText = '', liveEl = null, chatEl = null;
+  // A photo picked for the next message: { b64, mime, url } (url is a local object URL for the preview only). Cleared after send.
+  let pendingImage = null;
+  function clearPendingImage() { if (pendingImage) URL.revokeObjectURL(pendingImage.url); pendingImage = null; }
 
   function hostOf(cfg) { try { return new URL(LLM.endpointOf(cfg)).host; } catch (e) { return 'your provider'; } }
   function scrollDown() { if (chatEl) chatEl.scrollTop = chatEl.scrollHeight; }
@@ -34,11 +37,11 @@
     if (!chatEl) return;
     U.clear(chatEl);
     if (!msgs.length) {
-      U.put(chatEl, h('div', { class: 'msg ai' }, 'Ask me how your week is going, whether your calories look right, or tell me something like "shoulders feel beat" or "I weighed 70.6 kg this morning". I can suggest changes, but nothing changes until you tap Apply.'),
-        h('div', { class: 'suggest' }, ...['How is my week going?', 'Am I eating enough protein?', 'Should I change my calories?', 'My chest press felt too heavy', 'How consistent has my activity been?'].map((q) => h('button', { type: 'button', class: 'pill', onclick: () => send(q) }, q))));
+      U.put(chatEl, h('div', { class: 'msg ai' }, 'Ask me how your week is going, whether your calories look right, or tell me something like "shoulders feel beat" or "I weighed 70.6 kg this morning". You can also attach a photo with the camera button. I can suggest changes, but nothing changes until you tap Apply.'),
+        h('div', { class: 'suggest' }, ...['How has my day been for fueling?', 'How is my week going?', 'Am I eating enough protein?', 'Should I change my calories?', 'My chest press felt too heavy', 'How consistent has my activity been?'].map((q) => h('button', { type: 'button', class: 'pill', onclick: () => send(q) }, q))));
     }
     for (const m of msgs) {
-      chatEl.appendChild(h('div', { class: 'msg ' + m.role }, m.text));
+      chatEl.appendChild(h('div', { class: 'msg ' + m.role }, m.image ? h('img', { src: m.image, alt: 'Photo you sent', class: 'msgimg' }) : null, m.text));
       for (const p of m.proposals || []) chatEl.appendChild(proposalCard(p));
     }
     liveEl = null;
@@ -46,16 +49,18 @@
     scrollDown();
   }
 
-  async function send(text) {
+  async function send(text, image) {
     text = String(text || '').trim().slice(0, 2000);
-    if (!text || busy) return;
+    if ((!text && !image) || busy) return;
     if (!root.App.aiReady()) return U.toast('Connect your AI first.', 'warn');
     const cfg = root.App.llmConfig();
-    msgs.push({ role: 'user', text });
+    msgs.push({ role: 'user', text: text || (image ? 'What can you tell me about this photo?' : ''), image: image ? image.url : null });
+    const content = [{ type: 'text', text: text || 'What can you tell me about this photo? Anything relevant to my training or fueling?' }];
+    if (image) content.push({ type: 'image', mime: image.mime, b64: image.b64 });
     busy = true; liveText = ''; ctl = new AbortController(); drawChat(); syncComposer();
     const n = hist.length;
     try {
-      const res = await Coach.turn(cfg, hist, [{ type: 'text', text }], { signal: ctl.signal, onText: (t) => { liveText = t; if (liveEl) { liveEl.textContent = t; scrollDown(); } } });
+      const res = await Coach.turn(cfg, hist, content, { signal: ctl.signal, onText: (t) => { liveText = t; if (liveEl) { liveEl.textContent = t; scrollDown(); } } });
       msgs.push({ role: 'ai', text: res.text || (res.proposals.length ? 'I have a suggestion for you:' : '(no reply)'), proposals: res.proposals });
     } catch (e) {
       hist.length = n;
@@ -84,12 +89,47 @@
       return page;
     }
     inputEl = h('textarea', { class: 'inp', rows: 1, maxlength: 2000, placeholder: 'Ask or tell the coach something', 'aria-label': 'Message' });
-    sendBtn = h('button', { type: 'button', class: 'btn primary', onclick: () => { if (busy) { if (ctl) ctl.abort(); return; } const t = inputEl.value; inputEl.value = ''; send(t); } });
+    sendBtn = h('button', { type: 'button', class: 'btn primary', onclick: () => {
+      if (busy) { if (ctl) ctl.abort(); return; }
+      const t = inputEl.value, img = pendingImage;
+      inputEl.value = ''; pendingImage = null; syncAttach();
+      send(t, img);
+    } });
     inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } });
+
+    // ---------- photo attach ----------
+    const attachRow = h('div', { class: 'attachprev hidden' });
+    const noticeEl = h('div', { class: 'notice' });
+    const syncAttach = () => {
+      U.clear(attachRow);
+      const has = !!pendingImage;
+      attachRow.classList.toggle('hidden', !has);
+      if (has) attachRow.appendChild(h('img', { src: pendingImage.url, alt: 'Photo to send', class: 'attachthumb' + (Store.getSettings().blurPhotos ? ' blur' : '') }));
+      if (has) attachRow.appendChild(h('div', { class: 'muted small grow' }, 'Photo attached. It goes with your next message.'));
+      if (has) attachRow.appendChild(h('button', { type: 'button', class: 'iconbtn tiny', 'aria-label': 'Remove photo', onclick: () => { clearPendingImage(); syncAttach(); } }, U.icon('x', 16)));
+      noticeEl.textContent = has
+        ? 'Sends your numbers, a workout summary and this photo (no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.'
+        : 'Sends your numbers and a workout summary (no photos, no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.';
+    };
+    const fileInput = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'offscreen', 'aria-label': 'Take or choose a photo' });
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0]; fileInput.value = '';
+      if (!file) return;
+      if (!/^image\//.test(file.type)) return U.toast('Choose a photo.', 'warn');
+      U.toast('Reading photo...');
+      try {
+        const [fr] = await Library.frames(file, 1, 1024);
+        clearPendingImage();
+        pendingImage = { b64: await Library.toB64(fr.blob), mime: 'image/jpeg', url: URL.createObjectURL(fr.blob) };
+        syncAttach();
+      } catch (e) { U.toast(String(e && e.message ? e.message : e).slice(0, 200), 'warn'); }
+    });
+    const cameraBtn = h('button', { type: 'button', class: 'iconbtn', 'aria-label': 'Attach a photo', onclick: () => fileInput.click() }, U.icon('camera', 20));
+    syncAttach();
     syncComposer();
     U.put(page, chatEl,
-      h('div', { class: 'notice' }, 'Sends your numbers and a workout summary (no photos, no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.'),
-      h('div', { class: 'composer' }, inputEl, sendBtn));
+      noticeEl, attachRow,
+      h('div', { class: 'composer' }, cameraBtn, fileInput, inputEl, sendBtn));
     page.afterMount = drawChat;
     return page;
   };
@@ -212,7 +252,7 @@
         b.disabled = false;
       } }),
       UI.card(h('div', { class: 'ct' }, 'What leaves your phone'),
-        h('div', { class: 'muted' }, 'Only requests you trigger, sent straight from this device to ' + hostOf(cfg) + ' with your key: a summary of your numbers and workouts (activity types, minutes, estimated calories, streaks; never your notes) for the coach, or the text you type when you ask for a food estimate. Not your name, not your photos. The key is never written into backups, logs or the repository.'),
+        h('div', { class: 'muted' }, 'Only requests you trigger, sent straight from this device to ' + hostOf(cfg) + ' with your key: a summary of your numbers and workouts (activity types, minutes, estimated calories, streaks, today\'s food log; never your notes) for the coach, or the text you type when you ask for a food estimate. A photo only goes if you attach one yourself, in the coach chat or a food estimate. Not your name, not your progress photos or library. The key is never written into backups, logs or the repository.'),
         h('div', { class: 'muted small' }, 'The coach cannot change anything by itself. It can suggest, and you tap Apply. Every change has an Undo.'))));
   };
 })(self);

@@ -144,6 +144,26 @@ async function main() {
     eq(await page.locator('.setchip.done').count(), 0);
   });
 
+  await step('Today: + Add an exercise logs an extra lift for just today, without touching the plan', async () => {
+    const before = await cnt(page, 'set_logged');
+    const liftsBefore = await page.evaluate(() => Object.keys(Store.getState().plan.lifts).length);
+    await page.getByRole('button', { name: '+ Add an exercise' }).click();
+    const sheet = page.locator('#sheets');
+    await sheet.locator('select[aria-label="Exercise"]').selectOption({ label: 'Something else: type a name' });
+    await sheet.getByLabel('Name').fill('Face pulls');
+    await sheet.getByRole('button', { name: 'Next' }).click();
+    await sheet.getByText('Log set').waitFor();
+    await sheet.getByLabel('Reps', { exact: true }).fill('15');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForTimeout(200);
+    eq(await cnt(page, 'set_logged'), before + 1, 'one more set logged');
+    eq(await page.evaluate(() => Object.keys(Store.getState().plan.lifts).length), liftsBefore, 'the plan itself is untouched');
+    ok(/Face pulls/.test(await page.locator('#screen').innerText()), 'the extra exercise shows on Today');
+    ok(/Extra/.test(await page.locator('#screen').innerText()), 'marked as extra, not part of the planned session');
+    const logged = await page.evaluate(() => Store.getState().sets.slice(-1)[0]);
+    eq([logged.lift, logged.reps, logged.name], ['acc_face_pulls', 15, 'Face pulls'], 'saved as an ordinary accessory set');
+  });
+
   await step('weigh-in logs and reaches Progress', async () => {
     await page.getByLabel('Weigh again').fill('81.6');
     await page.getByRole('button', { name: 'Log', exact: true }).click();
@@ -322,6 +342,33 @@ async function main() {
     ok(await page.locator('.chip', { hasText: 'AI, edited' }).count() >= 1, 'AI chip visible in the log');
   });
 
+  await step('Fuel: a food photo is analyzed for macros with no text typed, and shows in the confirmation', async () => {
+    const reply = { name: 'Grilled chicken salad', items: [{ name: 'Chicken breast', qty: '150 g', kcal: 250, protein: 45, carbs: 0, fat: 6 }, { name: 'Mixed greens', qty: '1 bowl', kcal: 30, protein: 2, carbs: 5, fat: 0 }], kcal: 280, protein: 47, carbs: 5, fat: 6, assumptions: ['Portion judged from the plate in the photo'], confidence: 'medium' };
+    await page.unroute('https://api.anthropic.com/**');
+    const seen = await fakeAI(page, async () => ({ body: textReply(JSON.stringify(reply)) }));
+    const before = await cnt(page, 'food_logged');
+    await page.getByRole('button', { name: 'Add food' }).click();
+    await page.getByRole('tab', { name: 'Describe' }).click();
+    const png = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 300; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#a52'; x.fillRect(0, 0, 300, 300);
+      const b = await new Promise((res) => c.toBlob(res, 'image/png'));
+      return Array.from(new Uint8Array(await b.arrayBuffer()));
+    });
+    await page.getByLabel('Take or choose a photo of the food').setInputFiles({ name: 'plate.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await page.waitForSelector('.attachprev:not(.hidden)');
+    ok(/Sends this text and photo/.test(await page.locator('#sheets').innerText()), 'the note says the photo will be sent too');
+    await page.getByRole('button', { name: 'Estimate nutrition' }).click();
+    await page.waitForSelector('text=Check these numbers');
+    eq(seen.length, 1, 'one provider call');
+    const content = seen[0].messages[0].content;
+    eq(content.filter((c) => c.type === 'image').length, 1, 'the photo was sent');
+    ok(content.some((c) => c.type === 'image' && c.source.media_type === 'image/jpeg'), 'recompressed to JPEG');
+    ok(/your photo/.test(await page.locator('#sheets').innerText()), 'says the estimate came from the photo');
+    await page.getByRole('button', { name: 'Looks right, log it' }).click();
+    await page.waitForTimeout(300);
+    eq(await cnt(page, 'food_logged'), before + 1);
+  });
+
   await step('Fuel: raw ingredients split into servings, and estimate can be cancelled without saving', async () => {
     await page.unroute('https://api.anthropic.com/**');
     const pot = { name: 'Veg pulao pot', items: [{ name: 'Rice', qty: '300 g raw', kcal: 1080, protein: 20, carbs: 240, fat: 2 }, { name: 'Oil', qty: '2 tbsp', kcal: 240, protein: 0, carbs: 0, fat: 28 }], kcal: 1320, protein: 20, carbs: 240, fat: 30, assumptions: [], confidence: 'high' };
@@ -435,6 +482,32 @@ async function main() {
     ok(r.headers()['x-api-key'] === 'sk-ant-renewed-0000000000', 'key sent as header');
     ok(!(r.postData() || '').includes('sk-ant-renewed'), 'key must not be in the body');
     ok(/USER DATA/.test(r.postData()), 'context is included');
+    ok(/foodToday/.test(r.postData()), 'today\'s food log is in the context');
+  });
+
+  await step('Coach: a photo can be attached to a message and is sent alongside the usual summary', async () => {
+    await page.unroute('https://api.anthropic.com/**');
+    const reqs2 = [];
+    await page.route('https://api.anthropic.com/**', async (r) => { if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS }); reqs2.push(JSON.parse(r.request().postData() || '{}')); return r.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/event-stream' }, CORS), body: textReply('That looks like a solid squat depth.') }); });
+    const png = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 200; c.height = 200; const x = c.getContext('2d'); x.fillStyle = '#284'; x.fillRect(0, 0, 200, 200);
+      const b = await new Promise((res) => c.toBlob(res, 'image/png'));
+      return Array.from(new Uint8Array(await b.arrayBuffer()));
+    });
+    await page.getByLabel('Take or choose a photo').setInputFiles({ name: 'squat.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await page.waitForSelector('.attachprev:not(.hidden)');
+    ok(/Photo attached/.test(await page.locator('.attachprev').innerText()), 'preview shown before sending');
+    ok(/this photo/.test(await page.locator('.notice').innerText()), 'notice says the photo will go too');
+    await page.getByLabel('Message').fill('does my squat depth look ok?');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.msg.ai:has-text("solid squat depth")');
+    eq(reqs2.length, 1, 'one provider call');
+    const content = reqs2[0].messages[reqs2[0].messages.length - 1].content;
+    eq(content.filter((c) => c.type === 'image').length, 1, 'one image sent');
+    ok(content.some((c) => c.type === 'image' && c.source.media_type === 'image/jpeg'), 'recompressed to JPEG');
+    ok(/foodToday/.test(JSON.stringify(reqs2[0])), 'the usual data summary still goes too');
+    eq(await page.locator('.msg.user img.msgimg').count(), 1, 'the sent photo shows in the chat');
+    ok(await page.locator('.attachprev.hidden').count() >= 1, 'the attach preview clears after sending');
   });
 
   await step('no screen or sheet shows stray "null", "undefined" or "NaN"', async () => {
@@ -1272,7 +1345,7 @@ async function main() {
     await fc.setFiles(lfiles);
   };
 
-  await step('library: add a photo and a video; only small previews are stored, never the originals', async () => {
+  await step('library: add a photo and a video; small previews for both, a compressed copy for the photo, never the original file', async () => {
     await route(lpage, '#/progress');
     await lpage.getByRole('link', { name: 'Open' }).last().click();
     await lpage.waitForSelector('text=Your workout photos and videos');
@@ -1284,15 +1357,21 @@ async function main() {
     await sheet.getByRole('button', { name: 'Add', exact: true }).click();
     await lpage.waitForSelector('.libtile');
     eq(await lpage.locator('.libtile').count(), 2);
-    const clips = await lpage.evaluate(() => Store.getState().clips.map((c) => ({ kind: c.kind, tag: c.tag, name: c.name, size: c.size, w: c.w, h: c.h, dur: c.dur, thumb: !!c.thumb })));
+    const clips = await lpage.evaluate(() => Store.getState().clips.map((c) => ({ kind: c.kind, tag: c.tag, name: c.name, size: c.size, w: c.w, h: c.h, dur: c.dur, thumb: !!c.thumb, full: !!c.full })));
     eq(clips.map((c) => c.kind).sort(), ['photo', 'video']);
     ok(clips.every((c) => c.tag === 'Personal best' && c.thumb), 'tag and preview kept');
-    const v = clips.find((c) => c.kind === 'video'); ok(v.dur > 1 && v.dur < 4, 'video length worked out even when the recorder left it out: ' + v.dur);
+    const photo = clips.find((c) => c.kind === 'photo'), v = clips.find((c) => c.kind === 'video');
+    ok(photo.full, 'the photo got a compressed full copy');
+    ok(!v.full, 'the video did not');
+    ok(v.dur > 1 && v.dur < 4, 'video length worked out even when the recorder left it out: ' + v.dur);
     const after = await mediaKinds();
     eq(after.thumb, 2, 'two previews');
+    eq(after.full, 1, 'one compressed photo copy');
     eq(after.progress, before.progress, 'progress photos untouched');
     const bytes = await lpage.evaluate(async () => (await Store.allMedia()).filter((m) => m.kind === 'thumb').reduce((t, m) => t + m.size, 0));
     ok(bytes < 60000, 'previews are small: ' + bytes + ' bytes against ' + (fx.photo.length + fx.video.length) + ' for the originals');
+    const fullBytes = await lpage.evaluate(async () => (await Store.allMedia()).filter((m) => m.kind === 'full').reduce((t, m) => t + m.size, 0));
+    ok(fullBytes < 400000, 'the compressed photo copy is not the original: ' + fullBytes + ' bytes');
     const stored = await lpage.evaluate(() => JSON.stringify(Store.getEvents()));
     ok(!stored.includes('base64') && stored.length < 20000, 'no file content in the event log');
   });
@@ -1325,12 +1404,12 @@ async function main() {
     await lpage.waitForFunction(() => Store.getState().clips.length === 2);
   });
 
-  await step('library: viewing the original asks for the file again and stores nothing', async () => {
+  await step('library: watching a video asks for the file again and stores nothing', async () => {
     const before = await mediaKinds();
-    await lpage.locator('.libtile').first().click();
+    await lpage.getByRole('button', { name: /video from/ }).click();
     const sheet = lpage.locator('#sheets');
-    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /View the original|Watch the original/ }).click()]);
-    await fc.setFiles(lfiles[0]);
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Watch the original' }).click()]);
+    await fc.setFiles(lfiles[1]);
     await lpage.locator('#sheets .resmedia').last().waitFor();
     ok(/not keeping a copy/.test(await lpage.locator('#sheets').innerText()), 'says it is not kept');
     eq(await mediaKinds(), before, 'no new media stored');
@@ -1338,11 +1417,25 @@ async function main() {
     await lpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
   });
 
-  await step('library: a file the browser cannot show gets a plain note instead of a blank box, and the tap opens the picker at once', async () => {
-    await lpage.locator('.libtile').first().click();
+  await step('library: viewing a photo shows its compressed copy at once, with no file prompt and no new storage', async () => {
+    const before = await mediaKinds();
+    const t0 = Date.now();
+    await lpage.getByRole('button', { name: /photo from/ }).click();
+    const sheet = lpage.locator('#sheets');
+    await sheet.getByRole('button', { name: 'View photo' }).click();
+    await lpage.locator('#sheets .resmedia').last().waitFor();
+    ok(Date.now() - t0 < 2000, 'it opened straight from the tap, no file picker needed');
+    ok(/compressed copy/.test(await lpage.locator('#sheets').innerText()), 'says it kept a compressed copy');
+    eq(await mediaKinds(), before, 'no new media stored: the copy was made when the photo was added');
+    await lpage.locator('#sheets').getByRole('button', { name: 'Close' }).last().click();
+    await lpage.locator('#sheets').getByRole('button', { name: 'Save' }).click();
+  });
+
+  await step('library: a video the browser cannot show gets a plain note instead of a blank box, and the tap opens the picker at once', async () => {
+    await lpage.getByRole('button', { name: /video from/ }).click();
     const sheet = lpage.locator('#sheets');
     const t0 = Date.now();
-    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: /View the original|Watch the original/ }).click()]);
+    const [fc] = await Promise.all([lpage.waitForEvent('filechooser'), sheet.getByRole('button', { name: 'Watch the original' }).click()]);
     ok(Date.now() - t0 < 2000, 'the picker opened straight from the tap');
     await fc.setFiles({ name: 'broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('this is not a video') });
     await lpage.locator('#sheets .resmedia').last().waitFor();
@@ -1353,23 +1446,28 @@ async function main() {
   });
 
   await step('library: previews and entries survive a backup and restore; a hostile entry in a backup is ignored', async () => {
+    const bare = await lpage.evaluate(async () => JSON.parse(await Store.buildBackup({})).media.some((m) => m.kind === 'full'));
+    ok(bare === false, 'a plain backup leaves out the compressed photo copy');
     const r = await lpage.evaluate(async () => {
       const text = await Store.buildBackup({ media: true });
       const obj = JSON.parse(text);
       const thumbs = obj.media.filter((m) => m.kind === 'thumb').length;
+      const fulls = obj.media.filter((m) => m.kind === 'full').length;
       obj.events.push({ seq: 9999, ts: '2026-01-01T00:00:00Z', type: 'clip_added', data: { id: '../evil', kind: 'photo', date: '2026-01-01' }, src: 'x' });
-      obj.events.push({ seq: 10000, ts: '2026-01-01T00:00:00Z', type: 'clip_added', data: { id: 'c_ok', kind: 'video', date: '2026-01-01', tag: '<img src=x onerror=alert(1)>', note: '<b>hi</b>', thumb: '../../etc', dur: 1e12 }, src: 'x' });
+      obj.events.push({ seq: 10000, ts: '2026-01-01T00:00:00Z', type: 'clip_added', data: { id: 'c_ok', kind: 'video', date: '2026-01-01', tag: '<img src=x onerror=alert(1)>', note: '<b>hi</b>', thumb: '../../etc', full: '../../etc', dur: 1e12 }, src: 'x' });
       const imp = await Store.readImport(JSON.stringify(obj));
       await Store.applyBackup(imp.payload);
       const st = Store.getState();
       const media = await Store.allMedia();
-      return { thumbs, clips: st.clips.map((c) => ({ id: c.id, tag: c.tag, thumb: c.thumb, dur: c.dur })), restoredThumbs: media.filter((m) => m.kind === 'thumb').length };
+      return { thumbs, fulls, clips: st.clips.map((c) => ({ id: c.id, tag: c.tag, thumb: c.thumb, full: c.full, dur: c.dur })), restoredThumbs: media.filter((m) => m.kind === 'thumb').length, restoredFulls: media.filter((m) => m.kind === 'full').length };
     });
     eq(r.thumbs, 2, 'both previews were in the backup');
+    eq(r.fulls, 1, 'the one compressed photo copy was in the backup, with media included');
     eq(r.restoredThumbs, 2, 'and came back');
+    eq(r.restoredFulls, 1, 'so did the compressed copy');
     ok(r.clips.every((c) => c.id !== '../evil'), 'a path-like id is dropped');
     const ok1 = r.clips.find((c) => c.id === 'c_ok');
-    eq([ok1.tag, ok1.thumb, ok1.dur], ['Other', null, 36000], 'unknown tag, path-like preview id and huge length are clamped');
+    eq([ok1.tag, ok1.thumb, ok1.full, ok1.dur], ['Other', null, null, 36000], 'unknown tag, path-like preview and full ids and huge length are clamped');
     eq(r.clips.length, 3);
     await lpage.evaluate(async () => { const c = Store.getState().clips.find((x) => x.id === 'c_ok'); await Store.voidEvent(c.seq); });
   });
