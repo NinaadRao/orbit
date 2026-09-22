@@ -103,22 +103,46 @@
   };
 
   // ---------- edit an existing entry ----------
+  // Raw calories/macros are only ever typed at the AI-confirm or Manual-log step (drawConfirm/drawManual).
+  // Once something is logged, editing it changes the portion size instead, and macros scale from the
+  // per-unit basis that was captured at log time (grams for a database food, "x servings" otherwise).
+  function portionOf(f) {
+    if (f.portion && f.portion.base) return f.portion;
+    // Entries logged before this feature existed have no stored basis: treat what was logged as "1x".
+    return { unit: 'x', amount: 1, label: f.serving || 'as logged', base: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } };
+  }
+  function scalePortion(base, unit, amount) {
+    return unit === 'g' ? Foods.scale(base, amount) : { kcal: Math.round(base.kcal * amount), protein: Math.round(base.protein * amount * 10) / 10, carbs: Math.round(base.carbs * amount * 10) / 10, fat: Math.round(base.fat * amount * 10) / 10 };
+  }
   function editSheet(f) {
     const name = UI.field({ label: 'Name', value: f.name, maxlength: 80 });
-    const kc = UI.field({ label: 'Calories', unit: 'kcal', type: 'number', value: f.kcal, flex: 1 });
-    const p = UI.field({ label: 'Protein', unit: 'g', type: 'number', value: f.protein, flex: 1 });
-    const c = UI.field({ label: 'Carbs', unit: 'g', type: 'number', value: f.carbs, flex: 1 });
-    const fa = UI.field({ label: 'Fat', unit: 'g', type: 'number', value: f.fat, flex: 1 });
+    const portion = portionOf(f);
+    const isGrams = portion.unit === 'g';
+    let amount = String(portion.amount);
     let meal = E.MEALS.includes(f.meal) ? f.meal : 'Snack';
-    const body = h('div', { class: 'stack' }, name, UI.row(kc), UI.row(p, c, fa), UI.pills({ label: 'Meal', items: E.MEALS, values: new Set([meal]), multi: false, onChange: (v) => { meal = Array.from(v)[0]; } }),
+    const live = h('div', { class: 'kv' });
+    const updLive = () => { const n = Math.max(0, numOrNull(amount) || 0); const m = scalePortion(portion.base, portion.unit, n); U.clear(live); U.put(live, h('span', null, m.kcal + ' kcal'), h('b', null, macroLine(m))); };
+    const amtField = UI.field({ label: isGrams ? 'Amount' : 'Portion (x ' + portion.label + ')', unit: isGrams ? 'g' : 'x', type: 'number', value: amount, flex: 1, onInput: (v) => { amount = v; updLive(); } });
+    const quick = isGrams
+      ? h('div', { class: 'pills' }, ...[50, 100, 150, 200, 250].map((g) => h('button', { type: 'button', class: 'pill', onclick: () => { amount = String(g); amtField.input.value = amount; updLive(); } }, g + ' g')))
+      : h('div', { class: 'pills' }, ...[0.5, 1, 1.5, 2].map((x) => h('button', { type: 'button', class: 'pill', onclick: () => { amount = String(x); amtField.input.value = amount; updLive(); } }, x + 'x')));
+    updLive();
+    const body = h('div', { class: 'stack' }, name, amtField, quick, live,
+      h('div', { class: 'muted small' }, isGrams ? 'Weigh the amount you actually had; calories and macros scale from it.' : 'Ate more or less than logged? Adjust the portion; calories and macros scale from it.'),
+      UI.pills({ label: 'Meal', items: E.MEALS, values: new Set([meal]), multi: false, onChange: (v) => { meal = Array.from(v)[0]; } }),
       f.ai && f.ai.assumptions && f.ai.assumptions.length ? h('ul', { class: 'assume' }, ...f.ai.assumptions.map((a) => h('li', null, a))) : null);
     U.sheet('Edit food', body, [{ label: 'Delete', kind: 'danger', run: async () => { await Store.voidEvent(f.seq); root.App.render(); } }, { label: 'Save', kind: 'primary', run: () => {
-      const n = E.normalizeFood({ name: name.input.value, kcal: numOrNull(kc.input.value), protein: numOrNull(p.input.value), carbs: numOrNull(c.input.value), fat: numOrNull(fa.input.value) });
+      const amt = numOrNull(amount);
+      const max = isGrams ? 3000 : 20;
+      if (!(amt > 0 && amt <= max)) { U.toast(isGrams ? 'Enter an amount between 1 and 3,000 g.' : 'Portion must be between 0 and 20.', 'warn'); return false; }
+      const m = scalePortion(portion.base, portion.unit, amt);
+      const n = E.normalizeFood({ name: name.input.value, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
       if (!n.ok) { U.toast(n.errors[0], 'warn'); return false; }
       const extra = {};
-      if (f.serving) extra.serving = f.serving;
+      extra.serving = isGrams ? (Math.round(amt * 10) / 10 + ' g') : (amt === 1 ? portion.label : U.num(amt, 2) + ' x ' + portion.label);
       if (f.source) extra.source = f.source;
       if (f.ai) extra.ai = Object.assign({}, f.ai, { edited: true });
+      extra.portion = { unit: portion.unit, amount: amt, label: portion.label, base: portion.base };
       (async () => { await Store.voidEvent(f.seq); await saveFood(f.date, meal, n.value, extra); root.App.render(); })();
     } }]);
   }
@@ -211,7 +235,7 @@
           if (!(n > 0 && n <= 20)) return U.toast('Servings must be between 0 and 20.', 'warn');
           const r = E.normalizeFood({ name: f.name, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
           if (!r.ok) return U.toast(r.errors[0], 'warn');
-          await saveFood(date, meal, r.value, { serving: n === 1 ? f.serving : U.num(n, 2) + ' x ' + f.serving, source: f.recent ? 'recent' : 'catalog' });
+          await saveFood(date, meal, r.value, { serving: n === 1 ? f.serving : U.num(n, 2) + ' x ' + f.serving, source: f.recent ? 'recent' : 'catalog', portion: { unit: 'x', amount: n, label: f.serving, base: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } } });
           finish();
         } })));
     }
@@ -233,7 +257,7 @@
           const m = Foods.scale(f, n);
           const r = E.normalizeFood({ name: f.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
           if (!r.ok) return U.toast(r.errors[0], 'warn');
-          await saveFood(date, meal, r.value, { serving: Math.round(n * 10) / 10 + ' g', source: f.src === 1 ? 'mylist' : 'usda' });
+          await saveFood(date, meal, r.value, { serving: Math.round(n * 10) / 10 + ' g', source: f.src === 1 ? 'mylist' : 'usda', portion: { unit: 'g', amount: n, base: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat } } });
           finish();
         } })));
     }
@@ -330,7 +354,7 @@
         if (!n.ok) return U.toast(n.errors[0], 'warn');
         if (n.warnings.length && !ack) { ack = true; warn.textContent = n.warnings[0]; warn.classList.remove('hidden'); okBtn.textContent = 'Log anyway'; return; }
         const edited = ['kcal', 'protein', 'carbs', 'fat'].some((k) => n.value[k] !== v[k]) || n.value.name !== v.name;
-        await saveFood(date, meal, n.value, { source: est.mode === 'ingr' ? 'ingredients' : 'ai', ai: { items: v.items, assumptions: v.assumptions, confidence: v.confidence, edited, input: est.input } });
+        await saveFood(date, meal, n.value, { source: est.mode === 'ingr' ? 'ingredients' : 'ai', ai: { items: v.items, assumptions: v.assumptions, confidence: v.confidence, edited, input: est.input }, portion: { unit: 'x', amount: 1, label: 'as logged', base: { kcal: n.value.kcal, protein: n.value.protein, carbs: n.value.carbs, fat: n.value.fat } } });
         finish('Logged. Estimates can be edited any time from Fuel.');
       });
       const items = v.items.length ? h('div', null, h('div', { class: 'lab' }, 'How it was worked out'), ...v.items.map((it) => h('div', { class: 'itemrow' }, h('span', null, it.name), h('b', null, it.kcal + ' kcal'), h('small', null, (it.qty ? it.qty + ' · ' : '') + macroLine(it))))) : null;
@@ -363,7 +387,7 @@
         const n = E.normalizeFood({ name: mFields.name, kcal: numOrNull(mFields.kcal), protein: numOrNull(mFields.protein), carbs: numOrNull(mFields.carbs), fat: numOrNull(mFields.fat) });
         if (!n.ok) return U.toast(n.errors[0], 'warn');
         if (n.warnings.length && !ack) { ack = true; warn.textContent = n.warnings[0]; warn.classList.remove('hidden'); okBtn.textContent = 'Log anyway'; return; }
-        await saveFood(date, meal, n.value, { source: 'manual' });
+        await saveFood(date, meal, n.value, { source: 'manual', portion: { unit: 'x', amount: 1, label: 'as logged', base: { kcal: n.value.kcal, protein: n.value.protein, carbs: n.value.carbs, fat: n.value.fat } } });
         finish();
       });
       U.put(body, name, UI.row(kc), UI.row(p, c, fa), live, warn, okBtn);

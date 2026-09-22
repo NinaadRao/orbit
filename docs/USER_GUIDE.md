@@ -83,6 +83,8 @@ Where it comes from, and what to watch for:
 - USDA does not measure home-cooked Indian dishes, so a plate of rajma chawal is not in it. The short starter list of common dishes is labelled approximate, and the **Describe** and **Ingredients** tabs are for everything else. Both have an **Attach a photo** button: take or choose a picture of the plate or the label and the AI reads it alongside anything you typed.
 - USDA carbohydrates include fibre. Regoal shows the number as the source gives it.
 
+**Editing a logged food.** Tap any entry in the day's log to open it. Calories and macros are typed directly only once, while you are checking an AI estimate (Describe or Ingredients) before you tap **Looks right, log it**, or on Manual. After that, editing an entry changes its **portion** instead — grams for a Find/database food, or an "x" multiplier of what was logged for everything else (recent foods, a diet-plan serving, an AI estimate, a manual entry) — and calories and macros are recalculated from it automatically. Name and meal stay editable either way.
+
 ## Your own food list
 
 Want foods that are not in the bundled list, for example Indian Food Composition Tables values? Regoal does not ship those, because their publisher does not allow it. You can load a list you have the right to use, from a file on your device:

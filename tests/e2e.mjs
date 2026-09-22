@@ -241,6 +241,20 @@ async function main() {
     const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
     eq([f.name, f.kcal, f.serving, f.source], ['Fish, salmon, Atlantic, farmed, raw', 312, '150 g', 'usda']);
     ok(Math.abs(f.protein - 30.6) < 0.6 && Math.abs(f.fat - 20.1) < 0.6, 'macros scaled from per 100 g, got ' + f.protein + ' and ' + f.fat);
+    eq([f.portion.unit, f.portion.amount], ['g', 150], 'the per-100 g basis is stored for later portion edits');
+  });
+
+  await step('Fuel: editing a database food changes the amount in grams, and macros rescale from the stored per-100 g basis', async () => {
+    await page.locator('.foodrow', { hasText: 'Fish, salmon' }).click();
+    eq(await page.getByLabel('Calories').count(), 0, 'no raw calories field once something is logged');
+    const amt = page.getByLabel('Amount');
+    eq(await amt.inputValue(), '150');
+    await amt.fill('300');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForTimeout(300);
+    const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
+    eq([f.name, f.kcal, f.serving], ['Fish, salmon, Atlantic, farmed, raw', 624, '300 g']);
+    ok(Math.abs(f.protein - 61.2) < 1, 'protein doubled with the amount, got ' + f.protein);
   });
 
   await step('Fuel: everyday Indian names find USDA foods, and the filter choice is remembered', async () => {
@@ -418,13 +432,16 @@ async function main() {
     await page.getByRole('button', { name: 'Close' }).click();
   });
 
-  await step('Fuel: editing an entry keeps it a single entry (old one voided)', async () => {
+  await step('Fuel: editing an entry changes the portion (not raw macros) and keeps it a single entry (old one voided)', async () => {
     const before = (await page.evaluate(() => Store.getState().foods.length));
-    await page.locator('.foodrow').first().click();
-    await page.getByLabel('Calories').fill('400');
+    await page.locator('.foodrow', { hasText: 'Dal and rice' }).click();
+    eq(await page.getByLabel('Calories').count(), 0, 'no raw calories field once something is logged');
+    await page.getByLabel('Portion (x as logged)').fill('1.5');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await page.waitForTimeout(300);
-    eq(await page.evaluate(() => Store.getState().foods.length), before);
+    eq(await page.evaluate(() => Store.getState().foods.length), before, 'still a single entry');
+    const f = (await events(page)).filter((e) => e.type === 'food_logged').pop().data;
+    eq([f.name, f.kcal, f.protein, f.carbs, f.fat, f.portion.amount], ['Dal and rice', 615, 30, 90, 15, 1.5]);
   });
 
   // ----- coach -----
