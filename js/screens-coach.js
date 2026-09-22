@@ -111,7 +111,9 @@
         ? 'Sends your numbers, a workout summary and this photo (no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.'
         : 'Sends your numbers and a workout summary (no photos, no name, no notes) to ' + hostOf(cfg) + '. Changes need your tap.';
     };
-    const fileInput = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'offscreen', 'aria-label': 'Take or choose a photo' });
+    // No "capture" attribute: that forces the camera straight open on some browsers. Leaving it off lets the
+    // person choose the camera or their photo library, whichever the browser's own picker offers.
+    const fileInput = h('input', { type: 'file', accept: 'image/*', class: 'offscreen', 'aria-label': 'Take or choose a photo' });
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0]; fileInput.value = '';
       if (!file) return;

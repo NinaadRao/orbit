@@ -268,7 +268,9 @@
         }
         note.textContent = (has ? 'Sends this text and photo ' : 'Sends only this text ') + 'to ' + host + ' with your key. Nothing is saved until you check the numbers.';
       };
-      const fileInput = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'offscreen', 'aria-label': 'Take or choose a photo of the food' });
+      // No "capture" attribute: that forces the camera straight open on some browsers. Leaving it off lets the
+      // person choose the camera or their photo library, whichever the browser's own picker offers.
+      const fileInput = h('input', { type: 'file', accept: 'image/*', class: 'offscreen', 'aria-label': 'Take or choose a photo of the food' });
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0]; fileInput.value = '';
         if (!file) return;
