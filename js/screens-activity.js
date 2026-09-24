@@ -338,6 +338,27 @@
   }
   Screens.sessionPreviewSheet = sessionPreviewSheet;
 
+  // The next 7 days, whatever plan week they fall in, so "what's tomorrow" always has an answer, even
+  // right at a plan-week boundary where the Activity screen's "This week" list would run out.
+  function upcomingSheet(t) {
+    const st = Store.getState(), plan = st.plan, liftUnit = Store.getSettings().liftUnit;
+    const list = h('div', { class: 'list' });
+    for (let i = 1; i <= 7; i++) {
+      const d = E.addDays(t, i), f = E.sessionFor(plan, st.moves, d);
+      if (f.session) {
+        const week = E.weekOf(plan.startDate, d);
+        list.appendChild(h('button', { type: 'button', class: 'listrow', onclick: () => sessionPreviewSheet(f.session, week, plan, liftUnit) },
+          h('div', { class: 'grow' }, h('b', null, f.session.name), h('span', { class: 'muted small' }, dayLabel(d) + (f.moved ? ' · moved' : ''))),
+          U.icon('chev', 16)));
+      } else {
+        list.appendChild(h('div', { class: 'kv' }, h('span', null, dayLabel(d)), h('b', { class: 'muted' }, 'Rest')));
+      }
+    }
+    const body = h('div', { class: 'stack' }, h('div', { class: 'muted small' }, 'Tap a day to see its exercises. Moving a session later changes this too.'), list);
+    U.sheet('Coming up', body, [{ label: 'Close' }]);
+  }
+  Screens.upcomingSheet = upcomingSheet;
+
   // ---------- the Activity screen ----------
   Screens.activity = function () {
     revokeThumbs();

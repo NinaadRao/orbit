@@ -850,6 +850,24 @@ async function main() {
     ok((await page.locator('#screen').innerText()).includes(name + ' day'), 'today shows the chosen session');
   });
 
+  await step('today: "See what\'s coming up" always answers "what is tomorrow", not just a name', async () => {
+    await route(page, '#/today');
+    await page.getByRole('button', { name: /coming up/i }).first().click();
+    let overlay = page.locator('.overlay').last();
+    await overlay.locator('.sheet-title', { hasText: 'Coming up' }).waitFor();
+    const dayRows = overlay.locator('.listrow'), restRows = overlay.locator('.kv');
+    eq((await dayRows.count()) + (await restRows.count()), 7, 'the next 7 days are listed, planned or rest');
+    ok((await dayRows.count()) > 0, 'at least one planned day ahead');
+    const label = (await dayRows.first().locator('b').innerText()).trim();
+    await dayRows.first().click();
+    overlay = page.locator('.overlay').last();
+    await overlay.locator('.sheet-title', { hasText: label + ' day' }).waitFor();
+    const detail = await overlay.innerText();
+    ok(/Targets shown are for week \d+ of the plan/.test(detail), 'not just the name: shows exercises and targets');
+    await overlay.getByRole('button', { name: 'Close' }).click();
+    await page.locator('.overlay').last().getByRole('button', { name: 'Close' }).click();
+  });
+
   await step('coach: gets an activity summary without notes; a workout proposal needs a tap and undo works', async () => {
     await page.unroute('https://api.anthropic.com/**');
     const reqs = [];

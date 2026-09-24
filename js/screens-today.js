@@ -266,7 +266,8 @@
         list,
         extraList,
         h('button', { class: 'linkbtn', type: 'button', onclick: () => addExtraSheet(t, usedIds) }, '+ Add an exercise'),
-        todaySets.some((x) => !x.warmup) && !timeDone ? h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.workoutSheet({ type: 'strength', date: t, session: wo.name }) }, 'Add how long it took, to count the calories') : null));
+        todaySets.some((x) => !x.warmup) && !timeDone ? h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.workoutSheet({ type: 'strength', date: t, session: wo.name }) }, 'Add how long it took, to count the calories') : null,
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.upcomingSheet(t) }, 'See what\'s coming up')));
     } else {
       const nextIdx = [1, 2, 3, 4, 5, 6, 7].map((d) => E.sessionFor(plan, st.moves, E.addDays(t, d))).map((x) => x.session).find(Boolean);
       const restIds = Array.from(new Set(todaySets.map((x) => x.lift)));
@@ -277,10 +278,11 @@
         const bw = lift ? !!lift.bw : false;
         return h('div', { class: 'exrow' }, h('div', { class: 'exname' }, h('span', null, label)), setChips(mine, { liftId: id, label, bw, date: t }, set.liftUnit));
       })) : null;
-      cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, (f.planned ? f.planned.name + ' was moved off today. ' : '') + 'A light walk counts. ' + (nextIdx ? 'Next up: ' + nextIdx.name + '.' : '')),
+      cards.push(UI.card(h('div', { class: 'ct' }, 'Rest day'), h('div', { class: 'muted' }, (f.planned ? f.planned.name + ' was moved off today. ' : '') + 'A light walk counts.'),
         restList,
         UI.row(UI.btn('Train anyway', { kind: 'quiet', onClick: () => Screens.rescheduleSheet(t) }), UI.btn('Lifts', { kind: 'quiet', href: '#/lifts' })),
-        h('button', { class: 'linkbtn', type: 'button', onclick: () => addExtraSheet(t, new Set()) }, '+ Log an exercise anyway')));
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => addExtraSheet(t, new Set()) }, '+ Log an exercise anyway'),
+        h('button', { class: 'linkbtn', type: 'button', onclick: () => Screens.upcomingSheet(t) }, nextIdx ? 'Next up: ' + nextIdx.name + '. See what\'s coming up' : 'See what\'s coming up')));
     }
     const gc = Screens.goalsTodayCard ? Screens.goalsTodayCard() : null;
     if (gc) cards.push(gc);
