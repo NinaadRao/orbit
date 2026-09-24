@@ -18,6 +18,13 @@
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
   const EFFORT_HINT = { easy: 'You could hold a conversation.', moderate: 'Breathing hard, but steady.', hard: 'Competitive or all-out.' };
 
+  // Thumbnails for workout photos in History: object URLs made on render, revoked on the next one.
+  let thumbUrls = [];
+  const revokeThumbs = () => { for (const u of thumbUrls) URL.revokeObjectURL(u); thumbUrls = []; };
+  function fillWorkoutThumb(img, id) {
+    Store.getMedia(id).then((m) => { if (!m) return; const url = URL.createObjectURL(m.blob); thumbUrls.push(url); img.src = url; }).catch(() => {});
+  }
+
   // ---------- small views ----------
   function dayStrip(sum) {
     const box = h('div', { class: 'dots', role: 'img', 'aria-label': 'The last 14 days. ' + sum.last14.filter((d) => d.active).length + ' active.' });
@@ -73,6 +80,39 @@
     const kmF = UI.field({ label: 'Distance (optional)', unit: distU(), type: 'number', value: ex && ex.km ? String(Math.round(G.fromKm(ex.km, G.distInput(ex.type, du)) * 100) / 100) : o.km ? String(o.km) : '', hint: 'Counts towards your running, cycling or swimming goals.' });
     const paceLine = h('div', { class: 'muted small' });
     const noteF = UI.field({ label: 'Note (optional)', value: ex ? ex.note : '', maxlength: 200, hint: 'Stays on this device. The coach never sees it.' });
+
+    // Photo (optional): a compressed copy is kept on this device, like a Library photo. Never uploaded anywhere.
+    let photo = ex && ex.photo ? Object.assign({}, ex.photo) : null;
+    let photoFile = null, removePhoto = false;
+    const photoRow = h('div', { class: 'attachprev hidden' });
+    const syncPhoto = () => {
+      U.clear(photoRow);
+      if (photoFile) {
+        photoRow.appendChild(h('img', { src: URL.createObjectURL(photoFile), alt: 'Photo for this workout', class: 'attachthumb' + (set.blurPhotos ? ' blur' : '') }));
+        photoRow.appendChild(h('div', { class: 'muted small grow' }, 'New photo attached.'));
+        photoRow.appendChild(h('button', { type: 'button', class: 'iconbtn tiny', 'aria-label': 'Remove photo', onclick: () => { photoFile = null; removePhoto = !!photo; syncPhoto(); } }, U.icon('x', 16)));
+        photoRow.classList.remove('hidden');
+      } else if (photo && !removePhoto) {
+        const img = h('img', { alt: 'Photo for this workout', class: 'attachthumb' + (set.blurPhotos ? ' blur' : '') });
+        photoRow.appendChild(img);
+        photoRow.appendChild(h('div', { class: 'muted small grow' }, 'Photo attached.'));
+        photoRow.appendChild(h('button', { type: 'button', class: 'iconbtn tiny', 'aria-label': 'Remove photo', onclick: () => { removePhoto = true; syncPhoto(); } }, U.icon('x', 16)));
+        photoRow.classList.remove('hidden');
+        Store.getMedia(photo.thumb).then((m) => { if (m) img.src = URL.createObjectURL(m.blob); }).catch(() => {});
+      } else {
+        photoRow.classList.add('hidden');
+      }
+    };
+    const photoInput = h('input', { type: 'file', accept: 'image/*', class: 'offscreen', 'aria-label': 'Choose a photo for this workout' });
+    photoInput.addEventListener('change', () => {
+      const file = photoInput.files && photoInput.files[0]; photoInput.value = '';
+      if (!file) return;
+      if (!/^image\//.test(file.type)) return U.toast('Choose a photo.', 'warn');
+      photoFile = file; removePhoto = false; syncPhoto();
+    });
+    const photoBtn = UI.btn('Attach a photo (optional)', { kind: 'quiet', icon: 'camera', onClick: () => photoInput.click() });
+    const photoNote = h('div', { class: 'muted small' }, 'A compressed copy stays on this device, like your Library photos. It is never uploaded.');
+    syncPhoto();
     const estLine = h('div', { class: 'muted small' });
     const effortHint = h('div', { class: 'muted small' }, EFFORT_HINT[effort]);
     const effortSeg = UI.seg({ label: 'How hard was it', options: [{ value: 'easy', label: 'Easy' }, { value: 'moderate', label: 'Moderate' }, { value: 'hard', label: 'Hard' }], value: effort, onChange: (v) => { effort = v; effortHint.textContent = EFFORT_HINT[v]; refresh(); } });
@@ -138,7 +178,7 @@
           h('div', { class: 'muted small' }, 'Leave an exercise empty to skip it. ' + (already ? plural(already, 'set') + ' from Today are already logged for this day, so only add what is missing.' : 'Sets you log here count towards your lift targets.'))));
     if (!linked.length) buildRows();
 
-    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Activity'), typeSel), labelF, dateF, strengthBox, UI.row(minsF, kcalF), kmF, paceLine, effortSeg, effortHint, estLine, noteF);
+    const body = h('div', { class: 'stack' }, h('label', { class: 'field' }, h('span', { class: 'lab' }, 'Activity'), typeSel), labelF, dateF, strengthBox, UI.row(minsF, kcalF), kmF, paceLine, effortSeg, effortHint, estLine, noteF, photoBtn, photoInput, photoRow, photoNote);
     function refresh() {
       type = typeSel.value;
       labelF.classList.toggle('hidden', type !== 'other');
@@ -156,7 +196,12 @@
     typeSel.addEventListener('change', refresh); minsF.input.addEventListener('input', refresh); kmF.input.addEventListener('input', refresh); refresh();
 
     const actions = [{ label: 'Cancel' }];
-    if (ex) actions.push({ label: linked.length ? 'Delete with sets' : 'Delete', kind: 'danger', run: async () => { for (const x of linked) await Store.voidEvent(x.seq); await Store.voidEvent(ex.seq); U.toast('Deleted.'); root.App.render(); } });
+    if (ex) actions.push({ label: linked.length ? 'Delete with sets' : 'Delete', kind: 'danger', run: async () => {
+      for (const x of linked) await Store.voidEvent(x.seq);
+      await Store.voidEvent(ex.seq);
+      if (ex.photo) { await Store.delMedia(ex.photo.thumb).catch(() => {}); if (ex.photo.full) await Store.delMedia(ex.photo.full).catch(() => {}); }
+      U.toast('Deleted.'); root.App.render();
+    } });
     actions.push({ label: 'Save', kind: 'primary', run: () => {
       const date = dateF.input.value;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > t) { U.toast('Pick today or an earlier day.', 'warn'); return false; }
@@ -197,6 +242,21 @@
       }
       (async () => {
         try {
+          // The photo is compressed and stored (or removed) before the event is written, so the event never
+          // points at a blob that failed to save. Stable ids (the workout's own id) mean a replaced photo just
+          // overwrites the old blob, and an untouched one is carried forward without re-reading the file.
+          if (photoFile) {
+            const tid = 'wt_' + id, fid = 'wf_' + id;
+            const [tf] = await root.Library.frames(photoFile, 1, root.Library.THUMB_SIDE);
+            const [ff] = await root.Library.frames(photoFile, 1, root.Library.FULL_SIDE);
+            await Store.putMedia(tid, tf.blob, { kind: 'thumb' });
+            await Store.putMedia(fid, ff.blob, { kind: 'full' });
+            chk.value.photo = { thumb: tid, full: fid };
+          } else if (removePhoto && photo) {
+            await Store.delMedia(photo.thumb).catch(() => {}); if (photo.full) await Store.delMedia(photo.full).catch(() => {});
+          } else if (photo) {
+            chk.value.photo = photo;
+          }
           // The workout goes first and the old copy is voided last, so a failure part-way never loses what was there.
           await Store.append('workout_logged', chk.value);
           for (const d of setData) await Store.append('set_logged', d);
@@ -259,8 +319,28 @@
   }
   Screens.rescheduleSheet = rescheduleSheet;
 
+  // ---------- what a session actually involves (read-only: exercises and their targets for one week) ----------
+  function targetTextFor(ex, plan, week, liftUnit) {
+    const lift = ex.lift ? plan.lifts[ex.lift] : null;
+    if (lift) {
+      const tg = E.liftTarget(lift, week, E.targetOpts(plan));
+      return tg.sets + ' x ' + tg.reps + (tg.kg == null ? ' reps' : ' @ ' + U.fmtLift(tg.kg, liftUnit));
+    }
+    return ex.sets + ' x ' + (ex.range || 'work sets');
+  }
+  function sessionPreviewSheet(session, week, plan, liftUnit) {
+    const body = h('div', { class: 'stack' },
+      h('div', { class: 'muted small' }, plural(session.ex.length, 'exercise') + '. Targets shown are for week ' + week + ' of the plan.'),
+      ...session.ex.map((ex) => h('div', { class: 'exrow' },
+        h('div', { class: 'exname' }, h('span', null, ex.n), h('span', { class: 'extarget' }, targetTextFor(ex, plan, week, liftUnit))),
+        ex.flag ? h('div', { class: 'flag' }, ex.flag) : null)));
+    U.sheet(session.name + ' day', body, [{ label: 'Close' }]);
+  }
+  Screens.sessionPreviewSheet = sessionPreviewSheet;
+
   // ---------- the Activity screen ----------
   Screens.activity = function () {
+    revokeThumbs();
     const st = Store.getState(), plan = st.plan, set = Store.getSettings(), t = U.today();
     const goal = goalFor(st, set), sum = E.activitySummary(st, t, goal);
     const cur = Math.max(1, E.weekOf(plan.startDate, t));
@@ -276,8 +356,14 @@
       h('div', { class: 'kv' }, h('span', null, 'Active days'), h('b', null, sum.thisWeek.days + ' of ' + goal)),
       h('div', { class: 'kv' }, h('span', null, 'Time moving'), h('b', null, sum.thisWeek.mins ? dur(sum.thisWeek.mins) : 'Nothing logged')),
       h('div', { class: 'kv' }, h('span', null, 'Active calories'), h('b', null, sum.thisWeek.kcal ? kc(sum.thisWeek.kcal) : '0')),
-      ...E.weekPlan(st, cur, t).map((p) => h('div', { class: 'kv' }, h('span', null, p.name + ' · ' + dayLabel(p.date) + (p.moved ? ' (moved)' : '')), h('b', { class: p.status === 'done' ? 'st-done' : p.status === 'missed' ? 'st-missed' : '' }, p.status === 'done' ? 'Done' : p.status === 'missed' ? 'Not yet' : p.status === 'today' ? 'Today' : 'Coming up'))),
-      h('div', { class: 'muted small' }, 'A session counts as done on whatever day you trained it. Moving one is fine, and "not yet" is not a failure.')));
+      ...E.weekPlan(st, cur, t).map((p) => {
+        const session = plan.workouts.find((w) => w.name === p.name);
+        return h('button', { type: 'button', class: 'listrow', onclick: () => session && sessionPreviewSheet(session, cur, plan, set.liftUnit) },
+          h('div', { class: 'grow' }, h('b', null, p.name), h('span', { class: 'muted small' }, dayLabel(p.date) + (p.moved ? ' · moved' : ''))),
+          h('span', { class: p.status === 'done' ? 'st-done' : p.status === 'missed' ? 'st-missed' : '' }, p.status === 'done' ? 'Done' : p.status === 'missed' ? 'Not yet' : p.status === 'today' ? 'Today' : 'Coming up'),
+          session ? U.icon('chev', 16) : null);
+      }),
+      h('div', { class: 'muted small' }, 'Tap a day to see its exercises. A session counts as done on whatever day you trained it, and "not yet" is not a failure.')));
 
     // Trend: active days per week against the goal, and active calories
     const weeks = E.activityWeeks(st, cur, t).slice(-12);
@@ -313,11 +399,18 @@
     for (const [d, ss] of E.setIndex(st)) if (!strengthDates.has(d) && d <= t) setOnly.push({ date: d, n: ss.length });
     const items = st.workouts.map((w) => ({ date: w.date, seq: w.seq, w })).concat(setOnly.map((x) => ({ date: x.date, seq: 0, only: x })));
     items.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.seq - a.seq));
-    const hist = items.slice(0, 40).map((it) => it.w
-      ? h('button', { type: 'button', class: 'listrow', 'aria-label': 'Edit ' + E.workoutName(it.w), onclick: () => workoutSheet({ existing: it.w }) },
-        h('div', { class: 'grow' }, h('b', null, E.workoutName(it.w) + (it.w.session ? ' · ' + it.w.session : '')), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · ' + dur(it.w.mins) + (it.w.km ? ' · ' + G.fmtDist(it.w.km, G.distUnitFor(Store.getSettings()), it.w.type) : '') + ' · ' + cap(it.w.effort) + ' · ' + kc(it.w.kcal) + (it.w.manual ? ' (yours)' : ''))), U.icon('chev', 16))
-      : h('button', { type: 'button', class: 'listrow', 'aria-label': 'Add the time for the strength session on ' + dayLabel(it.date), onclick: () => workoutSheet({ type: 'strength', date: it.date }) },
-        h('div', { class: 'grow' }, h('b', null, 'Strength · ' + plural(it.only.n, 'set') + ' logged'), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · tap to add the time and count the calories')), U.icon('chev', 16)));
+    const hist = items.slice(0, 40).map((it) => {
+      if (it.w) {
+        const thumb = it.w.photo ? h('img', { alt: '', class: 'attachthumb' + (set.blurPhotos ? ' blur' : '') }) : null;
+        if (thumb) fillWorkoutThumb(thumb, it.w.photo.thumb);
+        return h('button', { type: 'button', class: 'listrow', 'aria-label': 'Edit ' + E.workoutName(it.w), onclick: () => workoutSheet({ existing: it.w }) },
+          thumb,
+          h('div', { class: 'grow' }, h('b', null, E.workoutName(it.w) + (it.w.session ? ' · ' + it.w.session : '')), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · ' + dur(it.w.mins) + (it.w.km ? ' · ' + G.fmtDist(it.w.km, G.distUnitFor(Store.getSettings()), it.w.type) : '') + ' · ' + cap(it.w.effort) + ' · ' + kc(it.w.kcal) + (it.w.manual ? ' (yours)' : ''))),
+          U.icon('chev', 16));
+      }
+      return h('button', { type: 'button', class: 'listrow', 'aria-label': 'Add the time for the strength session on ' + dayLabel(it.date), onclick: () => workoutSheet({ type: 'strength', date: it.date }) },
+        h('div', { class: 'grow' }, h('b', null, 'Strength · ' + plural(it.only.n, 'set') + ' logged'), h('span', { class: 'muted small' }, dayLabel(it.date) + ' · tap to add the time and count the calories')), U.icon('chev', 16));
+    });
     cards.push(UI.card(h('div', { class: 'ct' }, 'History'), h('div', { class: 'list' }, ...(hist.length ? hist : [UI.empty('No workouts yet. Anything that gets you moving counts: swimming, football, tennis, badminton, pickleball, hot yoga, strength and more.')]))));
 
     // The goal

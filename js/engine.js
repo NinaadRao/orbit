@@ -960,12 +960,16 @@
     const mins = Math.round(Number(raw.mins));
     if (!(mins >= 1)) return { ok: false, errors: ['Add how long it lasted.'] };
     const kcal = clamp(Math.round(Number(raw.kcal) || 0), 0, 5000);
+    // An optional photo: two ids pointing at compressed copies kept in the media store, never the raw file.
+    const mediaId = (x) => /^[a-z0-9][a-z0-9_]{0,69}$/.test(String(x || '')) ? String(x) : null;
+    const photo = raw.photo && typeof raw.photo === 'object' && mediaId(raw.photo.thumb) ? { thumb: mediaId(raw.photo.thumb), full: mediaId(raw.photo.full) } : null;
     return { ok: true, value: {
       id: /^w_[a-z0-9]{3,24}$/.test(String(raw.id || '')) ? String(raw.id) : '',
       date, type: isActivity(raw.type) ? raw.type : 'other', label: cleanStr(raw.label, 40),
       mins: clamp(mins, 1, 600), effort: EFFORTS.includes(raw.effort) ? raw.effort : 'moderate',
       kcal, manual: raw.manual === true && kcal > 0, session: cleanStr(raw.session, 40), note: cleanStr(raw.note, 200),
       km: Number.isFinite(Number(raw.km)) ? Math.round(clamp(Number(raw.km), 0, 1000) * 100) / 100 : 0,
+      photo,
     } };
   }
   const workoutName = (w) => w.label || (isActivity(w.type) ? ACTIVITIES[w.type] : ACTIVITIES.other).name;

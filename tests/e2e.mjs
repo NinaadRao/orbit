@@ -744,6 +744,57 @@ async function main() {
     eq(st.linked, 0); ok(st.sets < beforeSets, 'the workout\'s sets are gone');
   });
 
+  await step('activity: "This week" lists each planned day, and tapping one previews its exercises', async () => {
+    await route(page, '#/activity');
+    const rows = page.locator('.card', { hasText: 'This week' }).locator('.listrow');
+    const n = await rows.count();
+    ok(n > 0, 'at least one planned day shows this week');
+    await rows.first().click();
+    await page.waitForSelector('.sheet-title');
+    const sheetText = await page.locator('#sheets').innerText();
+    ok(/Targets shown are for week \d+ of the plan/.test(sheetText), 'shows the week-targets note');
+    ok(/exercise/.test(sheetText), 'lists how many exercises');
+    // no raw macro/logging fields here: it is a read-only look at what the day involves
+    eq(await page.locator('#sheets').getByLabel('Calories').count(), 0);
+    await page.locator('#sheets').getByRole('button', { name: 'Close' }).click();
+  });
+
+  await step('activity: an optional photo can be attached to a workout, previewed in History, and removed', async () => {
+    await route(page, '#/activity');
+    await page.getByRole('button', { name: 'Log a workout' }).first().click();
+    const sh = page.locator('#sheets');
+    await sh.getByLabel('Activity', { exact: true }).selectOption('swimming');
+    await sh.getByLabel('How long').fill('30');
+    const png = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 200; c.height = 200; const x = c.getContext('2d'); x.fillStyle = '#2a5'; x.fillRect(0, 0, 200, 200);
+      const b = await new Promise((res) => c.toBlob(res, 'image/png'));
+      return Array.from(new Uint8Array(await b.arrayBuffer()));
+    });
+    await sh.getByLabel('Choose a photo for this workout').setInputFiles({ name: 'pool.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+    await page.waitForSelector('.attachprev:not(.hidden)');
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText(/^Logged ~\d/).first().waitFor();
+    const w = await page.evaluate(() => Store.getState().workouts.filter((x) => x.type === 'swimming').pop());
+    ok(w.photo && w.photo.thumb && w.photo.full, 'photo ids saved on the workout');
+    const media = await page.evaluate(async (ids) => {
+      const t = await Store.getMedia(ids[0]), f = await Store.getMedia(ids[1]);
+      return { hasT: !!t, hasF: !!f, type: t && t.type, tk: t && t.kind, fk: f && f.kind };
+    }, [w.photo.thumb, w.photo.full]);
+    ok(media.hasT && media.hasF, 'both compressed copies are stored');
+    eq([media.tk, media.fk], ['thumb', 'full']);
+    eq(media.type, 'image/jpeg', 'recompressed to JPEG, stripping any metadata');
+    await route(page, '#/activity');
+    await page.locator('.card', { hasText: 'History' }).locator('img.attachthumb').first().waitFor();
+    await page.locator('.card', { hasText: 'History' }).locator('.listrow').first().click();
+    await sh.getByRole('button', { name: 'Remove photo' }).click();
+    await sh.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForTimeout(300);
+    const w2 = await page.evaluate((id) => Store.getState().workouts.find((x) => x.id === id), w.id);
+    eq(w2.photo, null, 'the photo is off the workout');
+    const gone = await page.evaluate(async (ids) => { const t = await Store.getMedia(ids[0]), f = await Store.getMedia(ids[1]); return !t && !f; }, [w.photo.thumb, w.photo.full]);
+    ok(gone, 'the stored copies are deleted, not left orphaned');
+  });
+
   await step('activity: streaks count active days and weeks, and show on Today, Progress and Activity', async () => {
     const sum = await page.evaluate(() => Engine.activitySummary(Store.getState(), Engine.isoDate(new Date()), 3));
     ok(sum.dayStreak >= 2, 'today and yesterday are active: ' + sum.dayStreak);
